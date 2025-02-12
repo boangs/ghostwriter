@@ -1,23 +1,34 @@
-on: [push]
-
 name: Remarkable Build
+
+on:
+  push:
+    branches:
+      - main  # 如果你只想在 main 分支上触发
+  workflow_dispatch:  # 手动触发配置
 
 jobs:
   remarkable_build:
     name: Remarkable Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: aarch64-unknown-linux-gnu
           override: true
-      - uses: actions-rs/cargo@v1
+
+      - name: Build project
+        uses: actions-rs/cargo@v1
         with:
           use-cross: true
           command: build
           args: --target aarch64-unknown-linux-gnu --release
+
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
