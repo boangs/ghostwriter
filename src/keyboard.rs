@@ -101,9 +101,6 @@ impl Keyboard {
             .unwrap()
             .build()
             .unwrap()
-            .map_err(|e| {
-            eprintln!("Error creating virtual device: {}", e);
-            e
         })
     }
 
