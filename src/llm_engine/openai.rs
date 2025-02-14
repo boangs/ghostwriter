@@ -1,8 +1,8 @@
 use super::LLMEngine;
 use crate::util::{option_or_env, option_or_env_fallback, OptionMap};
 use anyhow::{Result, anyhow};
-use serde_json::{json, Value};
-use ureq::Error;
+use serde_json::{json, Value as json};
+use ureq;
 
 pub struct Tool {
     name: String,
@@ -24,12 +24,12 @@ pub struct OpenAI {
 impl OpenAI {
     fn openai_tool_definition(tool: &Tool) -> json {
         json!({
-                "type": "function",
-                "function": {
-            "name": tool.definition["name"],
-            "description": tool.definition["description"],
-            "parameters": tool.definition["parameters"],
-                }
+            "type": "function",
+            "function": {
+                "name": tool.definition["name"],
+                "description": tool.definition["description"],
+                "parameters": tool.definition["parameters"],
+            }
         })
     }
 
@@ -124,7 +124,7 @@ impl LLMEngine for OpenAI {
 
         match response {
             Ok(response) => {
-                let response_json: Value = response.into_json()?;
+                let response_json: json = response.into_json()?;
                 if let Some(choices) = response_json.get("choices") {
                     if let Some(first) = choices.get(0) {
                         if let Some(message) = first.get("message") {
@@ -141,7 +141,7 @@ impl LLMEngine for OpenAI {
             }
             Err(err) => {
                 if let ureq::Error::Status(code, response) = &err {
-                    match response.into_json::<Value>() {
+                    match response.into_json::<json>() {
                         Ok(error_json) => {
                             Err(anyhow!("API Error ({}): {:?}", code, error_json))
                         }
