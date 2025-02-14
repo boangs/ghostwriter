@@ -206,6 +206,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
     let no_draw = args.no_draw;
     let keyboard_clone = Arc::clone(&keyboard);
     let touch_clone = Arc::clone(&touch);
+    let pen_clone = Arc::clone(&pen);
 
     let tool_config_draw_text = load_config("tool_draw_text.json");
 
@@ -218,12 +219,11 @@ fn ghostwriter(args: &Args) -> Result<()> {
                 std::fs::write(output_file, text).unwrap();
             }
             if !no_draw {
-                // Touch in the middle bottom to make sure we go below any new drawing
-                lock!(touch_clone).touch_start((384, 1000)).unwrap(); // middle bottom
+                lock!(touch_clone).touch_start((384, 1000)).unwrap();
                 lock!(touch_clone).touch_stop().unwrap();
 
                 let mut keyboard = lock!(keyboard_clone);
-                let mut pen = lock!(pen);
+                let mut pen = lock!(pen_clone);
                 draw_text(text, &mut keyboard, &mut pen).unwrap();
             }
         }),
