@@ -18,6 +18,9 @@ pub struct OpenAI {
     api_key: String,
     tools: Vec<Tool>,
     content: Vec<json>,
+    prompt: String,
+    image: Option<String>,
+    response: Option<String>,
 }
 
 impl OpenAI {
@@ -54,6 +57,9 @@ impl LLMEngine for OpenAI {
             api_key,
             tools: Vec::new(),
             content: Vec::new(),
+            prompt: String::new(),
+            image: None,
+            response: None,
         }
     }
 
@@ -85,17 +91,17 @@ impl LLMEngine for OpenAI {
         self.content.clear();
     }
 
-    fn execute(&self, prompt: &str, image: Option<&str>, options: &OptionMap) -> Result<String> {
+    fn execute(&mut self) -> Result<()> {
         let url = format!("{}/v1/chat/completions", self.base_url);
         
         let mut messages = vec![
             json!({
                 "role": "system",
-                "content": prompt
+                "content": &self.prompt
             })
         ];
 
-        if let Some(image_data) = image {
+        if let Some(image_data) = &self.image {
             messages.push(json!({
                 "role": "user",
                 "content": [
@@ -126,7 +132,8 @@ impl LLMEngine for OpenAI {
                         if let Some(message) = first.get("message") {
                             if let Some(content) = message.get("content") {
                                 if let Some(text) = content.as_str() {
-                                    return Ok(text.to_string());
+                                    self.response = Some(text.to_string());
+                                    return Ok(());
                                 }
                             }
                         }
@@ -135,7 +142,6 @@ impl LLMEngine for OpenAI {
                 Err(anyhow!("Invalid API response format: {:?}", response_json))
             }
             Err(err) => {
-                // 尝试解析错误响应
                 if let ureq::Error::Status(code, response) = &err {
                     match response.into_json::<Value>() {
                         Ok(error_json) => {
