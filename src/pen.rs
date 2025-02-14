@@ -78,7 +78,7 @@ impl Pen {
 
     pub fn draw_text(&mut self, text: &str, position: (i32, i32), size: f32) -> Result<()> {
         // 加载字体
-        let font_data = include_bytes!("../assets/DejaVuSans.ttf");
+        let font_data = include_bytes!("../assets/WenQuanYiMicroHei.ttf");
         let font = Font::try_from_bytes(font_data).unwrap();
         
         // 设置字体大小
