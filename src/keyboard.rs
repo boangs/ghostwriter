@@ -101,7 +101,6 @@ impl Keyboard {
             .unwrap()
             .build()
             .unwrap()
-        })
     }
 
     fn create_key_map() -> HashMap<char, (Key, bool)> {
