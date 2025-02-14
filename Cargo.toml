@@ -18,6 +18,7 @@ dotenv = "0.15"
 imageproc = "0.25.0"
 rust-embed = "8.5.0"
 rusttype = "0.9.3"
+nix = "0.26"
 
 [lib]
 name = "ghostwriter"
