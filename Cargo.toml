@@ -16,7 +16,7 @@ clap = { version = "4.0", features = ["derive"] }
 resvg = "0.44.0"
 dotenv = "0.15"
 imageproc = "0.25.0"
-rust-embed="8.5.0"
+rust-embed = "8.5.0"
 rusttype = "0.9.3"
 
 [lib]
