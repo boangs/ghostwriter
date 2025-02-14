@@ -1,11 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use image::GrayImage;
 use std::fs::File;
 use std::io::Write;
 use base64::engine::general_purpose;
+use std::path::Path;
 
-const REMARKABLE_WIDTH: u32 = 768;
-const REMARKABLE_HEIGHT: u32 = 1024;
+// 这些值需要根据实际设备进行调整
+const REMARKABLE_WIDTH: u32 = 1404;   // 请确认实际分辨率
+const REMARKABLE_HEIGHT: u32 = 1872;  // 请确认实际分辨率
 
 pub struct Screenshot {
     data: Vec<u8>,
@@ -13,9 +15,20 @@ pub struct Screenshot {
 
 impl Screenshot {
     pub fn new() -> Result<Self> {
-        // 由于没有 xochitl 进程和 fb0，我们返回一个空白图像
-        let data = Self::create_blank_image()?;
-        Ok(Self { data })
+        // 检查是否是 remarkable paper pro
+        if Path::new("/sys/devices/platform/cumulus-panel").exists() {
+            println!("Detected remarkable paper pro");
+            
+            // TODO: 尝试其他方法获取屏幕内容
+            // 1. 检查 /dev/mem 是否可访问
+            // 2. 检查是否有其他显示相关的设备文件
+            // 3. 检查是否有其他方式获取屏幕内容
+            
+            let data = Self::create_blank_image()?;
+            Ok(Self { data })
+        } else {
+            Err(anyhow!("Unsupported device or missing required drivers"))
+        }
     }
 
     fn create_blank_image() -> Result<Vec<u8>> {
@@ -34,7 +47,7 @@ impl Screenshot {
     pub fn save_image(&self, filename: &str) -> Result<()> {
         let mut png_file = File::create(filename)?;
         png_file.write_all(&self.data)?;
-        println!("PNG image saved to {}", filename);
+        println!("Image saved to {} (blank image for now)", filename);
         Ok(())
     }
 
