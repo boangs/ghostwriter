@@ -119,12 +119,11 @@ macro_rules! lock {
    ($x:expr) => { $x.lock().unwrap() }
 }
 
-fn draw_text(text: &str, keyboard: &mut Keyboard) -> Result<()> {
+fn draw_text(text: &str, keyboard: &mut Keyboard, pen: &mut Pen) -> Result<()> {
     keyboard.progress()?;
+    // 使用 pen 来绘制文本
+    pen.draw_text(text, (100, 100), 24.0)?;
     keyboard.progress_end()?;
-    keyboard.key_cmd_body()?;
-    keyboard.string_to_keypresses(text)?;
-    keyboard.string_to_keypresses("\n\n")?;
     Ok(())
 }
 
@@ -225,7 +224,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
 
                 let mut keyboard = lock!(keyboard_clone);
 
-                draw_text(text, &mut keyboard).unwrap();
+                draw_text(text, &mut keyboard, &mut pen).unwrap();
             }
         }),
     );
