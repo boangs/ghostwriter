@@ -52,14 +52,37 @@ impl Screenshot {
     }
 
     fn capture_from_fpga() -> Result<Vec<u8>> {
-        let mut file = File::open(FPGA_DEVICE)?;
+        let mut file = match File::open(FPGA_DEVICE) {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to open FPGA device {}: {} (errno={})", 
+                    FPGA_DEVICE, 
+                    e,
+                    e.raw_os_error().unwrap_or(-1)
+                ));
+            }
+        };
+        
         let mut raw_data = vec![0u8; FRAMEBUFFER_SIZE];
         
         // 发送读取帧缓冲区的命令
-        file.write_all(&[0x00])?; // 假设 0x00 是读取命令
+        if let Err(e) = file.write_all(&[0x00]) {
+            return Err(anyhow!(
+                "Failed to send command to FPGA: {} (errno={})",
+                e,
+                e.raw_os_error().unwrap_or(-1)
+            ));
+        }
         
         // 读取帧缓冲区数据
-        file.read_exact(&mut raw_data)?;
+        if let Err(e) = file.read_exact(&mut raw_data) {
+            return Err(anyhow!(
+                "Failed to read frame buffer from FPGA: {} (errno={})",
+                e,
+                e.raw_os_error().unwrap_or(-1)
+            ));
+        }
         
         Ok(raw_data)
     }

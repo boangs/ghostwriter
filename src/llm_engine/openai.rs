@@ -85,68 +85,70 @@ impl LLMEngine for OpenAI {
         self.content.clear();
     }
 
-    fn execute(&mut self) -> Result<()> {
-        let body = json!({
-            "model": self.model,
-            "messages": [{
+    fn execute(&self, prompt: &str, image: Option<&str>, options: &OptionMap) -> Result<String> {
+        let url = format!("{}/v1/chat/completions", self.base_url);
+        
+        let mut messages = vec![
+            json!({
+                "role": "system",
+                "content": prompt
+            })
+        ];
+
+        if let Some(image_data) = image {
+            messages.push(json!({
                 "role": "user",
-                "content": self.content
-            }],
-            "tools": self.tools.iter().map(|tool| Self::openai_tool_definition(tool)).collect::<Vec<_>>(),
-            "tool_choice": "required",
-            "parallel_tool_calls": false
-        });
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": format!("data:image/png;base64,{}", image_data)
+                        }
+                    }
+                ]
+            }));
+        }
 
-        // print body for debugging
-        // println!("Request: {}", body);
-        let raw_response = ureq::post(format!("{}/v1/chat/completions", self.base_url).as_str())
+        let response = ureq::post(&url)
             .set("Authorization", &format!("Bearer {}", self.api_key))
-            .set("Content-Type", "application/json")
-            .send_json(&body);
+            .send_json(json!({
+                "model": self.model.clone(),
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 2000
+            }));
 
-        let response = match raw_response {
-            Ok(response) => response,
-            Err(Error::Status(code, response)) => {
-                println!("Error: {}", code);
-                let json: json = response.into_json()?;
-                println!("Response: {}", json);
-                return Err(anyhow::anyhow!("API ERROR"));
-            }
-            Err(_) => return Err(anyhow::anyhow!("OTHER API ERROR")),
-        };
-
-        let json: json = response.into_json().unwrap();
-        // println!("Response: {}", json);
-
-        let tool_calls = &json["choices"][0]["message"]["tool_calls"];
-
-        if let Some(tool_call) = tool_calls.get(0) {
-            let function_name = tool_call["function"]["name"].as_str().unwrap();
-            let function_input_raw = tool_call["function"]["arguments"].as_str().unwrap();
-            let function_input = serde_json::from_str::<json>(function_input_raw).unwrap();
-            let tool = self
-                .tools
-                .iter_mut()
-                .find(|tool| tool.name == function_name);
-
-            if let Some(tool) = tool {
-                if let Some(callback) = &mut tool.callback {
-                    callback(function_input.clone());
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!(
-                        "No callback registered for tool {}",
-                        function_name
-                    ))
+        match response {
+            Ok(response) => {
+                let response_json: Value = response.into_json()?;
+                if let Some(choices) = response_json.get("choices") {
+                    if let Some(first) = choices.get(0) {
+                        if let Some(message) = first.get("message") {
+                            if let Some(content) = message.get("content") {
+                                if let Some(text) = content.as_str() {
+                                    return Ok(text.to_string());
+                                }
+                            }
+                        }
+                    }
                 }
-            } else {
-                Err(anyhow::anyhow!(
-                    "No tool registered with name {}",
-                    function_name
-                ))
+                Err(anyhow!("Invalid API response format: {:?}", response_json))
             }
-        } else {
-            Err(anyhow::anyhow!("No tool calls found in response"))
+            Err(err) => {
+                // 尝试解析错误响应
+                if let ureq::Error::Status(code, response) = &err {
+                    match response.into_json::<Value>() {
+                        Ok(error_json) => {
+                            Err(anyhow!("API Error ({}): {:?}", code, error_json))
+                        }
+                        Err(_) => {
+                            Err(anyhow!("API Error ({}): {}", code, err))
+                        }
+                    }
+                } else {
+                    Err(anyhow!("Network Error: {}", err))
+                }
+            }
         }
     }
 }
