@@ -2,9 +2,9 @@ use anyhow::{Result, anyhow};
 use image::GrayImage;
 use image::ImageEncoder;
 use std::fs::File;
-use std::io::{Write, Read};
-use base64::engine::general_purpose;
+use std::io::Write;
 use std::path::Path;
+use base64::engine::general_purpose;
 use base64::Engine;
 
 const REMARKABLE_WIDTH: u32 = 1404;
@@ -56,7 +56,7 @@ impl Screenshot {
             img.as_raw(),
             REMARKABLE_WIDTH,
             REMARKABLE_HEIGHT,
-            image::ColorType::L8,
+            image::ExtendedColorType::L8,
         )?;
         Ok(png_data)
     }
