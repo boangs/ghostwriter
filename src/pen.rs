@@ -123,7 +123,7 @@ impl Pen {
     }
 
     pub fn pen_down(&mut self) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             device.send_events(&[
                 InputEvent::new(EventType::ABSOLUTE, ABS_PRESSURE, 1000),
                 InputEvent::new(EventType::SYNCHRONIZATION, SYN_REPORT, 0),
@@ -133,7 +133,7 @@ impl Pen {
     }
 
     pub fn pen_up(&mut self) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             device.send_events(&[
                 InputEvent::new(EventType::ABSOLUTE, ABS_PRESSURE, 0),
                 InputEvent::new(EventType::SYNCHRONIZATION, SYN_REPORT, 0),
@@ -143,7 +143,7 @@ impl Pen {
     }
 
     pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             device.send_events(&[
                 InputEvent::new(EventType::ABSOLUTE, ABS_X, x as i32),
                 InputEvent::new(EventType::ABSOLUTE, ABS_Y, y as i32),
