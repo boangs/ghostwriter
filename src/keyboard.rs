@@ -6,7 +6,7 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new(no_draw: bool, no_draw_progress: bool) -> Self {
+    pub fn new(_no_draw: bool, no_draw_progress: bool) -> Self {
         Self {
             no_draw_progress,
             progress_count: 0,

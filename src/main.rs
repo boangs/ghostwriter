@@ -223,7 +223,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
                 lock!(touch_clone).touch_stop().unwrap();
 
                 let mut keyboard = lock!(keyboard_clone);
-
+                let mut pen = lock!(pen);
                 draw_text(text, &mut keyboard, &mut pen).unwrap();
             }
         }),
