@@ -7,6 +7,7 @@ use std::path::Path;
 use base64::engine::general_purpose;
 use base64::Engine;
 use std::io::Read;
+use std::fs::OpenOptions;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -52,9 +53,14 @@ impl Screenshot {
     }
 
     fn capture_from_fpga() -> Result<Vec<u8>> {
-        let mut file = match File::open(FPGA_DEVICE) {
+        let mut file = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(FPGA_DEVICE) {
             Ok(f) => f,
             Err(e) => {
+                println!("FPGA device path: {}", FPGA_DEVICE);  // 打印设备路径以便调试
+                println!("Current user: {:?}", std::env::var("USER"));  // 打印当前用户
                 return Err(anyhow!(
                     "Failed to open FPGA device {}: {} (errno={})", 
                     FPGA_DEVICE, 
