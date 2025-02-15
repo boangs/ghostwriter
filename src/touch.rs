@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
-use std::time::Duration;
+use nix::sys::time::TimeVal;
 
 const TOUCH_INPUT_DEVICE: &str = "/dev/input/event1";
 
@@ -57,9 +57,8 @@ impl Touch {
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
-            // 设置超时时间为 100ms
-            let timeout = Duration::from_millis(100);
-            let mut timeout = nix::sys::time::TimeVal::from(timeout);
+            // 创建 TimeVal，设置为 100ms
+            let timeout = TimeVal::new(0, 100_000);  // 0秒 100,000微秒 = 100ms
             
             match select(
                 fd + 1,
@@ -84,10 +83,24 @@ impl Touch {
                     };
                     
                     if device.read_exact(event_slice).is_ok() {
+                        println!("触摸事件: type={}, code={}, value={}", 
+                            event.type_, event.code, event.value);
+                        
                         // 检查是否是右上角的触摸
-                        // TODO: 根据实际坐标范围调整
-                        if event.type_ == 3 && event.code == 0 && event.value > 1300 {
-                            return Ok(true);
+                        if event.type_ == 3 {  // EV_ABS
+                            match event.code {
+                                0 => {  // ABS_X
+                                    if event.value > 1300 {
+                                        return Ok(true);
+                                    }
+                                },
+                                1 => {  // ABS_Y
+                                    if event.value < 200 {
+                                        return Ok(true);
+                                    }
+                                },
+                                _ => {}
+                            }
                         }
                     }
                 }
