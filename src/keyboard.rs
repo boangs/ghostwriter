@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crate::pen::Pen;
 
 pub struct Keyboard {
     no_draw_progress: bool,

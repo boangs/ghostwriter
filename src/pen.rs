@@ -3,7 +3,7 @@ use rusttype::{Font, Scale, Point};
 use std::thread::sleep;
 use std::time::Duration;
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Write, Seek, SeekFrom};
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;

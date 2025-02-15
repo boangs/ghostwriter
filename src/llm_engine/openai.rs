@@ -97,22 +97,12 @@ impl LLMEngine for OpenAI {
             json!({
                 "role": "system",
                 "content": &self.prompt
+            }),
+            json!({
+                "role": "user",
+                "content": self.content
             })
         ];
-
-        if let Some(image_data) = &self.image {
-            messages.push(json!({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": format!("data:image/png;base64,{}", image_data)
-                        }
-                    }
-                ]
-            }));
-        }
 
         let response = ureq::post(&url)
             .set("Authorization", &format!("Bearer {}", self.api_key))
