@@ -5,7 +5,7 @@ use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
 use nix::sys::time::TimeVal;
 
-const TOUCH_INPUT_DEVICE: &str = "/dev/input/event1";
+const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";
 
 #[repr(C)]
 #[derive(Debug)]
@@ -85,7 +85,10 @@ impl Touch {
                         println!("触摸事件: type={}, code={}, value={}", 
                             event.type_, event.code, event.value);
                         
-                        if event.type_ == 3 {  // EV_ABS
+                        // 检查是否是触摸事件
+                        if event.type_ == 1 {  // EV_KEY
+                            println!("按键事件");
+                        } else if event.type_ == 3 {  // EV_ABS
                             match event.code {
                                 0 => {  // ABS_X
                                     self.last_x = event.value;
@@ -99,12 +102,6 @@ impl Touch {
                                     println!("压力值: {}", event.value);
                                 },
                                 _ => {}
-                            }
-                            
-                            // 检查是否是右上角的触摸
-                            if self.last_x > 1300 && self.last_y < 200 {
-                                println!("检测到右上角触摸！({}, {})", self.last_x, self.last_y);
-                                return Ok(true);
                             }
                         }
                     }
