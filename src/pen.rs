@@ -4,6 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
+use std::process::Command;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -16,10 +17,19 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
+        // 在访问 framebuffer 之前先停止 xochitl
+        if !no_draw {
+            Command::new("systemctl")
+                .args(["stop", "xochitl"])
+                .output()
+                .ok();
+        }
+
         let framebuffer = if !no_draw {
             OpenOptions::new()
+                .read(true)
                 .write(true)
-                .open(FB_DEVICE)
+                .open("/dev/fb0")
                 .ok()
         } else {
             None
@@ -28,6 +38,16 @@ impl Pen {
         Self {
             no_draw,
             framebuffer,
+        }
+    }
+
+    pub fn cleanup(&mut self) {
+        // 在程序结束时重启 xochitl
+        if !self.no_draw {
+            Command::new("systemctl")
+                .args(["start", "xochitl"])
+                .output()
+                .ok();
         }
     }
 
@@ -94,5 +114,11 @@ impl Pen {
             fb.flush()?;
         }
         Ok(())
+    }
+}
+
+impl Drop for Pen {
+    fn drop(&mut self) {
+        self.cleanup();
     }
 }
