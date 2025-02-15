@@ -3,6 +3,7 @@ use crate::util::{option_or_env, option_or_env_fallback, OptionMap};
 use anyhow::{Result, anyhow};
 use serde_json::{json, Value as json};
 use ureq;
+use ureq::Error;
 
 pub struct Tool {
     name: String,
