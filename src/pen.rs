@@ -2,15 +2,33 @@ use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::thread::sleep;
 use std::time::Duration;
+use std::fs::OpenOptions;
+use std::io::Write;
 
-const REMARKABLE_WIDTH: u32 = 768;
-const REMARKABLE_HEIGHT: u32 = 1024;
+const REMARKABLE_WIDTH: u32 = 1404;
+const REMARKABLE_HEIGHT: u32 = 1872;
+const FB_DEVICE: &str = "/dev/fb0";
 
-pub struct Pen;
+pub struct Pen {
+    no_draw: bool,
+    framebuffer: Option<std::fs::File>,
+}
 
 impl Pen {
-    pub fn new(_no_draw: bool) -> Self {
-        Self
+    pub fn new(no_draw: bool) -> Self {
+        let framebuffer = if !no_draw {
+            OpenOptions::new()
+                .write(true)
+                .open(FB_DEVICE)
+                .ok()
+        } else {
+            None
+        };
+        
+        Self {
+            no_draw,
+            framebuffer,
+        }
     }
 
     pub fn draw_text(&mut self, text: &str, position: (i32, i32), size: f32) -> Result<()> {
@@ -30,13 +48,33 @@ impl Pen {
                     if v > 0.1 {
                         let x = outline.min.x as i32 + x as i32;
                         let y = outline.min.y as i32 + y as i32;
-                        println!("Draw pixel at ({}, {})", x, y);
+                        self.draw_pixel(x, y);
                     }
                 });
             }
         }
         
         Ok(())
+    }
+
+    fn draw_pixel(&mut self, x: i32, y: i32) {
+        if x < 0 || y < 0 || x >= REMARKABLE_WIDTH as i32 || y >= REMARKABLE_HEIGHT as i32 {
+            return;
+        }
+
+        println!("Draw pixel at ({}, {})", x, y);
+        
+        if let Some(fb) = &mut self.framebuffer {
+            let offset = (y as u32 * REMARKABLE_WIDTH + x as u32) as u64;
+            if let Err(e) = fb.seek(std::io::SeekFrom::Start(offset)) {
+                println!("Failed to seek framebuffer: {}", e);
+                return;
+            }
+            
+            if let Err(e) = fb.write_all(&[0x00]) {
+                println!("Failed to write to framebuffer: {}", e);
+            }
+        }
     }
 
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
