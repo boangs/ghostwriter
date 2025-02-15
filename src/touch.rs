@@ -1,11 +1,10 @@
 use anyhow::Result;
-use std::fs::File;
-use std::io::Read;
+use std::fs::{File, read_dir};
+use std::io::{Read, Write};
 use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
 use nix::sys::time::TimeVal;
-
-const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";
+use std::path::Path;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -26,15 +25,46 @@ pub struct Touch {
 
 impl Touch {
     pub fn new(no_draw: bool) -> Self {
-        println!("尝试打开触摸设备: {}", TOUCH_INPUT_DEVICE);
+        println!("扫描输入设备...");
+        
+        // 列出所有输入设备
+        if let Ok(entries) = read_dir("/dev/input") {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name() {
+                        if let Some(name_str) = name.to_str() {
+                            // 尝试获取设备信息
+                            if let Ok(mut file) = File::open(&path) {
+                                let mut info = [0u8; 256];
+                                unsafe {
+                                    let result = libc::ioctl(
+                                        file.as_raw_fd(),
+                                        libc::EVIOCGNAME(info.len() as u32),
+                                        info.as_mut_ptr() as *mut libc::c_void,
+                                    );
+                                    if result >= 0 {
+                                        let device_name = String::from_utf8_lossy(&info[..result as usize]);
+                                        println!("设备: {} - {}", name_str, device_name.trim_matches(char::from(0)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 尝试打开 touchscreen0
+        println!("尝试打开触摸屏设备: /dev/input/touchscreen0");
         let input_device = if !no_draw {
-            match File::open(TOUCH_INPUT_DEVICE) {
+            match File::open("/dev/input/touchscreen0") {
                 Ok(file) => {
-                    println!("成功打开触摸设备");
+                    println!("成功打开触摸屏设备");
                     Some(file)
                 },
                 Err(e) => {
-                    println!("打开触摸设备失败: {}", e);
+                    println!("打开触摸屏设备失败: {}", e);
                     None
                 }
             }
@@ -81,36 +111,14 @@ impl Touch {
                     };
                     
                     if device.read_exact(event_slice).is_ok() {
-                        // 输出所有触摸事件的详细信息
-                        println!("触摸事件: type={}, code={}, value={}", 
+                        // 输出所有事件的详细信息
+                        println!("输入事件: type={}, code={}, value={}", 
                             event.type_, event.code, event.value);
-                        
-                        // 检查是否是触摸事件
-                        if event.type_ == 1 {  // EV_KEY
-                            println!("按键事件");
-                        } else if event.type_ == 3 {  // EV_ABS
-                            match event.code {
-                                0 => {  // ABS_X
-                                    self.last_x = event.value;
-                                    println!("X坐标: {}", self.last_x);
-                                },
-                                1 => {  // ABS_Y
-                                    self.last_y = event.value;
-                                    println!("Y坐标: {}", self.last_y);
-                                },
-                                24 => {  // ABS_PRESSURE
-                                    println!("压力值: {}", event.value);
-                                },
-                                _ => {}
-                            }
-                        }
                     }
                 }
                 Ok(_) => (),  // 超时，继续等待
                 Err(e) => println!("Select error: {}", e),
             }
-        } else {
-            println!("触摸设备未打开");
         }
         Ok(false)
     }
