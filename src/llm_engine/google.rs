@@ -18,6 +18,7 @@ pub struct Google {
     api_key: String,
     tools: Vec<Tool>,
     content: Vec<json>,
+    response: Option<String>,
 }
 
 impl Google {
@@ -51,6 +52,7 @@ impl LLMEngine for Google {
             api_key,
             tools: Vec::new(),
             content: Vec::new(),
+            response: None,
         }
     }
 
@@ -144,5 +146,9 @@ impl LLMEngine for Google {
         } else {
             Err(anyhow::anyhow!("No tool calls found in response"))
         }
+    }
+
+    fn get_response(&self) -> Option<String> {
+        self.response.clone()
     }
 }

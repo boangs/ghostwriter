@@ -18,6 +18,7 @@ pub struct Anthropic {
     base_url: String,
     tools: Vec<Tool>,
     content: Vec<json>,
+    response: Option<String>,
 }
 
 impl Anthropic {
@@ -50,6 +51,7 @@ impl LLMEngine for Anthropic {
             api_key,
             tools: Vec::new(),
             content: Vec::new(),
+            response: None,
         }
     }
 
@@ -147,5 +149,9 @@ impl LLMEngine for Anthropic {
         } else {
             Err(anyhow::anyhow!("No tool calls found in response"))
         }
+    }
+
+    fn get_response(&self) -> Option<String> {
+        self.response.clone()
     }
 }
