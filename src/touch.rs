@@ -22,7 +22,8 @@ pub struct Touch {
     input_device: Option<File>,
     last_x: i32,
     last_y: i32,
-    is_touching: bool,
+    touch_started: bool,
+    touch_complete: bool,
 }
 
 impl Touch {
@@ -35,8 +36,7 @@ impl Touch {
                     Some(file)
                 },
                 Err(e) => {
-                    println!("打开触摸设备失败: {} (errno={})", 
-                        e, e.raw_os_error().unwrap_or(-1));
+                    println!("打开触摸设备失败: {}", e);
                     None
                 }
             }
@@ -49,7 +49,8 @@ impl Touch {
             input_device,
             last_x: 0,
             last_y: 0,
-            is_touching: false,
+            touch_started: false,
+            touch_complete: false,
         }
     }
 
@@ -59,15 +60,9 @@ impl Touch {
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
-            let mut timeout = TimeVal::new(0, 100_000);  // 100ms timeout
+            let mut timeout = TimeVal::new(0, 100_000);
             
-            match select(
-                fd + 1,
-                Some(&mut fd_set),
-                None,
-                None,
-                Some(&mut timeout),
-            ) {
+            match select(fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
                 Ok(n) if n > 0 => {
                     let mut event = InputEvent {
                         tv_sec: 0,
@@ -84,40 +79,45 @@ impl Touch {
                     };
                     
                     if device.read_exact(event_slice).is_ok() {
-                        // 处理触摸事件
                         match event.type_ {
                             3 => {  // EV_ABS
                                 match event.code {
                                     53 => {  // ABS_MT_POSITION_X
                                         self.last_x = event.value;
-                                        // println!("X: {}", self.last_x);
                                     },
                                     54 => {  // ABS_MT_POSITION_Y
                                         self.last_y = event.value;
-                                        // println!("Y: {}", self.last_y);
                                     },
-                                    48 => {  // ABS_MT_PRESSURE
-                                        self.is_touching = event.value > 0;
-                                        // println!("压力: {}", event.value);
+                                    57 => {  // ABS_MT_TRACKING_ID
+                                        if event.value == -1 {
+                                            self.touch_complete = true;
+                                        } else {
+                                            self.touch_started = true;
+                                            self.touch_complete = false;
+                                        }
                                     },
                                     _ => {}
                                 }
                             },
                             0 => {  // EV_SYN
-                                // 同步事件，表示一个完整的触摸事件
-                                if self.is_touching {
-                                    // 检查是否在右上角区域
-                                    if self.last_x > 1200 && self.last_y < 200 {
-                                        println!("右上角触摸: ({}, {})", self.last_x, self.last_y);
+                                if self.touch_complete {
+                                    println!("触摸结束: ({}, {})", self.last_x, self.last_y);
+                                    // 检查是否在右上角区域 (1800-2048, 0-200)
+                                    if self.last_x > 1800 && self.last_x <= 2048 && 
+                                       self.last_y >= 0 && self.last_y < 200 {
+                                        self.touch_started = false;
+                                        self.touch_complete = false;
                                         return Ok(true);
                                     }
+                                    self.touch_started = false;
+                                    self.touch_complete = false;
                                 }
                             },
                             _ => {}
                         }
                     }
                 }
-                Ok(_) => (),  // 超时，继续等待
+                Ok(_) => (),
                 Err(e) => println!("Select error: {}", e),
             }
         }
