@@ -66,12 +66,12 @@ impl Pen {
         
         if let Some(fb) = &mut self.framebuffer {
             let offset = (y as u32 * REMARKABLE_WIDTH + x as u32) as u64;
-            if let Err(e) = fb.seek(std::io::SeekFrom::Start(offset)) {
+            if let Err(e) = fb.seek(SeekFrom::Start(offset)) {
                 println!("Failed to seek framebuffer: {}", e);
                 return;
             }
             
-            if let Err(e) = fb.write_all(&[0x00]) {
+            if let Err(e) = fb.write_all(&[0xFF]) {
                 println!("Failed to write to framebuffer: {}", e);
             }
         }
@@ -85,6 +85,13 @@ impl Pen {
                 }
             }
             sleep(Duration::from_millis(5));
+        }
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        if let Some(fb) = &mut self.framebuffer {
+            fb.flush()?;
         }
         Ok(())
     }

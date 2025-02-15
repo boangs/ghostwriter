@@ -202,92 +202,45 @@ fn ghostwriter(args: &Args) -> Result<()> {
         _ => panic!("Unknown engine {}", engine_name),
     };
 
-    let output_file = args.output_file.clone();
-    let no_draw = args.no_draw;
-    let keyboard_clone = Arc::clone(&keyboard);
-    let touch_clone = Arc::clone(&touch);
-    let pen_clone = Arc::clone(&pen);
-
-    let tool_config_draw_text = load_config("tool_draw_text.json");
-
-    engine.register_tool(
-        "draw_text",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_text.as_str())?,
-        Box::new(move |arguments: json| {
-            let text = arguments["text"].as_str().unwrap();
-            if let Some(output_file) = &output_file {
-                std::fs::write(output_file, text).unwrap();
-            }
-            if !no_draw {
-                lock!(touch_clone).touch_start((384, 1000)).unwrap();
-                lock!(touch_clone).touch_stop().unwrap();
-
-                let mut keyboard = lock!(keyboard_clone);
-                let mut pen = lock!(pen_clone);
-                draw_text(text, &mut keyboard, &mut pen).unwrap();
-            }
-        }),
-    );
-
-    let output_file = args.output_file.clone();
-    let save_bitmap = args.save_bitmap.clone();
-    let no_draw = args.no_draw;
-    let keyboard_clone = Arc::clone(&keyboard);
-    let pen_clone = Arc::clone(&pen);
-
-    let tool_config_draw_svg = load_config("tool_draw_svg.json");
-    engine.register_tool(
-        "draw_svg",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_svg.as_str())?,
-        Box::new(move |arguments: json| {
-            let svg_data = arguments["svg"].as_str().unwrap();
-            if let Some(output_file) = &output_file {
-                std::fs::write(output_file, svg_data).unwrap();
-            }
-            let mut keyboard = lock!(keyboard_clone);
-            let mut pen = lock!(pen_clone);
-            draw_svg(
-                svg_data,
-                &mut keyboard,
-                &mut pen,
-                save_bitmap.as_ref(),
-                no_draw,
-            )
-            .unwrap();
-        }),
-    );
-
-    // 添加测试文本并打印
-    let test_message = "你好";
-    println!("发送给 AI 的消息: {}", test_message);
-    engine.add_text_content(test_message);
+    println!("等待触发（触摸右上角）...");
     
-    // 打印请求详情
-    println!("使用引擎: {}", engine_name);
-    println!("使用模型: {}", model);
-    println!("API URL: {}", engine_options.get("base_url").unwrap_or(&"默认URL".to_string()));
-    
-    // 执行 API 调用
-    if let Err(e) = engine.execute() {
-        println!("API 调用失败: {}", e);
-        return Err(e);
-    }
+    loop {
+        // 等待触摸事件
+        let mut touch = touch.lock().unwrap();
+        if touch.wait_for_touch()? {
+            println!("检测到触摸，开始 AI 交互");
+            
+            // 添加测试文本
+            let test_message = "你好";
+            println!("发送给 AI 的消息: {}", test_message);
+            engine.add_text_content(test_message);
+            
+            // 执行 API 调用
+            if let Err(e) = engine.execute() {
+                println!("API 调用失败: {}", e);
+                continue;
+            }
 
-    // 获取响应并绘制到屏幕上
-    if let Some(response) = engine.get_response() {
-        println!("\nAI 回复: {}", response);
+            // 获取响应并绘制到屏幕上
+            if let Some(response) = engine.get_response() {
+                println!("\nAI 回复: {}", response);
+                
+                let mut keyboard = keyboard.lock().unwrap();
+                let mut pen = pen.lock().unwrap();
+                
+                // 使用更大的字体大小
+                pen.draw_text(&response, (100, 100), 32.0)?;  // 增加字体大小到 32.0
+                
+                // 强制刷新显示
+                if let Some(fb) = &mut pen.framebuffer {
+                    fb.flush()?;
+                }
+            }
+            
+            // 清理内容，准备下一次交互
+            engine.clear_content();
+        }
         
-        // 使用 draw_text 函数
-        let mut keyboard = keyboard.lock().unwrap();
-        let mut pen = pen.lock().unwrap();
-        
-        println!("开始绘制文本...");
-        draw_text(&response, &mut keyboard, &mut pen)?;
-        println!("文本绘制完成");
-        
-        // 等待一下确保绘制完成
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
-
-    Ok(())
 }
