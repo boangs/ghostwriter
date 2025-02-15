@@ -327,7 +327,18 @@ fn ghostwriter(args: &Args) -> Result<()> {
             // 使用 draw_text 函数
             let mut keyboard = keyboard.lock().unwrap();
             let mut pen = pen.lock().unwrap();
+            
+            // 清空屏幕
+            keyboard.clear()?;
+            
+            // 绘制文本
             draw_text(&response, &mut keyboard, &mut pen)?;
+            
+            // 刷新屏幕
+            keyboard.refresh()?;
+            
+            // 等待一下确保刷新完成
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
 }
