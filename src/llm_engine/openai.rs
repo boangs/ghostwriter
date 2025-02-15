@@ -137,21 +137,16 @@ impl LLMEngine for OpenAI {
                         }
                     }
                 }
-                Err(anyhow!("Invalid API response format: {:?}", response_json))
+                println!("Invalid response format: {:?}", response_json);
+                Err(anyhow!("Invalid API response format"))
+            }
+            Err(Error::Status(code, response)) => {
+                println!("Error {}: {:?}", code, response.into_json::<json>()?);
+                Err(anyhow!("API ERROR"))
             }
             Err(err) => {
-                if let ureq::Error::Status(code, response) = err {
-                    match response.into_json::<json>() {
-                        Ok(error_json) => {
-                            Err(anyhow!("API Error ({}): {:?}", code, error_json))
-                        }
-                        Err(_) => {
-                            Err(anyhow!("API Error ({}): {}", code, err))
-                        }
-                    }
-                } else {
-                    Err(anyhow!("Network Error: {}", err))
-                }
+                println!("Network error: {}", err);
+                Err(anyhow!("OTHER API ERROR"))
             }
         }
     }
