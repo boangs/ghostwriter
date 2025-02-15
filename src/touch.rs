@@ -52,13 +52,13 @@ impl Touch {
     }
 
     pub fn wait_for_touch(&mut self) -> Result<bool> {
-        if let Some(device) = &self.input_device {
+        if let Some(device) = &mut self.input_device {
             let fd = device.as_raw_fd();
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
             // 创建 TimeVal，设置为 100ms
-            let timeout = TimeVal::new(0, 100_000);  // 0秒 100,000微秒 = 100ms
+            let mut timeout = TimeVal::new(0, 100_000);  // 0秒 100,000微秒 = 100ms
             
             match select(
                 fd + 1,
