@@ -209,6 +209,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
         let mut touch = touch.lock().unwrap();
         if touch.wait_for_touch()? {
             println!("检测到触摸，开始 AI 交互");
+            drop(touch);  // 释放锁
             
             // 添加测试文本
             let test_message = "你好";
@@ -230,11 +231,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
                 
                 // 使用更大的字体大小
                 pen.draw_text(&response, (100, 100), 32.0)?;  // 增加字体大小到 32.0
-                
-                // 强制刷新显示
-                if let Some(fb) = &mut pen.framebuffer {
-                    fb.flush()?;
-                }
+                pen.flush()?;
             }
             
             // 清理内容，准备下一次交互

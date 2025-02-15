@@ -11,7 +11,7 @@ const FB_DEVICE: &str = "/dev/fb0";
 
 pub struct Pen {
     no_draw: bool,
-    framebuffer: Option<std::fs::File>,
+    pub framebuffer: Option<std::fs::File>,
 }
 
 impl Pen {
