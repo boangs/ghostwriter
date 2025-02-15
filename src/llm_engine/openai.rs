@@ -151,4 +151,8 @@ impl LLMEngine for OpenAI {
             }
         }
     }
+
+    fn get_response(&self) -> Option<String> {
+        self.response.clone()
+    }
 }

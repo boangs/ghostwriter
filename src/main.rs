@@ -202,122 +202,23 @@ fn ghostwriter(args: &Args) -> Result<()> {
         _ => panic!("Unknown engine {}", engine_name),
     };
 
-    let output_file = args.output_file.clone();
-    let no_draw = args.no_draw;
-    let keyboard_clone = Arc::clone(&keyboard);
-    let touch_clone = Arc::clone(&touch);
-    let pen_clone = Arc::clone(&pen);
-
-    let tool_config_draw_text = load_config("tool_draw_text.json");
-
-    engine.register_tool(
-        "draw_text",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_text.as_str())?,
-        Box::new(move |arguments: json| {
-            let text = arguments["text"].as_str().unwrap();
-            if let Some(output_file) = &output_file {
-                std::fs::write(output_file, text).unwrap();
-            }
-            if !no_draw {
-                lock!(touch_clone).touch_start((384, 1000)).unwrap();
-                lock!(touch_clone).touch_stop().unwrap();
-
-                let mut keyboard = lock!(keyboard_clone);
-                let mut pen = lock!(pen_clone);
-                draw_text(text, &mut keyboard, &mut pen).unwrap();
-            }
-        }),
-    );
-
-    let output_file = args.output_file.clone();
-    let save_bitmap = args.save_bitmap.clone();
-    let no_draw = args.no_draw;
-    let keyboard_clone = Arc::clone(&keyboard);
-    let pen_clone = Arc::clone(&pen);
-
-    let tool_config_draw_svg = load_config("tool_draw_svg.json");
-    engine.register_tool(
-        "draw_svg",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_svg.as_str())?,
-        Box::new(move |arguments: json| {
-            let svg_data = arguments["svg"].as_str().unwrap();
-            if let Some(output_file) = &output_file {
-                std::fs::write(output_file, svg_data).unwrap();
-            }
-            let mut keyboard = lock!(keyboard_clone);
-            let mut pen = lock!(pen_clone);
-            draw_svg(
-                svg_data,
-                &mut keyboard,
-                &mut pen,
-                save_bitmap.as_ref(),
-                no_draw,
-            )
-            .unwrap();
-        }),
-    );
-
-    loop {
-        if args.no_trigger {
-            println!("Skipping waiting for trigger");
-        } else {
-            println!("Waiting for trigger (hand-touch in the upper-right corner)...");
-            lock!(touch).wait_for_trigger()?;
-        }
-
-        lock!(keyboard).progress()?;
-
-        let base64_image = if let Some(input_png) = &args.input_png {
-            BASE64_STANDARD.encode(std::fs::read(input_png)?)
-        } else {
-            let screenshot = Screenshot::new()?;
-            if let Some(save_screenshot) = &args.save_screenshot {
-                screenshot.save_image(save_screenshot)?;
-            }
-            screenshot.base64()?
-        };
-        lock!(keyboard).progress()?;
-
-        if args.no_submit {
-            println!("Image not submitted to OpenAI due to --no-submit flag");
-            lock!(keyboard).progress_end()?;
-            return Ok(());
-        }
-
-        let segmentation_description = if args.apply_segmentation {
-            let input_filename = args
-                .input_png
-                .clone()
-                .unwrap_or(args.save_screenshot.clone().unwrap());
-            match analyze_image(input_filename.as_str()) {
-                Ok(description) => description,
-                Err(e) => format!("Error analyzing image: {}", e),
-            }
-        } else {
-            String::new()
-        };
-        // println!("Segmentation description: {}", segmentation_description);
-
-        let prompt_general_raw = load_config(&args.prompt);
-        let prompt_general_json =
-            serde_json::from_str::<serde_json::Value>(prompt_general_raw.as_str())?;
-        let prompt = prompt_general_json["prompt"].as_str().unwrap();
-
-        engine.clear_content();
-        engine.add_text_content(prompt);
-
-        if args.apply_segmentation {
-            engine.add_text_content(
-               format!("Here are interesting regions based on an automatic segmentation algorithm. Use them to help identify the exact location of interesting features.\n\n{}", segmentation_description).as_str()
-            );
-        }
-
-        engine.add_image_content(&base64_image);
-
-        engine.execute()?;
-
-        if args.no_loop {
-            break Ok(());
-        }
+    // 添加测试文本
+    engine.add_text_content("你好");
+    
+    // 执行 API 调用
+    if let Err(e) = engine.execute() {
+        println!("API 调用失败: {}", e);
+        return Err(e);
     }
+
+    // 获取响应并绘制到屏幕上
+    if let Some(response) = engine.get_response() {
+        println!("AI 回复: {}", response);
+        
+        // 使用 keyboard 绘制文本
+        let mut keyboard = keyboard.lock().unwrap();
+        keyboard.draw_text(&response, 100, 100)?;  // 从坐标 (100,100) 开始绘制
+    }
+
+    Ok(())
 }

@@ -15,4 +15,5 @@ pub trait LLMEngine {
     fn add_image_content(&mut self, base64_image: &str);
     fn clear_content(&mut self);
     fn execute(&mut self) -> Result<()>;
+    fn get_response(&self) -> Option<String>;
 }
