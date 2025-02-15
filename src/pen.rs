@@ -1,7 +1,5 @@
 use anyhow::Result;
 use rusttype::{Font, Scale, Point};
-use std::thread::sleep;
-use std::time::Duration;
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
 use std::process::Command;
@@ -17,19 +15,12 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        // 在访问 framebuffer 之前先停止 xochitl
-        if !no_draw {
-            Command::new("systemctl")
-                .args(["stop", "xochitl"])
-                .output()
-                .ok();
-        }
-
+        // 不再停止 xochitl
         let framebuffer = if !no_draw {
+            // 尝试以只写方式打开帧缓冲区
             OpenOptions::new()
-                .read(true)
                 .write(true)
-                .open("/dev/fb0")
+                .open(FB_DEVICE)
                 .ok()
         } else {
             None
@@ -41,40 +32,25 @@ impl Pen {
         }
     }
 
-    pub fn cleanup(&mut self) {
-        // 在程序结束时重启 xochitl
-        if !self.no_draw {
-            Command::new("systemctl")
-                .args(["start", "xochitl"])
-                .output()
-                .ok();
-        }
-    }
-
     pub fn draw_text(&mut self, text: &str, position: (i32, i32), size: f32) -> Result<()> {
-        let font_data = include_bytes!("../assets/WenQuanYiMicroHei.ttf");
-        let font = Font::try_from_bytes(font_data).unwrap();
+        // 使用 xochitl 的 dbus 接口来绘制文本
+        // 这需要研究 xochitl 的 D-Bus API
+        println!("尝试通过 xochitl 绘制文本: '{}'", text);
         
-        let scale = Scale::uniform(size);
-        let v_metrics = font.v_metrics(scale);
-        let glyphs: Vec<_> = font.layout(text, scale, Point { 
-            x: position.0 as f32, 
-            y: position.1 as f32 + v_metrics.ascent 
-        }).collect();
-        
-        for glyph in glyphs {
-            if let Some(outline) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    if v > 0.1 {
-                        let x = outline.min.x as i32 + x as i32;
-                        let y = outline.min.y as i32 + y as i32;
-                        self.draw_pixel(x, y);
-                    }
-                });
-            }
+        // 临时方案：使用 remarkable-cli 工具
+        let output = Command::new("remarkable-cli")
+            .args(&["write", "--text", text])
+            .output()?;
+            
+        if !output.status.success() {
+            println!("绘制文本失败: {}", String::from_utf8_lossy(&output.stderr));
         }
         
         Ok(())
+    }
+
+    pub fn cleanup(&mut self) {
+        // 不再需要重启 xochitl
     }
 
     fn draw_pixel(&mut self, x: i32, y: i32) {
