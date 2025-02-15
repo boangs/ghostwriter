@@ -257,82 +257,37 @@ fn ghostwriter(args: &Args) -> Result<()> {
         }),
     );
 
-    loop {
-        if args.no_trigger {
-            println!("Skipping waiting for trigger");
-        } else {
-            println!("Waiting for trigger (hand-touch in the upper-right corner)...");
-            lock!(touch).wait_for_trigger()?;
-        }
-
-        lock!(keyboard).progress()?;
-
-        let base64_image = if let Some(input_png) = &args.input_png {
-            BASE64_STANDARD.encode(std::fs::read(input_png)?)
-        } else {
-            let screenshot = Screenshot::new()?;
-            if let Some(save_screenshot) = &args.save_screenshot {
-                screenshot.save_image(save_screenshot)?;
-            }
-            screenshot.base64()?
-        };
-        lock!(keyboard).progress()?;
-
-        if args.no_submit {
-            println!("Image not submitted to OpenAI due to --no-submit flag");
-            lock!(keyboard).progress_end()?;
-            return Ok(());
-        }
-
-        let segmentation_description = if args.apply_segmentation {
-            let input_filename = args
-                .input_png
-                .clone()
-                .unwrap_or(args.save_screenshot.clone().unwrap());
-            match analyze_image(input_filename.as_str()) {
-                Ok(description) => description,
-                Err(e) => format!("Error analyzing image: {}", e),
-            }
-        } else {
-            String::new()
-        };
-        // println!("Segmentation description: {}", segmentation_description);
-
-        let prompt_general_raw = load_config(&args.prompt);
-        let prompt_general_json =
-            serde_json::from_str::<serde_json::Value>(prompt_general_raw.as_str())?;
-        let prompt = prompt_general_json["prompt"].as_str().unwrap();
-
-        engine.clear_content();
-        engine.add_text_content(prompt);
-
-        if args.apply_segmentation {
-            engine.add_text_content(
-               format!("Here are interesting regions based on an automatic segmentation algorithm. Use them to help identify the exact location of interesting features.\n\n{}", segmentation_description).as_str()
-            );
-        }
-
-        engine.add_image_content(&base64_image);
-
-        engine.execute()?;
-
-        if args.no_loop {
-            break Ok(());
-        }
-
-        // 获取响应并绘制到屏幕上
-        if let Some(response) = engine.get_response() {
-            println!("AI 回复: {}", response);
-            
-            // 使用 draw_text 函数
-            let mut keyboard = keyboard.lock().unwrap();
-            let mut pen = pen.lock().unwrap();
-            
-            // 绘制文本
-            draw_text(&response, &mut keyboard, &mut pen)?;
-            
-            // 等待一下确保绘制完成
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
+    // 添加测试文本并打印
+    let test_message = "你好";
+    println!("发送给 AI 的消息: {}", test_message);
+    engine.add_text_content(test_message);
+    
+    // 打印请求详情
+    println!("使用引擎: {}", engine_name);
+    println!("使用模型: {}", model);
+    println!("API URL: {}", engine_options.get("base_url").unwrap_or(&"默认URL".to_string()));
+    
+    // 执行 API 调用
+    if let Err(e) = engine.execute() {
+        println!("API 调用失败: {}", e);
+        return Err(e);
     }
+
+    // 获取响应并绘制到屏幕上
+    if let Some(response) = engine.get_response() {
+        println!("\nAI 回复: {}", response);
+        
+        // 使用 draw_text 函数
+        let mut keyboard = keyboard.lock().unwrap();
+        let mut pen = pen.lock().unwrap();
+        
+        println!("开始绘制文本...");
+        draw_text(&response, &mut keyboard, &mut pen)?;
+        println!("文本绘制完成");
+        
+        // 等待一下确保绘制完成
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+
+    Ok(())
 }

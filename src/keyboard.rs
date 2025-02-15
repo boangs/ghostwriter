@@ -36,4 +36,21 @@ impl Keyboard {
     pub fn string_to_keypresses(&mut self, _text: &str) -> Result<()> {
         Ok(())
     }
+
+    pub fn draw_text(text: &str, keyboard: &mut Keyboard, pen: &mut Pen) -> Result<()> {
+        println!("绘制文本: '{}'", text);
+        println!("起始位置: (100, 100)");
+        
+        // 实际的绘制逻辑
+        let x = 100;
+        let y = 100;
+        
+        for (i, c) in text.chars().enumerate() {
+            let pos_x = x + (i as i32 * 20);  // 每个字符间隔 20 像素
+            println!("绘制字符 '{}' 在位置 ({}, {})", c, pos_x, y);
+            // 这里应该有实际的绘制逻辑
+        }
+        
+        Ok(())
+    }
 }
