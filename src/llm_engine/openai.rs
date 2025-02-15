@@ -140,7 +140,7 @@ impl LLMEngine for OpenAI {
                 Err(anyhow!("Invalid API response format: {:?}", response_json))
             }
             Err(err) => {
-                if let ureq::Error::Status(code, response) = &err {
+                if let ureq::Error::Status(code, response) = err {
                     match response.into_json::<json>() {
                         Ok(error_json) => {
                             Err(anyhow!("API Error ({}): {:?}", code, error_json))
