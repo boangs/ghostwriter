@@ -22,6 +22,7 @@ pub struct Touch {
     input_device: Option<File>,
     last_x: i32,
     last_y: i32,
+    is_touching: bool,
 }
 
 impl Touch {
@@ -48,6 +49,7 @@ impl Touch {
             input_device,
             last_x: 0,
             last_y: 0,
+            is_touching: false,
         }
     }
 
@@ -82,34 +84,33 @@ impl Touch {
                     };
                     
                     if device.read_exact(event_slice).is_ok() {
-                        println!("触摸事件: type={}, code={}, value={}", 
-                            event.type_, event.code, event.value);
-                        
-                        // 根据事件类型处理
+                        // 处理触摸事件
                         match event.type_ {
-                            0 => {  // EV_SYN
-                                println!("同步事件");
-                            },
-                            1 => {  // EV_KEY
-                                println!("按键事件: {}", event.value);
-                            },
                             3 => {  // EV_ABS
                                 match event.code {
-                                    0 => {  // ABS_X
+                                    53 => {  // ABS_MT_POSITION_X
                                         self.last_x = event.value;
-                                        println!("X坐标: {}", self.last_x);
+                                        // println!("X: {}", self.last_x);
                                     },
-                                    1 => {  // ABS_Y
+                                    54 => {  // ABS_MT_POSITION_Y
                                         self.last_y = event.value;
-                                        println!("Y坐标: {}", self.last_y);
+                                        // println!("Y: {}", self.last_y);
+                                    },
+                                    48 => {  // ABS_MT_PRESSURE
+                                        self.is_touching = event.value > 0;
+                                        // println!("压力: {}", event.value);
                                     },
                                     _ => {}
                                 }
-                                
-                                // 检查是否是右上角的触摸
-                                if self.last_x > 1300 && self.last_y < 200 {
-                                    println!("检测到右上角触摸！({}, {})", self.last_x, self.last_y);
-                                    return Ok(true);
+                            },
+                            0 => {  // EV_SYN
+                                // 同步事件，表示一个完整的触摸事件
+                                if self.is_touching {
+                                    // 检查是否在右上角区域
+                                    if self.last_x > 1200 && self.last_y < 200 {
+                                        println!("右上角触摸: ({}, {})", self.last_x, self.last_y);
+                                        return Ok(true);
+                                    }
                                 }
                             },
                             _ => {}
@@ -119,8 +120,6 @@ impl Touch {
                 Ok(_) => (),  // 超时，继续等待
                 Err(e) => println!("Select error: {}", e),
             }
-        } else {
-            println!("触摸设备未打开");
         }
         Ok(false)
     }
