@@ -9,12 +9,17 @@ use nix::sys::mman::{mmap, MapFlags, ProtFlags};
 use std::ptr;
 use std::num::NonZeroUsize;
 use nix::ioctl_write_int;
+use nix::libc::{self, c_int, ioctl};
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
+const PEN_MAX_X: i32 = 15725;  // 触控笔 X 坐标最大值
+const PEN_MAX_Y: i32 = 20967;  // 触控笔 Y 坐标最大值
 
 // 定义 EPDC 刷新命令的 ioctl 号
 ioctl_write_int!(mxcfb_send_update, b'F', 0x2E, i32);
+
+const MXCFB_SEND_UPDATE: u64 = 0x4622; // 0x2E 转换为 ioctl 命令
 
 pub struct Pen {
     no_draw: bool,
@@ -148,16 +153,32 @@ impl Pen {
         Ok(())
     }
 
+    fn convert_coordinates(&self, x: i32, y: i32) -> (i32, i32) {
+        // 将触控笔坐标映射到显示分辨率
+        let display_x = (x as f32 * REMARKABLE_WIDTH as f32 / PEN_MAX_X as f32) as i32;
+        let display_y = (y as f32 * REMARKABLE_HEIGHT as f32 / PEN_MAX_Y as f32) as i32;
+        
+        println!("坐标转换: 原始({}, {}) -> 显示({}, {})", 
+            x, y, display_x, display_y);
+            
+        (display_x, display_y)
+    }
+
     pub fn draw_point(&mut self, x: i32, y: i32, pressure: i32) -> Result<()> {
-        if x < 0 || x >= REMARKABLE_WIDTH as i32 || y < 0 || y >= REMARKABLE_HEIGHT as i32 {
+        // 转换坐标
+        let (display_x, display_y) = self.convert_coordinates(x, y);
+        
+        if display_x < 0 || display_x >= REMARKABLE_WIDTH as i32 
+            || display_y < 0 || display_y >= REMARKABLE_HEIGHT as i32 {
             return Ok(());
         }
         
-        let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * 2;
+        let index = (display_y as usize * REMARKABLE_WIDTH as usize + display_x as usize) * 2;
         if index + 1 >= self.buffer.len() {
             return Ok(());
         }
         
+        // 将压力值（0-4095）转换为灰度值（0-15）
         let gray_level = match pressure {
             0 => 15,
             1..=4095 => {
@@ -168,13 +189,8 @@ impl Pen {
         
         let value = (gray_level as u16) * 0x1111;
         
-        // 添加调试信息
         println!("绘制点 - 位置: ({}, {}), 压力: {}, 灰度: {}, 值: {:04X}", 
-            x, y, pressure, gray_level, value);
-        
-        // 检查缓冲区当前值
-        let old_value = ((self.buffer[index + 1] as u16) << 8) | (self.buffer[index] as u16);
-        println!("缓冲区原值: {:04X}", old_value);
+            display_x, display_y, pressure, gray_level, value);
         
         self.buffer[index] = (value & 0xFF) as u8;
         self.buffer[index + 1] = ((value >> 8) & 0xFF) as u8;
@@ -195,9 +211,9 @@ impl Pen {
                 // 如果有显示设备，发送刷新命令
                 if let Some(device) = &self.display_device {
                     let fd = device.as_raw_fd();
-                    match mxcfb_send_update(fd, 0) {
-                        Ok(_) => println!("发送刷新命令成功"),
-                        Err(e) => println!("发送刷新命令失败: {}", e)
+                    match ioctl(fd, MXCFB_SEND_UPDATE, 0) {
+                        -1 => println!("发送刷新命令失败: {}", std::io::Error::last_os_error()),
+                        _ => println!("发送刷新命令成功"),
                     }
                 }
             }
