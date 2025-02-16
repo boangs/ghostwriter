@@ -4,10 +4,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use nix::libc;
-use nix::ioctl_read;
 use std::os::unix::io::AsRawFd;
-
-ioctl_read!(fb_var_screeninfo, b'F', 0, winsize);
 
 pub struct Pen {
     no_draw: bool,
