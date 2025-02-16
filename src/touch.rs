@@ -144,42 +144,56 @@ impl Touch {
     }
 
     fn process_event(&mut self, event: &InputEvent, is_touch: bool) {
-        let device_type = if is_touch { "触摸" } else { "触控笔" };
-        
         match event.type_ {
             3 => {  // EV_ABS
-                if self.pen_pressure > 0 {  // 只在有压力时处理坐标
+                if is_touch {
+                    // 处理触摸事件
                     match event.code {
                         53 => {  // ABS_MT_POSITION_X
                             self.last_x = event.value;
-                            println!("X坐标: {}", self.last_x);
+                            println!("触摸 X坐标: {}", self.last_x);
                         },
                         54 => {  // ABS_MT_POSITION_Y
                             self.last_y = event.value;
-                            println!("Y坐标: {}", self.last_y);
+                            println!("触摸 Y坐标: {}", self.last_y);
+                        },
+                        57 => {  // ABS_MT_TRACKING_ID
+                            if event.value == -1 {
+                                self.touch_complete = true;
+                                println!("触摸结束");
+                            } else {
+                                self.touch_started = true;
+                                println!("触摸开始");
+                            }
+                        },
+                        _ => {}
+                    }
+                } else {
+                    // 处理触控笔事件
+                    match event.code {
+                        0 => {  // ABS_X
+                            self.last_x = event.value;
+                            println!("笔 X坐标: {}", self.last_x);
+                        },
+                        1 => {  // ABS_Y
+                            self.last_y = event.value;
+                            println!("笔 Y坐标: {}", self.last_y);
                         },
                         24 => {  // ABS_PRESSURE
                             self.pen_pressure = event.value;
+                            println!("笔压力: {}", self.pen_pressure);
                         },
                         _ => {}
                     }
                 }
             },
             1 => {  // EV_KEY
-                if event.code == 330 {  // BTN_TOUCH
+                if !is_touch && event.code == 320 {  // BTN_TOUCH for pen
                     if event.value > 0 {
-                        self.pen_pressure = event.value;
                         println!("笔尖接触屏幕");
                     } else {
-                        self.pen_pressure = 0;
                         println!("笔尖离开屏幕");
                     }
-                }
-            },
-            0 => {  // EV_SYN
-                // 在同步事件时检查是否在右上角
-                if self.touch_complete && self.last_x > 1800 && self.last_y < 100 {
-                    println!("检测到右上角触摸！坐标: ({}, {})", self.last_x, self.last_y);
                 }
             },
             _ => {}
