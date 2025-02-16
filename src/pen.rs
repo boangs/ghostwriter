@@ -1,20 +1,9 @@
 use anyhow::Result;
 use rusttype::{Font, Scale, Point};
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
-use nix::libc;
-use std::os::unix::io::AsRawFd;
 use std::fs::File;
 use std::io::{Read, Write};
-
-#[derive(Debug)]
-struct InputEvent {
-    time: libc::timeval,
-    type_: u16,
-    code: u16,
-    value: i32,
-}
+use std::os::unix::fs::OpenOptionsExt;
+use nix::libc;
 
 pub struct Pen {
     no_draw: bool,
@@ -31,7 +20,6 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let (display_device, pen_device, width, height) = if !no_draw {
-            // 打开显示设备
             let display = File::options()
                 .read(true)
                 .write(true)
@@ -39,26 +27,25 @@ impl Pen {
                 .open("/dev/fb0")
                 .ok();
 
-            // 打开手写笔输入设备
             let pen = File::options()
                 .read(true)
-                .open("/dev/input/event2")  // Elan marker input
+                .open("/dev/input/event2")
                 .ok();
 
-            (display, pen, 2832, 2064)  // reMarkable Paper Pro 分辨率
+            (display, pen, 2832, 2064)
         } else {
             (None, None, 0, 0)
         };
 
         let buffer_size = (width * height) as usize;
-        let buffer = vec![255u8; buffer_size];  // 白色背景
+        let buffer = vec![255u8; buffer_size];
 
         Self {
             no_draw,
             display_device,
             pen_device,
             width,
-            height, 
+            height,
             buffer,
             last_x: 0,
             last_y: 0,
@@ -83,36 +70,32 @@ impl Pen {
                     if v > 0.1 {
                         let x = outline.min.x as i32 + x as i32;
                         let y = outline.min.y as i32 + y as i32;
-                        self.draw_pixel(x, y);
+                        self.draw_point(x, y);
                     }
                 });
             }
         }
-        self.flush()?;
+        self.flush_display()?;
         println!("文本绘制完成");
         Ok(())
     }
 
-    pub fn cleanup(&mut self) {
-        // 清理资源
-    }
-
     pub fn handle_pen_input(&mut self) -> Result<()> {
-        let mut event_buffer = [0u8; 24];  // Linux input_event 结构体大小
+        let mut event_buffer = [0u8; 24];
         let mut points = Vec::new();
         
         if let Some(pen_device) = &mut self.pen_device {
-            while let Ok(_) = pen_device.read_exact(&mut event_buffer) {
+            if let Ok(_) = pen_device.read_exact(&mut event_buffer) {
                 let event = parse_input_event(&event_buffer);
                 
                 match event.type_ {
                     0 => {  // EV_SYN
-                        // 批量绘制收集到的点
-                        for (x, y) in points.drain(..) {
-                            self.draw_point(x, y);
-                        }
                         if !points.is_empty() {
+                            for &(x, y) in &points {
+                                self.draw_point(x, y);
+                            }
                             self.flush_display()?;
+                            points.clear();
                         }
                     },
                     3 => {  // EV_ABS
@@ -146,7 +129,7 @@ impl Pen {
         
         let offset = (y as u32 * self.width + x as u32) as usize;
         if offset < self.buffer.len() {
-            self.buffer[offset] = 0;  // 黑色像素
+            self.buffer[offset] = 0;
         }
     }
 
@@ -156,31 +139,6 @@ impl Pen {
             device.sync_all()?;
         }
         Ok(())
-    }
-
-    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
-        for (y, row) in bitmap.iter().enumerate() {
-            for (x, &pixel) in row.iter().enumerate() {
-                if pixel {
-                    self.draw_pixel(x as i32, y as i32);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<()> {
-        if let Some(device) = &mut self.display_device {
-            device.write_all(&self.buffer)?;
-            device.flush()?;
-        }
-        Ok(())
-    }
-}
-
-impl Drop for Pen {
-    fn drop(&mut self) {
-        self.cleanup();
     }
 }
 
@@ -200,4 +158,12 @@ fn parse_input_event(buffer: &[u8]) -> InputEvent {
         code,
         value,
     }
+}
+
+#[derive(Debug)]
+struct InputEvent {
+    time: libc::timeval,
+    type_: u16,
+    code: u16,
+    value: i32,
 }
