@@ -8,6 +8,14 @@ use std::os::unix::io::AsRawFd;
 use std::fs::File;
 use std::io::{Read, Write};
 
+#[derive(Debug)]
+struct InputEvent {
+    time: libc::timeval,
+    type_: u16,
+    code: u16,
+    value: i32,
+}
+
 pub struct Pen {
     no_draw: bool,
     display_device: Option<File>,
@@ -15,8 +23,9 @@ pub struct Pen {
     width: u32,
     height: u32,
     buffer: Vec<u8>,
-    is_drawing: bool,
+    last_x: i32,
     last_y: i32,
+    is_drawing: bool,
 }
 
 impl Pen {
@@ -51,8 +60,9 @@ impl Pen {
             width,
             height, 
             buffer,
-            is_drawing: false,
+            last_x: 0,
             last_y: 0,
+            is_drawing: false,
         }
     }
 
@@ -88,29 +98,35 @@ impl Pen {
     }
 
     pub fn handle_pen_input(&mut self) -> Result<()> {
+        let mut event_buffer = [0u8; 24];  // Linux input_event 结构体大小
+        let mut points = Vec::new();
+        
         if let Some(pen_device) = &mut self.pen_device {
-            let mut event_buffer = [0u8; 24];  // Linux input_event 结构体大小
-            
             while let Ok(_) = pen_device.read_exact(&mut event_buffer) {
                 let event = parse_input_event(&event_buffer);
                 
                 match event.type_ {
-                    0 => {}, // EV_SYN
-                    3 => {   // EV_ABS
+                    0 => {  // EV_SYN
+                        // 批量绘制收集到的点
+                        for (x, y) in points.drain(..) {
+                            self.draw_point(x, y);
+                        }
+                        if !points.is_empty() {
+                            self.flush_display()?;
+                        }
+                    },
+                    3 => {  // EV_ABS
                         match event.code {
                             0 => {  // ABS_X
-                                let x = event.value as i32;
-                                let y = self.last_y;
-                                self.draw_pixel(x, y);
+                                self.last_x = event.value;
                             },
                             1 => {  // ABS_Y 
-                                self.last_y = event.value as i32;
+                                self.last_y = event.value;
                             },
                             24 => { // ABS_PRESSURE
-                                if event.value > 0 {
-                                    self.is_drawing = true;
-                                } else {
-                                    self.is_drawing = false;
+                                self.is_drawing = event.value > 0;
+                                if self.is_drawing {
+                                    points.push((self.last_x, self.last_y));
                                 }
                             },
                             _ => {}
@@ -123,11 +139,7 @@ impl Pen {
         Ok(())
     }
 
-    fn draw_pixel(&mut self, x: i32, y: i32) {
-        if !self.is_drawing {
-            return;
-        }
-        
+    fn draw_point(&mut self, x: i32, y: i32) {
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
             return;
         }
@@ -136,8 +148,14 @@ impl Pen {
         if offset < self.buffer.len() {
             self.buffer[offset] = 0;  // 黑色像素
         }
-        
-        self.flush().unwrap_or_default();
+    }
+
+    fn flush_display(&mut self) -> Result<()> {
+        if let Some(device) = &mut self.display_device {
+            device.write_all(&self.buffer)?;
+            device.sync_all()?;
+        }
+        Ok(())
     }
 
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
@@ -166,16 +184,7 @@ impl Drop for Pen {
     }
 }
 
-#[derive(Debug)]
-struct InputEvent {
-    time: libc::timeval,
-    type_: u16,
-    code: u16,
-    value: i32,
-}
-
 fn parse_input_event(buffer: &[u8]) -> InputEvent {
-    // 解析 Linux input_event 结构体
     let time_sec = u64::from_ne_bytes(buffer[0..8].try_into().unwrap());
     let time_usec = u64::from_ne_bytes(buffer[8..16].try_into().unwrap());
     let type_ = u16::from_ne_bytes(buffer[16..18].try_into().unwrap());
