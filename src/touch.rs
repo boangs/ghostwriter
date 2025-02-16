@@ -170,20 +170,28 @@ impl Touch {
                     }
                 } else {
                     // 处理触控笔事件
-                    match event.code {
-                        0 => {  // ABS_X
-                            self.last_x = event.value;
-                            println!("笔 X坐标: {}", self.last_x);
-                        },
-                        1 => {  // ABS_Y
-                            self.last_y = event.value;
-                            println!("笔 Y坐标: {}", self.last_y);
-                        },
-                        24 => {  // ABS_PRESSURE
-                            self.pen_pressure = event.value;
-                            println!("笔压力: {}", self.pen_pressure);
-                        },
-                        _ => {}
+                    if self.pen_pressure > 0 {  // 只在笔尖接触屏幕时处理坐标
+                        match event.code {
+                            0 => {  // ABS_X
+                                self.last_x = event.value;
+                                println!("笔 X坐标: {}", self.last_x);
+                            },
+                            1 => {  // ABS_Y
+                                self.last_y = event.value;
+                                println!("笔 Y坐标: {}", self.last_y);
+                            },
+                            24 => {  // ABS_PRESSURE
+                                self.pen_pressure = event.value;
+                            },
+                            _ => {}
+                        }
+                    } else if event.code == 24 {  // 更新压力值
+                        self.pen_pressure = event.value;
+                        if event.value > 0 {
+                            println!("笔尖接触屏幕");
+                        } else {
+                            println!("笔尖离开屏幕");
+                        }
                     }
                 }
             },
