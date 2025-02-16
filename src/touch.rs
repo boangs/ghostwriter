@@ -145,39 +145,34 @@ impl Touch {
 
     fn process_event(&mut self, event: &InputEvent, is_touch: bool) {
         let device_type = if is_touch { "触摸" } else { "触控笔" };
-        println!("{}事件: type={}, code={}, value={}", 
-                device_type, event.type_, event.code, event.value);
-
+        
         match event.type_ {
             3 => {  // EV_ABS
-                match event.code {
-                    53 => {  // ABS_MT_POSITION_X
-                        self.last_x = event.value;
-                        println!("X坐标: {}", self.last_x);
-                    },
-                    54 => {  // ABS_MT_POSITION_Y
-                        self.last_y = event.value;
-                        println!("Y坐标: {}", self.last_y);
-                    },
-                    57 => {  // ABS_MT_TRACKING_ID
-                        if event.value == -1 {
-                            self.touch_complete = true;
-                            println!("触摸结束");
-                        } else {
-                            self.touch_started = true;
-                            println!("触摸开始");
-                        }
-                    },
-                    _ => {}
+                if self.pen_pressure > 0 {  // 只在有压力时处理坐标
+                    match event.code {
+                        53 => {  // ABS_MT_POSITION_X
+                            self.last_x = event.value;
+                            println!("X坐标: {}", self.last_x);
+                        },
+                        54 => {  // ABS_MT_POSITION_Y
+                            self.last_y = event.value;
+                            println!("Y坐标: {}", self.last_y);
+                        },
+                        24 => {  // ABS_PRESSURE
+                            self.pen_pressure = event.value;
+                        },
+                        _ => {}
+                    }
                 }
             },
             1 => {  // EV_KEY
                 if event.code == 330 {  // BTN_TOUCH
                     if event.value > 0 {
-                        self.touch_started = true;
-                        println!("触摸按下");
+                        self.pen_pressure = event.value;
+                        println!("笔尖接触屏幕");
                     } else {
-                        println!("触摸抬起");
+                        self.pen_pressure = 0;
+                        println!("笔尖离开屏幕");
                     }
                 }
             },
