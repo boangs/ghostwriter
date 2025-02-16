@@ -96,9 +96,13 @@ impl Pen {
             return;
         }
         
-        let offset = (y as u32 * self.width + x as u32) as usize;
-        if offset < self.buffer.len() {
-            self.buffer[offset] = 0;  // 黑色像素
+        let offset = ((y as u32 * self.width + x as u32) * 4) as usize;
+        if offset + 3 < self.buffer.len() {
+            // RGBA 格式，设置为黑色
+            self.buffer[offset] = 0;     // R
+            self.buffer[offset+1] = 0;   // G
+            self.buffer[offset+2] = 0;   // B
+            self.buffer[offset+3] = 255; // A
         }
     }
 
