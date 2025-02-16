@@ -173,18 +173,24 @@ impl Touch {
                     match event.code {
                         0 => {  // ABS_X
                             self.last_x = event.value;
-                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
-                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            if self.pen_pressure > 0 {
+                                println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                    event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            }
                         },
                         1 => {  // ABS_Y
                             self.last_y = event.value;
-                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
-                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            if self.pen_pressure > 0 {
+                                println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                    event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            }
                         },
                         24 => {  // ABS_PRESSURE
                             self.pen_pressure = event.value;
-                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
-                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            if self.pen_pressure > 0 {
+                                println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                    event.type_, self.last_x, self.last_y, self.pen_pressure);
+                            }
                         },
                         _ => {}
                     }
