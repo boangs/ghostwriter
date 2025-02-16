@@ -133,10 +133,14 @@ impl Pen {
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
-            // 重新打开显示设备
             if device.write_all(&self.buffer).is_err() {
                 println!("尝试重新打开显示设备");
-                self.display_device = File::open("/dev/fb0").ok();
+                self.display_device = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open("/dev/fb0")
+                    .ok();
+                    
                 if let Some(new_device) = &mut self.display_device {
                     new_device.write_all(&self.buffer)?;
                     new_device.sync_all()?;
