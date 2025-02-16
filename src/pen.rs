@@ -4,6 +4,10 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use nix::libc;
+use nix::ioctl_read;
+use std::os::unix::io::AsRawFd;
+
+ioctl_read!(fb_var_screeninfo, b'F', 0, winsize);
 
 pub struct Pen {
     no_draw: bool,
@@ -16,7 +20,7 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let (display_device, width, height) = if !no_draw {
-            println!("尝试打开显示设备: /dev/fb0");  // 改用 framebuffer 设备
+            println!("尝试打开显示设备: /dev/fb0");
             match OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -25,7 +29,13 @@ impl Pen {
             {
                 Ok(device) => {
                     println!("成功打开显示设备");
-                    (Some(device), 1024, 600)
+                    let mut info: winsize = unsafe { std::mem::zeroed() };
+                    unsafe {
+                        if fb_var_screeninfo(device.as_raw_fd(), &mut info as *mut _).is_ok() {
+                            println!("显示信息: {}x{}", info.ws_col, info.ws_row);
+                        }
+                    }
+                    (Some(device), info.ws_col as u32, info.ws_row as u32)
                 }
                 Err(e) => {
                     println!("打开显示设备失败: {}", e);

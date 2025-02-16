@@ -79,6 +79,8 @@ impl Touch {
                     };
                     
                     if device.read_exact(event_slice).is_ok() {
+                        println!("触摸事件: type={}, code={}, value={}", 
+                                event.type_, event.code, event.value);
                         match event.type_ {
                             3 => {  // EV_ABS
                                 match event.code {
