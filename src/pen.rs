@@ -126,21 +126,24 @@ impl Pen {
             return Ok(());
         }
         
-        // 将压力值（0-4095）转换为灰度值（0-15）
-        // pressure 越大，颜色越深（越接近黑色）
         let gray_level = match pressure {
-            0 => 15,  // 无压力 = 白色 (15)
+            0 => 15,
             1..=4095 => {
-                // 将压力值映射到 0-15 范围，并反转（15表示白色，0表示黑色）
                 15 - ((pressure as f32 / 4095.0 * 15.0) as u8)
             },
-            _ => 0,   // 最大压力 = 黑色 (0)
+            _ => 0,
         };
         
-        // 将 4 位灰度值转换为 16 位值
         let value = (gray_level as u16) * 0x1111;
         
-        // 写入两个字节（低字节在前，高字节在后）
+        // 添加调试信息
+        println!("绘制点 - 位置: ({}, {}), 压力: {}, 灰度: {}, 值: {:04X}", 
+            x, y, pressure, gray_level, value);
+        
+        // 检查缓冲区当前值
+        let old_value = ((self.buffer[index + 1] as u16) << 8) | (self.buffer[index] as u16);
+        println!("缓冲区原值: {:04X}", old_value);
+        
         self.buffer[index] = (value & 0xFF) as u8;
         self.buffer[index + 1] = ((value >> 8) & 0xFF) as u8;
         
