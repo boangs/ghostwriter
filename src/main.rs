@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 use serde_json::Value as json;
 
@@ -108,7 +109,55 @@ fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
-    ghostwriter(&args)
+    let engine = Arc::new(Mutex::new(LLMEngine::new()?));
+    let pen = Arc::new(Mutex::new(Pen::new(false)));
+    let touch = Arc::new(Mutex::new(Touch::new(false)));
+    let keyboard = Arc::new(Mutex::new(Keyboard::new(false, false)));
+
+    println!("等待触发（触摸右上角）...");
+    
+    loop {
+        // 处理手写笔输入
+        {
+            let mut pen = pen.lock().unwrap();
+            pen.handle_pen_input()?;
+        }
+
+        // 等待触摸事件
+        let mut touch = touch.lock().unwrap();
+        if touch.wait_for_touch()? {
+            println!("检测到触摸，开始 AI 交互");
+            drop(touch);  // 释放锁
+            
+            // 添加测试文本
+            let test_message = "你好";
+            println!("发送给 AI 的消息: {}", test_message);
+            engine.add_text_content(test_message);
+            
+            // 执行 API 调用
+            if let Err(e) = engine.execute() {
+                println!("API 调用失败: {}", e);
+                continue;
+            }
+
+            // 获取响应并绘制到屏幕上
+            if let Some(response) = engine.get_response() {
+                println!("\nAI 回复: {}", response);
+                
+                let mut keyboard = keyboard.lock().unwrap();
+                let mut pen = pen.lock().unwrap();
+                
+                // 使用更大的字体大小
+                pen.draw_text(&response, (100, 100), 32.0)?;  // 增加字体大小到 32.0
+                pen.flush()?;
+            }
+            
+            // 清理内容，准备下一次交互
+            engine.clear_content();
+        }
+        
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 macro_rules! shared {
