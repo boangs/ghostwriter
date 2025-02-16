@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write, Seek, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
+use std::os::unix::fs::MetadataExt;
 use nix::libc::{self, c_int, ioctl, ftruncate};
 use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, shm_unlink};
 use std::ptr;
@@ -13,14 +14,16 @@ use std::ffi::CString;
 use std::os::unix::io::RawFd;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
+use drm::{Device as DrDevice, control::Device};
+use drm::control::{connector, crtc, framebuffer, Mode};
+use drm::buffer::DrmFourcc;
 
-// Paper Pro 的显示参数
-const REMARKABLE_WIDTH: u32 = 1872;
-const REMARKABLE_HEIGHT: u32 = 1404;
-const PEN_MAX_X: i32 = 20967;  // Paper Pro 触控笔 X 坐标最大值
-const PEN_MAX_Y: i32 = 15725;  // Paper Pro 触控笔 Y 坐标最大值
+const REMARKABLE_WIDTH: u32 = 1404;
+const REMARKABLE_HEIGHT: u32 = 1872;
+const PEN_MAX_X: i32 = 15725;  // 触控笔 X 坐标最大值
+const PEN_MAX_Y: i32 = 20967;  // 触控笔 Y 坐标最大值
 
-// Paper Pro 的 EPDC 更新结构
+// reMarkable 的 EPDC 更新结构
 #[repr(C)]
 struct MxcfbUpdateData {
     update_region: MxcfbRect,
@@ -50,22 +53,25 @@ struct MxcfbAltBufferData {
     alt_update_region: MxcfbRect,
 }
 
-// Paper Pro 的显示更新模式
 const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
-const MXCFB_SEND_UPDATE: u64 = 0x4048462e;
+const MXCFB_SEND_UPDATE: u64 = 0x4048462e;  // 正确的 ioctl 命令号
 
-// Paper Pro 的显示设备路径
+// 修改显示设备路径
 const FB_DEVICES: &[&str] = &[
-    "/dev/fb0",
+    "/dev/dri/card0",  // DRM 设备
+    "/dev/fb0",        // 传统帧缓冲设备作为备选
 ];
 
-// 共享内存配置
-const SHMEM_PATH: &str = "/rmpp-fb";
-const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT) as usize;
+// rMPP 的更新命令
+const RMPP_UPDATE_DISPLAY: u64 = 0x5730;
 
-// 显示参数
-const BITS_PER_PIXEL: u32 = 8;  // Paper Pro 使用 8 位灰度
+// 修改共享内存路径
+const SHMEM_PATH: &str = "/rmpp-qtfb";
+const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT * 4) as usize;
+
+// 每个像素的位深度
+const BITS_PER_PIXEL: u32 = 32;
 const BYTES_PER_PIXEL: u32 = BITS_PER_PIXEL / 8;
 
 // 帧缓冲区相关常量和结构体定义
@@ -133,12 +139,14 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    shmem_fd: Option<RawFd>,
-    framebuffer: Option<*mut u8>,
-    pen_device: Option<File>,
+    drm_device: Option<DrDevice>,
+    framebuffer: Option<framebuffer::Handle>,
+    crtc: Option<crtc::Handle>,
+    connector: Option<connector::Handle>,
+    mode: Option<Mode>,
+    buffer: Vec<u8>,
     width: u32,
     height: u32,
-    buffer: Vec<u8>,
     last_x: i32,
     last_y: i32,
     pressure: i32,
@@ -147,109 +155,63 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
-        let (framebuffer, shmem_fd) = if !no_draw {
-            let fd = unsafe {
-                shm_open(
-                    SHMEM_PATH,
-                    OFlag::O_RDWR | OFlag::O_CREAT,
-                    Mode::from_bits_truncate(0o644)
-                )?
-            };
+        let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
+            println!("尝试打开显示设备: {}", "/dev/dri/card0");
+            let drm_device = DrDevice::new("/dev/dri/card0")?;
             
-            // 处理 ftruncate 的返回值
-            unsafe { 
-                if ftruncate(fd, SCREEN_SIZE as i64) == -1 {
-                    return Err(anyhow::anyhow!("Failed to set shared memory size"));
-                }
-            };
-            
-            let addr = unsafe {
-                mmap(
-                    None,
-                    NonZeroUsize::new(SCREEN_SIZE).unwrap(),
-                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                    MapFlags::MAP_SHARED,
-                    fd,
-                    0
-                )?
-            };
-            
-            (Some(addr as *mut u8), Some(fd))
-        } else {
-            (None, None)
-        };
-
-        let pen_device = if !no_draw {
-            // 尝试打开所有可能的显示设备
-            let mut device = None;
-            for device_path in FB_DEVICES {
-                println!("尝试打开显示设备: {}", device_path);
-                match std::fs::OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open(device_path) 
-                {
-                    Ok(mut file) => {
-                        println!("成功打开显示设备: {}", device_path);
-                        
-                        // 获取帧缓冲区信息
-                        let mut var_info: FbVarScreeninfo = unsafe { std::mem::zeroed() };
-                        let mut fix_info: FbFixScreeninfo = unsafe { std::mem::zeroed() };
-                        
-                        unsafe {
-                            let fd = file.as_raw_fd();
-                            if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info as *mut _) >= 0 {
-                                println!("帧缓冲区可变信息:");
-                                println!("  分辨率: {}x{}", var_info.xres, var_info.yres);
-                                println!("  虚拟分辨率: {}x{}", var_info.xres_virtual, var_info.yres_virtual);
-                                println!("  位深度: {}", var_info.bits_per_pixel);
-                                println!("  灰度级别: {}", var_info.grayscale);
-                                println!("  颜色格式:");
-                                println!("    Red:   offset={}, length={}, msb_right={}", 
-                                    var_info.red.offset, var_info.red.length, var_info.red.msb_right);
-                                println!("    Green: offset={}, length={}, msb_right={}", 
-                                    var_info.green.offset, var_info.green.length, var_info.green.msb_right);
-                                println!("    Blue:  offset={}, length={}, msb_right={}", 
-                                    var_info.blue.offset, var_info.blue.length, var_info.blue.msb_right);
-                                println!("    Trans: offset={}, length={}, msb_right={}", 
-                                    var_info.transp.offset, var_info.transp.length, var_info.transp.msb_right);
-                            } else {
-                                println!("无法获取帧缓冲区可变信息");
-                            }
-                            
-                            if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info as *mut _) >= 0 {
-                                println!("帧缓冲区固定信息:");
-                                println!("  设备 ID: {}", String::from_utf8_lossy(&fix_info.id));
-                                println!("  内存大小: {} 字节", fix_info.smem_len);
-                                println!("  行长度: {} 字节", fix_info.line_length);
-                                println!("  类型: {}", fix_info.type_);
-                                println!("  视觉类型: {}", fix_info.visual);
-                            } else {
-                                println!("无法获取帧缓冲区固定信息");
-                            }
-                        }
-                        
-                        device = Some(file);
-                        break;
-                    },
-                    Err(e) => {
-                        println!("打开显示设备 {} 失败: {}", device_path, e);
+            // 获取可用的连接器
+            let res_handles = drm_device.resource_handles()?;
+            let connector = res_handles.connectors()
+                .iter()
+                .find(|&&conn_handle| {
+                    if let Ok(info) = drm_device.get_connector(conn_handle, false) {
+                        info.state() == connector::State::Connected
+                    } else {
+                        false
                     }
-                }
-            }
-            device
+                })
+                .copied()
+                .ok_or_else(|| anyhow::anyhow!("没有找到已连接的显示器"))?;
+
+            // 获取连接器信息
+            let connector_info = drm_device.get_connector(connector, false)?;
+            let mode = connector_info.modes()[0];  // 使用第一个可用的显示模式
+
+            // 获取编码器
+            let encoder = connector_info.current_encoder()
+                .ok_or_else(|| anyhow::anyhow!("没有找到编码器"))?;
+
+            // 获取 CRTC
+            let crtc = drm_device.get_encoder(encoder)?
+                .crtc()
+                .ok_or_else(|| anyhow::anyhow!("没有找到 CRTC"))?;
+
+            // 创建帧缓冲区
+            let fb_id = drm_device.create_framebuffer(
+                &[0u8; SCREEN_SIZE], 
+                REMARKABLE_WIDTH, 
+                REMARKABLE_HEIGHT,
+                drm::buffer::DrmFourcc::Xrgb8888,
+                &[REMARKABLE_WIDTH * 4],
+                &[0],
+            )?;
+
+            println!("成功初始化 DRM 设备");
+            (Some(drm_device), Some(fb_id), Some(crtc), Some(connector), Some(mode))
         } else {
-            None
+            (None, None, None, None, None)
         };
 
         Ok(Self {
             no_draw,
-            shmem_fd,
+            drm_device,
             framebuffer,
-            pen_device,
+            crtc,
+            connector,
+            mode,
+            buffer: vec![0xFF; SCREEN_SIZE],
             width: REMARKABLE_WIDTH,
             height: REMARKABLE_HEIGHT,
-            buffer: vec![0xFF; SCREEN_SIZE],
             last_x: 0,
             last_y: 0,
             pressure: 0,
@@ -356,16 +318,21 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(ref mut device) = self.pen_device {
-            // 移动到文件开始
-            device.seek(SeekFrom::Start(0))?;
-            
-            // 直接写入帧缓冲区
-            device.write_all(&self.buffer)?;
-            println!("写入帧缓冲区完成");
-            
-            // 确保数据写入
-            device.flush()?;
+        if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
+            (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
+            // 更新帧缓冲区内容
+            device.add_fb(
+                &self.buffer, 
+                REMARKABLE_WIDTH, 
+                REMARKABLE_HEIGHT,
+                drm::buffer::DrmFourcc::Xrgb8888,
+                &[REMARKABLE_WIDTH * 4],
+                &[0],
+            )?;
+
+            // 设置 CRTC
+            device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
+            println!("显示更新完成");
         } else {
             println!("未找到显示设备");
         }
@@ -392,31 +359,19 @@ impl Pen {
         
         std::thread::sleep(std::time::Duration::from_secs(1));
         
-        // 2. 绘制一个黑色矩形
-        let rect_x = 100;
-        let rect_y = 100;
-        let rect_width = 200;
-        let rect_height = 200;
-        
-        for y in rect_y..rect_y+rect_height {
-            for x in rect_x..rect_x+rect_width {
+        // 2. 绘制一个简单的黑色条纹图案
+        for y in 0..REMARKABLE_HEIGHT {
+            for x in 0..REMARKABLE_WIDTH {
                 let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * BYTES_PER_PIXEL as usize;
-                if index + 3 < self.buffer.len() {
-                    self.buffer[index] = 0x00;
-                    self.buffer[index + 1] = 0x00;
-                    self.buffer[index + 2] = 0x00;
-                    self.buffer[index + 3] = 255;
+                if y % 100 < 50 {  // 每100像素绘制50像素宽的黑色条纹
+                    for i in 0..BYTES_PER_PIXEL as usize {
+                        self.buffer[index + i] = 0x00;
+                    }
                 }
             }
         }
         self.flush()?;
-        println!("绘制矩形完成");
-        
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        
-        // 3. 绘制测试文本
-        self.draw_text("测试显示功能", (300, 300), 32.0)?;
-        println!("绘制文本完成");
+        println!("绘制条纹图案完成");
         
         Ok(())
     }
@@ -424,20 +379,13 @@ impl Pen {
 
 impl Drop for Pen {
     fn drop(&mut self) {
-        if let Some(fb) = self.framebuffer {
-            unsafe {
-                let _ = nix::sys::mman::munmap(
-                    fb as *mut std::ffi::c_void,
-                    self.buffer.len()
-                );
+        if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
+            // 清理帧缓冲区
+            if let Err(e) = device.destroy_framebuffer(fb) {
+                eprintln!("清理帧缓冲区失败: {}", e);
             }
         }
-        
-        if let Some(fd) = self.shmem_fd {
-            unsafe {
-                let _ = shm_unlink(SHMEM_PATH);  // 直接使用字符串字面量
-            }
-        }
+        // DRM 设备会在 Drop 时自动关闭
     }
 }
 
