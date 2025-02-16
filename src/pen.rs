@@ -20,34 +20,37 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let (display_device, width, height) = if !no_draw {
-            println!("尝试打开显示设备: /dev/fb0");
-            match OpenOptions::new()
-                .read(true)
-                .write(true)
-                .custom_flags(libc::O_RDWR)
-                .open("/dev/fb0")
-            {
-                Ok(device) => {
-                    println!("成功打开显示设备");
-                    let mut info: winsize = unsafe { std::mem::zeroed() };
-                    unsafe {
-                        if fb_var_screeninfo(device.as_raw_fd(), &mut info as *mut _).is_ok() {
-                            println!("显示信息: {}x{}", info.ws_col, info.ws_row);
-                        }
-                    }
-                    (Some(device), info.ws_col as u32, info.ws_row as u32)
-                }
-                Err(e) => {
-                    println!("打开显示设备失败: {}", e);
-                    (None, 0, 0)
+            // 尝试不同的显示设备
+            let devices = ["/dev/fb0", "/dev/graphics/fb0", "/dev/fb/0"];
+            let mut device_info = None;
+            
+            for device_path in devices.iter() {
+                println!("尝试打开显示设备: {}", device_path);
+                if let Ok(device) = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .custom_flags(libc::O_RDWR)
+                    .open(device_path) 
+                {
+                    println!("成功打开显示设备: {}", device_path);
+                    let fd = device.as_raw_fd();
+                    println!("显示设备文件描述符: {}", fd);
+                    device_info = Some((device, 1024, 600));
+                    break;
                 }
             }
+            
+            device_info.unwrap_or_else(|| {
+                println!("所有显示设备都打开失败");
+                (None, 0, 0)
+            })
         } else {
             (None, 0, 0)
         };
 
-        let buffer_size = (width * height) as usize;
-        let buffer = vec![0xFF; buffer_size];  // 白色背景
+        let buffer_size = (width * height * 4) as usize;  // 32位色深
+        println!("创建显示缓冲区，大小: {} 字节", buffer_size);
+        let buffer = vec![0xFF; buffer_size];
 
         Self {
             no_draw,
@@ -117,9 +120,15 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
             println!("开始刷新显示");
-            device.write_all(&self.buffer)?;
-            device.flush()?;
-            println!("显示刷新完成");
+            println!("缓冲区大小: {} 字节", self.buffer.len());
+            match device.write_all(&self.buffer) {
+                Ok(_) => println!("写入缓冲区成功"),
+                Err(e) => println!("写入缓冲区失败: {}", e)
+            }
+            match device.flush() {
+                Ok(_) => println!("刷新显示成功"),
+                Err(e) => println!("刷新显示失败: {}", e)
+            }
         }
         Ok(())
     }

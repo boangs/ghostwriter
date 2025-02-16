@@ -5,7 +5,7 @@ use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
 use nix::sys::time::TimeVal;
 
-const TOUCH_INPUT_DEVICE: &str = "/dev/input/touchscreen0";
+const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";  // 尝试其他输入设备
 
 #[repr(C)]
 #[derive(Debug)]
@@ -57,6 +57,8 @@ impl Touch {
     pub fn wait_for_touch(&mut self) -> Result<bool> {
         if let Some(device) = &mut self.input_device {
             let fd = device.as_raw_fd();
+            println!("触摸设备文件描述符: {}", fd);
+            
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
@@ -73,50 +75,34 @@ impl Touch {
                     };
                     
                     let size = std::mem::size_of::<InputEvent>();
+                    println!("读取事件数据，大小: {} 字节", size);
+                    
                     let event_ptr = &mut event as *mut _ as *mut u8;
                     let event_slice = unsafe {
                         std::slice::from_raw_parts_mut(event_ptr, size)
                     };
                     
-                    if device.read_exact(event_slice).is_ok() {
-                        println!("触摸事件: type={}, code={}, value={}", 
-                                event.type_, event.code, event.value);
-                        match event.type_ {
-                            3 => {  // EV_ABS
-                                match event.code {
-                                    53 => {  // ABS_MT_POSITION_X
-                                        self.last_x = event.value;
-                                        println!("X: {}", self.last_x);
-                                    },
-                                    54 => {  // ABS_MT_POSITION_Y
-                                        self.last_y = event.value;
-                                        println!("Y: {}", self.last_y);
-                                    },
-                                    57 => {  // ABS_MT_TRACKING_ID
-                                        if event.value == -1 {
-                                            self.touch_complete = true;
-                                        } else {
-                                            self.touch_started = true;
-                                            self.touch_complete = false;
-                                        }
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            0 => {  // EV_SYN
-                                if self.touch_complete {
-                                    if self.last_x > 1800 && self.last_x <= 2048 && 
-                                       self.last_y >= 0 && self.last_y < 200 {
-                                        self.touch_started = false;
-                                        self.touch_complete = false;
-                                        return Ok(true);
+                    match device.read_exact(event_slice) {
+                        Ok(_) => {
+                            println!("事件类型: {}, 代码: {}, 值: {}", 
+                                    event.type_, event.code, event.value);
+                            
+                            match event.type_ {
+                                0 => println!("同步事件"),
+                                1 => println!("按键事件"),
+                                3 => {
+                                    println!("绝对坐标事件");
+                                    match event.code {
+                                        0 => println!("X 坐标: {}", event.value),
+                                        1 => println!("Y 坐标: {}", event.value),
+                                        24 => println!("压力值: {}", event.value),
+                                        _ => println!("其他绝对坐标事件: {}", event.code)
                                     }
-                                    self.touch_started = false;
-                                    self.touch_complete = false;
-                                }
-                            },
-                            _ => {}
-                        }
+                                },
+                                _ => println!("其他事件类型: {}", event.type_)
+                            }
+                        },
+                        Err(e) => println!("读取事件失败: {}", e)
                     }
                 }
                 Ok(_) => (),
