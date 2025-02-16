@@ -8,9 +8,13 @@ use nix::libc;
 use nix::sys::mman::{mmap, MapFlags, ProtFlags};
 use std::ptr;
 use std::num::NonZeroUsize;
+use nix::ioctl_write_int;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
+
+// 定义 EPDC 刷新命令的 ioctl 号
+ioctl_write_int!(mxcfb_send_update, b'F', 0x2E, i32);
 
 pub struct Pen {
     no_draw: bool,
@@ -181,11 +185,21 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(fb) = self.framebuffer {
             unsafe {
+                // 复制缓冲区内容到帧缓冲区
                 ptr::copy_nonoverlapping(
                     self.buffer.as_ptr(),
                     fb,
                     self.buffer.len()
                 );
+                
+                // 如果有显示设备，发送刷新命令
+                if let Some(device) = &self.display_device {
+                    let fd = device.as_raw_fd();
+                    match mxcfb_send_update(fd, 0) {
+                        Ok(_) => println!("发送刷新命令成功"),
+                        Err(e) => println!("发送刷新命令失败: {}", e)
+                    }
+                }
             }
             println!("帧缓冲区更新完成");
         }
