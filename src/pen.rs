@@ -126,15 +126,24 @@ impl Pen {
             return Ok(());
         }
         
-        // 根据压力值计算颜色深度 (0-255)
-        let color = match pressure {
-            0 => 255,  // 无压力 = 白色
-            1..=255 => 255 - pressure,  // 压力越大越黑
-            _ => 0,  // 最大压力 = 黑色
+        // 将压力值（0-4095）转换为灰度值（0-15）
+        // pressure 越大，颜色越深（越接近黑色）
+        let gray_level = match pressure {
+            0 => 15,  // 无压力 = 白色 (15)
+            1..=4095 => {
+                // 将压力值映射到 0-15 范围，并反转（15表示白色，0表示黑色）
+                15 - ((pressure as f32 / 4095.0 * 15.0) as u8)
+            },
+            _ => 0,   // 最大压力 = 黑色 (0)
         };
         
-        self.buffer[index] = color as u8;
-        self.buffer[index + 1] = color as u8;
+        // 将 4 位灰度值转换为 16 位值
+        let value = (gray_level as u16) * 0x1111;
+        
+        // 写入两个字节（低字节在前，高字节在后）
+        self.buffer[index] = (value & 0xFF) as u8;
+        self.buffer[index + 1] = ((value >> 8) & 0xFF) as u8;
+        
         Ok(())
     }
 
