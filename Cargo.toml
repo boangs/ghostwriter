@@ -19,6 +19,8 @@ imageproc = "0.25.0"
 rust-embed = "8.5.0"
 rusttype = "0.9.3"
 nix = "0.26"
+drm = "0.4.0"
+drm-sys = "0.4.0"
 
 [lib]
 name = "ghostwriter"

@@ -2,13 +2,12 @@ use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
-use drm::control::{self, Device as ControlDevice};
-use drm::Device;
+use std::thread::sleep;
+use std::time::Duration;
 
-// 先不设定具体的显示设备路径
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<std::fs::File>,
+    display_device: Option<std::fs::File>,
     width: u32,
     height: u32,
     buffer: Vec<u8>,
@@ -16,41 +15,20 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        let (drm_device, width, height) = if !no_draw {
-            println!("尝试打开 DRM 设备: /dev/dri/card0");
+        let (display_device, width, height) = if !no_draw {
+            println!("尝试打开显示设备: /dev/dri/card0");
             match OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open("/dev/dri/card0")
             {
                 Ok(device) => {
-                    println!("成功打开 DRM 设备");
-                    // 获取显示分辨率
-                    let res = unsafe {
-                        let dev = &device as &dyn Device;
-                        dev.get_resources().unwrap()
-                    };
-                    
-                    if let Some(connector) = res.connectors.first() {
-                        let modes = unsafe {
-                            let dev = &device as &dyn ControlDevice;
-                            dev.get_connector(*connector, false).unwrap()
-                        };
-                        
-                        if let Some(mode) = modes.modes().first() {
-                            println!("显示分辨率: {}x{}", mode.size().0, mode.size().1);
-                            (Some(device), mode.size().0, mode.size().1)
-                        } else {
-                            println!("无法获取显示模式，使用默认分辨率");
-                            (Some(device), 1024, 600)
-                        }
-                    } else {
-                        println!("无法获取显示连接器，使用默认分辨率");
-                        (Some(device), 1024, 600)
-                    }
+                    println!("成功打开显示设备");
+                    // 暂时使用固定分辨率
+                    (Some(device), 1024, 600)
                 }
                 Err(e) => {
-                    println!("打开 DRM 设备失败: {}", e);
+                    println!("打开显示设备失败: {}", e);
                     (None, 0, 0)
                 }
             }
@@ -63,7 +41,7 @@ impl Pen {
 
         Self {
             no_draw,
-            drm_device,
+            display_device,
             width,
             height,
             buffer,
@@ -124,13 +102,11 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(device) = &mut self.drm_device {
-            // 将缓冲区内容刷新到屏幕
-            unsafe {
-                let dev = device as &dyn Device;
-                // TODO: 实现 DRM 缓冲区刷新
-                println!("刷新显示内容");
-            }
+        if let Some(device) = &mut self.display_device {
+            // 将缓冲区写入显示设备
+            device.write_all(&self.buffer)?;
+            device.flush()?;
+            println!("刷新显示内容");
         }
         Ok(())
     }
