@@ -103,7 +103,8 @@ fn main() -> Result<()> {
 
     // 设置环境变量
     if let Some(url) = args.engine_base_url.clone() {
-        env::set_var("ENGINE_BASE_URL", url);
+        env::set_var("ENGINE_BASE_URL", &url);
+        env::set_var("OPENAI_BASE_URL", url);  
     }
     
     if let Some(api_key) = args.engine_api_key.clone() {
@@ -215,8 +216,8 @@ fn ghostwriter(args: &Args) -> Result<()> {
 
     // 设置环境变量
     if let Some(url) = args.engine_base_url.clone() {
-        env::set_var("ENGINE_BASE_URL", url);
-        env::set_var("OPENAI_BASE_URL", url);  // 同时设置 OPENAI_BASE_URL
+        env::set_var("ENGINE_BASE_URL", &url);
+        env::set_var("OPENAI_BASE_URL", url);  
     }
     
     if let Some(api_key) = args.engine_api_key.clone() {
