@@ -17,6 +17,7 @@ pub struct Pen {
     buffer: Vec<u8>,
     last_x: i32,
     last_y: i32,
+    pressure: i32,
     is_drawing: bool,
 }
 
@@ -48,6 +49,7 @@ impl Pen {
             buffer,
             last_x: 0,
             last_y: 0,
+            pressure: 0,
             is_drawing: false,
         }
     }
@@ -69,7 +71,7 @@ impl Pen {
                     if v > 0.1 {
                         let x = outline.min.x as i32 + x as i32;
                         let y = outline.min.y as i32 + y as i32;
-                        self.draw_point(x, y);
+                        self.draw_point(x, y, self.pressure)?;
                     }
                 });
             }
@@ -101,13 +103,13 @@ impl Pen {
         }
         
         // 绘制点
-        self.draw_point(self.last_x, self.last_y)?;
+        self.draw_point(self.last_x, self.last_y, self.pressure)?;
         self.flush()?;
         
         Ok(())
     }
 
-    pub fn draw_point(&mut self, x: i32, y: i32) -> Result<()> {
+    pub fn draw_point(&mut self, x: i32, y: i32, pressure: i32) -> Result<()> {
         if x < 0 || x >= REMARKABLE_WIDTH as i32 || y < 0 || y >= REMARKABLE_HEIGHT as i32 {
             return Ok(());
         }
@@ -117,8 +119,15 @@ impl Pen {
             return Ok(());
         }
         
-        self.buffer[index] = 0x00;     // 完全黑色
-        self.buffer[index + 1] = 0x00; // 完全黑色
+        // 根据压力值计算颜色深度 (0-255)
+        let color = match pressure {
+            0 => 255,  // 无压力 = 白色
+            1..=255 => 255 - pressure,  // 压力越大越黑
+            _ => 0,  // 最大压力 = 黑色
+        };
+        
+        self.buffer[index] = color as u8;
+        self.buffer[index + 1] = color as u8;
         Ok(())
     }
 
