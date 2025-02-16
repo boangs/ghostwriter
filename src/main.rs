@@ -3,13 +3,14 @@ use std::sync::{Arc, Mutex};
 use std::env;
 use clap::Parser;
 use dotenv::dotenv;
+use std::thread;
 
 use ghostwriter::{
     keyboard::Keyboard,
     llm_engine::{anthropic::Anthropic, openai::OpenAI, google::Google, LLMEngine},
     pen::Pen,
     touch::Touch,
-    util::OptionMap,
+    util::{OptionMap, svg_to_bitmap, write_bitmap_to_file},
 };
 
 const REMARKABLE_WIDTH: u32 = 768;
@@ -121,11 +122,6 @@ fn main() -> Result<()> {
     println!("等待触发（触摸右上角）...");
     
     loop {
-        {
-            let mut pen = pen.lock().unwrap();
-            pen.handle_pen_input()?;
-        }
-
         let mut touch = touch.lock().unwrap();
         if touch.wait_for_touch()? {
             println!("检测到触摸，开始 AI 交互");
@@ -151,7 +147,7 @@ fn main() -> Result<()> {
             engine.clear_content();
         }
         
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
@@ -261,6 +257,6 @@ fn ghostwriter(args: &Args) -> Result<()> {
             engine.clear_content();
         }
         
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        thread::sleep(std::time::Duration::from_millis(10));
     }
 }
