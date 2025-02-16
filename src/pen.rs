@@ -122,21 +122,28 @@ impl Pen {
         Ok(())
     }
 
-    fn draw_point(&mut self, x: i32, y: i32) {
-        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+    pub fn draw_point(&mut self, x: i32, y: i32) {
+        if x < 0 || x >= self.width as i32 || y < 0 || y >= self.height as i32 {
             return;
         }
         
-        let offset = (y as u32 * self.width + x as u32) as usize;
-        if offset < self.buffer.len() {
-            self.buffer[offset] = 0;
+        let index = (y as usize * self.width as usize + x as usize) * 2;
+        if index + 1 >= self.buffer.len() {
+            return;
         }
+        
+        self.buffer[index] = 0x00;     // 完全黑色
+        self.buffer[index + 1] = 0x00; // 完全黑色
     }
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
+            println!("正在刷新显示设备...");
             device.write_all(&self.buffer)?;
             device.sync_all()?;
+            println!("显示设备刷新完成");
+        } else {
+            println!("警告：显示设备未初始化");
         }
         Ok(())
     }
