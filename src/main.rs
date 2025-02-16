@@ -223,82 +223,56 @@ fn load_config(filename: &str) -> String {
 }
 
 fn ghostwriter(args: &Args) -> Result<()> {
-    let keyboard = shared!(Keyboard::new(
-        args.no_draw,
-        args.no_draw_progress,
-    ));
+    let keyboard = shared!(Keyboard::new(args.no_draw, args.no_draw_progress));
     let pen = shared!(Pen::new(args.no_draw));
     let touch = shared!(Touch::new(args.no_draw));
 
+    // 设置环境变量
+    if let Some(url) = args.engine_base_url.clone() {
+        env::set_var("ENGINE_BASE_URL", url);
+    }
+    
+    if let Some(api_key) = args.engine_api_key.clone() {
+        env::set_var("OPENAI_API_KEY", api_key);
+    }
+
     let mut engine_options = OptionMap::new();
+    engine_options.insert("model".to_string(), args.model.clone());
 
-    let model = args.model.clone();
-    engine_options.insert("model".to_string(), model.clone());
-
-    let engine_name = if let Some(engine) = args.engine.clone() {
-        engine.to_string()
-    } else {
-        if model.starts_with("gpt") {
-            "openai".to_string()
-        } else if model.starts_with("claude") {
-            "anthropic".to_string()
-        } else if model.starts_with("gemini") {
-            "google".to_string()
-        } else {
-            panic!("Unable to guess engine from model name {}", model)
-        }
+    let engine = match args.engine.as_deref().unwrap_or("openai") {
+        "openai" => OpenAI::new(&engine_options)?,
+        "anthropic" => Anthropic::new(&engine_options)?,
+        "google" => Google::new(&engine_options)?,
+        _ => panic!("不支持的引擎类型"),
     };
 
-    if args.engine_base_url.is_some() {
-        engine_options.insert(
-            "base_url".to_string(),
-            args.engine_base_url.clone().unwrap(),
-        );
-    }
-    if args.engine_api_key.is_some() {
-        engine_options.insert("api_key".to_string(), args.engine_api_key.clone().unwrap());
-    }
-
-    let mut engine: Box<dyn LLMEngine> = match engine_name.as_str() {
-        "openai" => Box::new(OpenAI::new(&engine_options)),
-        "anthropic" => Box::new(Anthropic::new(&engine_options)),
-        "google" => Box::new(Google::new(&engine_options)),
-        _ => panic!("Unknown engine {}", engine_name),
-    };
+    let engine = shared!(engine);
 
     println!("等待触发（触摸右上角）...");
     
     loop {
-        // 等待触摸事件
         let mut touch = touch.lock().unwrap();
         if touch.wait_for_touch()? {
             println!("检测到触摸，开始 AI 交互");
-            drop(touch);  // 释放锁
+            drop(touch);
             
-            // 添加测试文本
             let test_message = "你好";
             println!("发送给 AI 的消息: {}", test_message);
+            
+            let mut engine = engine.lock().unwrap();
             engine.add_text_content(test_message);
             
-            // 执行 API 调用
             if let Err(e) = engine.execute() {
                 println!("API 调用失败: {}", e);
                 continue;
             }
 
-            // 获取响应并绘制到屏幕上
             if let Some(response) = engine.get_response() {
                 println!("\nAI 回复: {}", response);
-                
-                let mut keyboard = keyboard.lock().unwrap();
                 let mut pen = pen.lock().unwrap();
-                
-                // 使用更大的字体大小
                 pen.draw_text(&response, (100, 100), 32.0)?;
-                pen.flush()?;
             }
             
-            // 清理内容，准备下一次交互
             engine.clear_content();
         }
         
