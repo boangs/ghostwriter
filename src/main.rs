@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::env;
 
 use serde_json::Value as json;
 
@@ -109,35 +110,34 @@ fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
-    let mut engine_options = OptionMap::new();
-    engine_options.insert("model".to_string(), args.model.clone());
+    // 设置必要的环境变量
+    if let Some(url) = args.engine_base_url.clone() {
+        env::set_var("ENGINE_BASE_URL", url);
+    }
     
-    if let Some(url) = args.engine_base_url {
-        engine_options.insert("base_url".to_string(), url);
+    if let Some(api_key) = args.engine_api_key.clone() {
+        env::set_var("OPENAI_API_KEY", api_key);
     }
 
-    let engine: Box<dyn LLMEngine> = match args.engine.unwrap_or_else(|| "openai".to_string()).as_str() {
-        "openai" => Box::new(OpenAI::new(&engine_options)),
-        "anthropic" => Box::new(Anthropic::new(&engine_options)),
-        "google" => Box::new(Google::new(&engine_options)),
-        _ => panic!("Unknown engine"),
+    let engine = match args.engine.as_deref().unwrap_or("openai") {
+        "openai" => Arc::new(Mutex::new(OpenAI::new(&args.model)?)),
+        "anthropic" => Arc::new(Mutex::new(Anthropic::new(&args.model)?)),
+        "google" => Arc::new(Mutex::new(Google::new(&args.model)?)),
+        _ => panic!("不支持的引擎类型"),
     };
-    
-    let engine = Arc::new(Mutex::new(engine));
-    let pen = Arc::new(Mutex::new(Pen::new(false)));
-    let touch = Arc::new(Mutex::new(Touch::new(false)));
-    let keyboard = Arc::new(Mutex::new(Keyboard::new(false, false)));
+
+    let pen = Arc::new(Mutex::new(Pen::new(args.no_draw)));
+    let touch = Arc::new(Mutex::new(Touch::new(args.no_draw)));
+    let keyboard = Arc::new(Mutex::new(Keyboard::new(args.no_draw, args.no_draw_progress)));
 
     println!("等待触发（触摸右上角）...");
     
     loop {
-        // 处理手写笔输入
         {
             let mut pen = pen.lock().unwrap();
             pen.handle_pen_input()?;
         }
 
-        // 等待触摸事件
         let mut touch = touch.lock().unwrap();
         if touch.wait_for_touch()? {
             println!("检测到触摸，开始 AI 交互");
