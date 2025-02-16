@@ -4,12 +4,11 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
-use nix::libc;
+use nix::libc::{self, c_int, ioctl};
 use nix::sys::mman::{mmap, MapFlags, ProtFlags};
 use std::ptr;
 use std::num::NonZeroUsize;
 use nix::ioctl_write_int;
-use nix::libc::{self, c_int, ioctl};
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
