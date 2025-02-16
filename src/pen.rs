@@ -133,10 +133,21 @@ impl Pen {
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
-            println!("正在刷新显示设备...");
-            device.write_all(&self.buffer)?;
-            device.sync_all()?;
-            println!("显示设备刷新完成");
+            // 重新打开显示设备
+            if device.write_all(&self.buffer).is_err() {
+                println!("尝试重新打开显示设备");
+                self.display_device = File::open("/dev/fb0").ok();
+                if let Some(new_device) = &mut self.display_device {
+                    new_device.write_all(&self.buffer)?;
+                    new_device.sync_all()?;
+                    println!("显示设备刷新完成");
+                } else {
+                    println!("警告：无法重新打开显示设备");
+                }
+            } else {
+                device.sync_all()?;
+                println!("显示设备刷新完成");
+            }
         } else {
             println!("警告：显示设备未初始化");
         }
