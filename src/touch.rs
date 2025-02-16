@@ -80,36 +80,52 @@ impl Touch {
         let mut max_fd = 0;
 
         // 添加触摸设备到 fd_set
-        if let Some(device) = &self.touch_device {
+        if let Some(ref device) = self.touch_device {
             let fd = device.as_raw_fd();
             fd_set.insert(fd);
             max_fd = fd;
-            println!("监听触摸设备 fd: {}", fd);
         }
 
         // 添加触控笔设备到 fd_set
-        if let Some(device) = &self.pen_device {
+        if let Some(ref device) = self.pen_device {
             let fd = device.as_raw_fd();
             fd_set.insert(fd);
             max_fd = max_fd.max(fd);
-            println!("监听触控笔设备 fd: {}", fd);
         }
 
         let mut timeout = TimeVal::new(0, 10000);  // 10ms timeout
 
         match select(max_fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
             Ok(n) if n > 0 => {
+                let mut event = InputEvent {
+                    tv_sec: 0,
+                    tv_usec: 0,
+                    type_: 0,
+                    code: 0,
+                    value: 0,
+                };
+
+                let size = std::mem::size_of::<InputEvent>();
+                let event_ptr = &mut event as *mut _ as *mut u8;
+                let event_slice = unsafe {
+                    std::slice::from_raw_parts_mut(event_ptr, size)
+                };
+
                 // 处理触摸事件
-                if let Some(device) = &mut self.touch_device {
+                if let Some(ref mut device) = self.touch_device {
                     if fd_set.contains(device.as_raw_fd()) {
-                        self.handle_input_event(device, true)?;
+                        if device.read_exact(event_slice).is_ok() {
+                            self.process_event(&event, true);
+                        }
                     }
                 }
 
                 // 处理触控笔事件
-                if let Some(device) = &mut self.pen_device {
+                if let Some(ref mut device) = self.pen_device {
                     if fd_set.contains(device.as_raw_fd()) {
-                        self.handle_input_event(device, false)?;
+                        if device.read_exact(event_slice).is_ok() {
+                            self.process_event(&event, false);
+                        }
                     }
                 }
             }
@@ -120,59 +136,41 @@ impl Touch {
         Ok(self.touch_complete)
     }
 
-    fn handle_input_event(&mut self, device: &mut File, is_touch: bool) -> Result<()> {
-        let mut event = InputEvent {
-            tv_sec: 0,
-            tv_usec: 0,
-            type_: 0,
-            code: 0,
-            value: 0,
-        };
+    fn process_event(&mut self, event: &InputEvent, is_touch: bool) {
+        let device_type = if is_touch { "触摸" } else { "触控笔" };
+        println!("{}事件: type={}, code={}, value={}", 
+                device_type, event.type_, event.code, event.value);
 
-        let size = std::mem::size_of::<InputEvent>();
-        let event_ptr = &mut event as *mut _ as *mut u8;
-        let event_slice = unsafe {
-            std::slice::from_raw_parts_mut(event_ptr, size)
-        };
-
-        if device.read_exact(event_slice).is_ok() {
-            let device_type = if is_touch { "触摸" } else { "触控笔" };
-            println!("{}事件: type={}, code={}, value={}", 
-                    device_type, event.type_, event.code, event.value);
-
-            match event.type_ {
-                3 => {  // EV_ABS
-                    match event.code {
-                        0 => self.last_x = event.value,  // X坐标
-                        1 => self.last_y = event.value,  // Y坐标
-                        24 => {  // 压力值
-                            self.pen_pressure = event.value;
-                            if !is_touch {
-                                if event.value > 0 {
-                                    self.touch_started = true;
-                                } else {
-                                    self.touch_complete = true;
-                                }
-                            }
-                        },
-                        _ => {}
-                    }
-                },
-                1 => {  // EV_KEY
-                    if event.code == 320 {  // BTN_TOUCH
-                        if is_touch {
+        match event.type_ {
+            3 => {  // EV_ABS
+                match event.code {
+                    0 => self.last_x = event.value,  // X坐标
+                    1 => self.last_y = event.value,  // Y坐标
+                    24 => {  // 压力值
+                        self.pen_pressure = event.value;
+                        if !is_touch {
                             if event.value > 0 {
                                 self.touch_started = true;
                             } else {
                                 self.touch_complete = true;
                             }
                         }
+                    },
+                    _ => {}
+                }
+            },
+            1 => {  // EV_KEY
+                if event.code == 320 {  // BTN_TOUCH
+                    if is_touch {
+                        if event.value > 0 {
+                            self.touch_started = true;
+                        } else {
+                            self.touch_complete = true;
+                        }
                     }
-                },
-                _ => {}
-            }
+                }
+            },
+            _ => {}
         }
-
-        Ok(())
     }
 }
