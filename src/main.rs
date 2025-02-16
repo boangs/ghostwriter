@@ -110,7 +110,7 @@ fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
-    // 设置必要的环境变量
+    // 设置环境变量
     if let Some(url) = args.engine_base_url.clone() {
         env::set_var("ENGINE_BASE_URL", url);
     }
@@ -119,10 +119,13 @@ fn main() -> Result<()> {
         env::set_var("OPENAI_API_KEY", api_key);
     }
 
-    let engine = match args.engine.as_deref().unwrap_or("openai") {
-        "openai" => Arc::new(Mutex::new(OpenAI::new(&args.model)?)),
-        "anthropic" => Arc::new(Mutex::new(Anthropic::new(&args.model)?)),
-        "google" => Arc::new(Mutex::new(Google::new(&args.model)?)),
+    let mut engine_options = OptionMap::new();
+    engine_options.insert("model".to_string(), args.model.clone());
+
+    let engine: Arc<Mutex<Box<dyn LLMEngine>>> = match args.engine.as_deref().unwrap_or("openai") {
+        "openai" => Arc::new(Mutex::new(Box::new(OpenAI::new(&engine_options)?))),
+        "anthropic" => Arc::new(Mutex::new(Box::new(Anthropic::new(&engine_options)?))),
+        "google" => Arc::new(Mutex::new(Box::new(Google::new(&engine_options)?))),
         _ => panic!("不支持的引擎类型"),
     };
 
