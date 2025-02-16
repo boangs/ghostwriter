@@ -19,33 +19,29 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        let (display_device, pen_device, width, height) = if !no_draw {
-            let display = File::options()
-                .read(true)
-                .write(true)
-                .custom_flags(libc::O_RDWR)
-                .open("/dev/fb0")
-                .ok();
-
-            let pen = File::options()
-                .read(true)
-                .open("/dev/input/event2")
-                .ok();
-
-            (display, pen, 2832, 2064)
+        let display_device = if !no_draw {
+            match File::open("/dev/fb0") {
+                Ok(file) => {
+                    println!("成功打开显示设备");
+                    Some(file)
+                },
+                Err(e) => {
+                    println!("打开显示设备失败: {}", e);
+                    None
+                }
+            }
         } else {
-            (None, None, 0, 0)
+            None
         };
 
-        let buffer_size = (width * height) as usize;
-        let buffer = vec![255u8; buffer_size];
-
+        let buffer = vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2];
+        
         Self {
             no_draw,
             display_device,
-            pen_device,
-            width,
-            height,
+            pen_device: None,
+            width: REMARKABLE_WIDTH,
+            height: REMARKABLE_HEIGHT,
             buffer,
             last_x: 0,
             last_y: 0,
@@ -103,11 +99,11 @@ impl Pen {
     }
 
     pub fn draw_point(&mut self, x: i32, y: i32) -> Result<()> {
-        if x < 0 || x >= self.width as i32 || y < 0 || y >= self.height as i32 {
+        if x < 0 || x >= REMARKABLE_WIDTH as i32 || y < 0 || y >= REMARKABLE_HEIGHT as i32 {
             return Ok(());
         }
         
-        let index = (y as usize * self.width as usize + x as usize) * 2;
+        let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * 2;
         if index + 1 >= self.buffer.len() {
             return Ok(());
         }
