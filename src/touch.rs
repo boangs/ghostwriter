@@ -5,7 +5,8 @@ use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
 use nix::sys::time::TimeVal;
 
-const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";  // 尝试其他输入设备
+const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";
+const PEN_INPUT_DEVICE: &str = "/dev/input/event1";  // 通常触控笔是另一个输入设备
 
 #[repr(C)]
 #[derive(Debug)]
@@ -19,9 +20,11 @@ struct InputEvent {
 
 pub struct Touch {
     no_draw: bool,
-    input_device: Option<File>,
+    touch_device: Option<File>,
+    pen_device: Option<File>,
     last_x: i32,
     last_y: i32,
+    pen_pressure: i32,
     touch_started: bool,
     touch_complete: bool,
 }
@@ -29,7 +32,7 @@ pub struct Touch {
 impl Touch {
     pub fn new(no_draw: bool) -> Self {
         println!("尝试打开触摸设备: {}", TOUCH_INPUT_DEVICE);
-        let input_device = if !no_draw {
+        let touch_device = if !no_draw {
             match File::open(TOUCH_INPUT_DEVICE) {
                 Ok(file) => {
                     println!("成功打开触摸设备");
@@ -43,82 +46,133 @@ impl Touch {
         } else {
             None
         };
+
+        println!("尝试打开触控笔设备: {}", PEN_INPUT_DEVICE);
+        let pen_device = if !no_draw {
+            match File::open(PEN_INPUT_DEVICE) {
+                Ok(file) => {
+                    println!("成功打开触控笔设备");
+                    Some(file)
+                },
+                Err(e) => {
+                    println!("打开触控笔设备失败: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
         
         Self { 
             no_draw,
-            input_device,
+            touch_device,
+            pen_device,
             last_x: 0,
             last_y: 0,
+            pen_pressure: 0,
             touch_started: false,
             touch_complete: false,
         }
     }
 
     pub fn wait_for_touch(&mut self) -> Result<bool> {
-        if let Some(device) = &mut self.input_device {
+        let mut fd_set = FdSet::new();
+        let mut max_fd = 0;
+
+        // 添加触摸设备到 fd_set
+        if let Some(device) = &self.touch_device {
             let fd = device.as_raw_fd();
-            
-            let mut fd_set = FdSet::new();
             fd_set.insert(fd);
-            
-            let mut timeout = TimeVal::new(0, 0);
-            
-            match select(fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
-                Ok(n) if n > 0 => {
-                    let mut event = InputEvent {
-                        tv_sec: 0,
-                        tv_usec: 0,
-                        type_: 0,
-                        code: 0,
-                        value: 0,
-                    };
-                    
-                    let size = std::mem::size_of::<InputEvent>();
-                    let event_ptr = &mut event as *mut _ as *mut u8;
-                    let event_slice = unsafe {
-                        std::slice::from_raw_parts_mut(event_ptr, size)
-                    };
-                    
-                    if device.read_exact(event_slice).is_ok() {
-                        match event.type_ {
-                            3 => {  // EV_ABS
-                                match event.code {
-                                    0 => {  // ABS_X
-                                        self.last_x = event.value;
-                                        println!("X: {}", self.last_x);
-                                    },
-                                    1 => {  // ABS_Y
-                                        self.last_y = event.value;
-                                        println!("Y: {}", self.last_y);
-                                    },
-                                    24 => {  // ABS_PRESSURE
-                                        if event.value > 0 {
-                                            self.touch_started = true;
-                                        } else {
-                                            self.touch_complete = true;
-                                        }
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            0 => {  // EV_SYN
-                                if self.touch_complete {
-                                    // 检查是否在右上角区域
-                                    if self.last_x > 1200 && self.last_y < 200 {
-                                        return Ok(true);
-                                    }
-                                    self.touch_started = false;
-                                    self.touch_complete = false;
-                                }
-                            },
-                            _ => {}
-                        }
+            max_fd = fd;
+            println!("监听触摸设备 fd: {}", fd);
+        }
+
+        // 添加触控笔设备到 fd_set
+        if let Some(device) = &self.pen_device {
+            let fd = device.as_raw_fd();
+            fd_set.insert(fd);
+            max_fd = max_fd.max(fd);
+            println!("监听触控笔设备 fd: {}", fd);
+        }
+
+        let mut timeout = TimeVal::new(0, 10000);  // 10ms timeout
+
+        match select(max_fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
+            Ok(n) if n > 0 => {
+                // 处理触摸事件
+                if let Some(device) = &mut self.touch_device {
+                    if fd_set.contains(device.as_raw_fd()) {
+                        self.handle_input_event(device, true)?;
                     }
                 }
-                Ok(_) => (),
-                Err(e) => println!("Select error: {}", e),
+
+                // 处理触控笔事件
+                if let Some(device) = &mut self.pen_device {
+                    if fd_set.contains(device.as_raw_fd()) {
+                        self.handle_input_event(device, false)?;
+                    }
+                }
+            }
+            Ok(_) => (),
+            Err(e) => println!("Select error: {}", e),
+        }
+
+        Ok(self.touch_complete)
+    }
+
+    fn handle_input_event(&mut self, device: &mut File, is_touch: bool) -> Result<()> {
+        let mut event = InputEvent {
+            tv_sec: 0,
+            tv_usec: 0,
+            type_: 0,
+            code: 0,
+            value: 0,
+        };
+
+        let size = std::mem::size_of::<InputEvent>();
+        let event_ptr = &mut event as *mut _ as *mut u8;
+        let event_slice = unsafe {
+            std::slice::from_raw_parts_mut(event_ptr, size)
+        };
+
+        if device.read_exact(event_slice).is_ok() {
+            let device_type = if is_touch { "触摸" } else { "触控笔" };
+            println!("{}事件: type={}, code={}, value={}", 
+                    device_type, event.type_, event.code, event.value);
+
+            match event.type_ {
+                3 => {  // EV_ABS
+                    match event.code {
+                        0 => self.last_x = event.value,  // X坐标
+                        1 => self.last_y = event.value,  // Y坐标
+                        24 => {  // 压力值
+                            self.pen_pressure = event.value;
+                            if !is_touch {
+                                if event.value > 0 {
+                                    self.touch_started = true;
+                                } else {
+                                    self.touch_complete = true;
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                },
+                1 => {  // EV_KEY
+                    if event.code == 320 {  // BTN_TOUCH
+                        if is_touch {
+                            if event.value > 0 {
+                                self.touch_started = true;
+                            } else {
+                                self.touch_complete = true;
+                            }
+                        }
+                    }
+                },
+                _ => {}
             }
         }
-        Ok(false)
+
+        Ok(())
     }
 }
