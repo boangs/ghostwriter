@@ -5,6 +5,9 @@ use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use nix::libc;
 
+const REMARKABLE_WIDTH: u32 = 1404;
+const REMARKABLE_HEIGHT: u32 = 1872;
+
 pub struct Pen {
     no_draw: bool,
     display_device: Option<File>,
@@ -88,11 +91,17 @@ impl Pen {
         input_device.read_exact(&mut event_buf)?;
         
         // 解析事件
-        let x = /* 从event_buf解析x坐标 */;
-        let y = /* 从event_buf解析y坐标 */;
+        let event = parse_input_event(&event_buf);
+        
+        // 根据事件类型处理坐标
+        match (event.type_, event.code) {
+            (3, 0) => self.last_x = event.value, // X 坐标
+            (3, 1) => self.last_y = event.value, // Y 坐标
+            _ => return Ok(()),
+        }
         
         // 绘制点
-        self.draw_point(x, y)?;
+        self.draw_point(self.last_x, self.last_y)?;
         self.flush()?;
         
         Ok(())
