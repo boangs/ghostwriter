@@ -5,7 +5,7 @@ use std::os::unix::io::AsRawFd;
 use nix::sys::select::{select, FdSet};
 use nix::sys::time::TimeVal;
 
-const TOUCH_INPUT_DEVICE: &str = "/dev/input/event0";
+const TOUCH_INPUT_DEVICE: &str = "/dev/input/touchscreen0";
 const PEN_INPUT_DEVICE: &str = "/dev/input/event1";  // 通常触控笔是另一个输入设备
 
 #[repr(C)]
