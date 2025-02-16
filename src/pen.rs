@@ -20,19 +20,22 @@ impl Pen {
             // 使用 reMarkable 的 framebuffer 设备
             let device_path = "/dev/fb0";
             println!("尝试打开显示设备: {}", device_path);
-            if let Ok(device) = OpenOptions::new()
+            match OpenOptions::new()
                 .read(true)
                 .write(true)
                 .custom_flags(libc::O_RDWR)
                 .open(device_path) 
             {
-                println!("成功打开显示设备: {}", device_path);
-                let fd = device.as_raw_fd();
-                println!("显示设备文件描述符: {}", fd);
-                Some((Some(device), 2832, 2064))  // reMarkable Paper Pro 分辨率
-            } else {
-                println!("打开显示设备失败");
-                (None, 0, 0)
+                Ok(device) => {
+                    println!("成功打开显示设备: {}", device_path);
+                    let fd = device.as_raw_fd();
+                    println!("显示设备文件描述符: {}", fd);
+                    (Some(device), 2832, 2064)  // reMarkable Paper Pro 分辨率
+                },
+                Err(e) => {
+                    println!("打开显示设备失败: {}", e);
+                    (None, 0, 0)
+                }
             }
         } else {
             (None, 0, 0)
