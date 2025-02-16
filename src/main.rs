@@ -216,6 +216,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
     // 设置环境变量
     if let Some(url) = args.engine_base_url.clone() {
         env::set_var("ENGINE_BASE_URL", url);
+        env::set_var("OPENAI_BASE_URL", url);  // 同时设置 OPENAI_BASE_URL
     }
     
     if let Some(api_key) = args.engine_api_key.clone() {
@@ -224,6 +225,11 @@ fn ghostwriter(args: &Args) -> Result<()> {
 
     let mut engine_options = OptionMap::new();
     engine_options.insert("model".to_string(), args.model.clone());
+    
+    // 添加 base_url 到选项中
+    if let Some(url) = args.engine_base_url.clone() {
+        engine_options.insert("base_url".to_string(), url);
+    }
 
     let engine: Box<dyn LLMEngine> = match args.engine.as_deref().unwrap_or("openai") {
         "openai" => Box::new(OpenAI::new(&engine_options)),
@@ -237,6 +243,11 @@ fn ghostwriter(args: &Args) -> Result<()> {
     println!("等待触发（触摸右上角）...");
     
     loop {
+        {
+            let mut pen = pen.lock().unwrap();
+            pen.handle_pen_input()?;
+        }
+
         let mut touch = touch.lock().unwrap();
         if touch.wait_for_touch()? {
             println!("检测到触摸，开始 AI 交互");
@@ -254,7 +265,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
             }
 
             if let Some(response) = engine.get_response() {
-                println!("\nAI 回复: {}", response.to_string());
+                println!("\nAI 回复: {}", response);
                 let mut pen = pen.lock().unwrap();
                 pen.draw_text(&response, (100, 100), 32.0)?;
             }
