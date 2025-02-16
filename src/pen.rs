@@ -17,7 +17,7 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let (display_device, width, height) = if !no_draw {
-            let devices = ["/dev/fb0", "/dev/graphics/fb0", "/dev/fb/0"];
+            let devices = ["/dev/dri/card0", "/dev/fb0", "/dev/graphics/fb0"];
             let mut device_info = None;
             
             for device_path in devices.iter() {
