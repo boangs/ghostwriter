@@ -2,6 +2,7 @@ use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
+use std::os::unix::fs::OpenOptionsExt;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -20,11 +21,11 @@ impl Pen {
             match OpenOptions::new()
                 .read(true)
                 .write(true)
+                .custom_flags(libc::O_RDWR | libc::O_NONBLOCK)
                 .open("/dev/dri/card0")
             {
                 Ok(device) => {
                     println!("成功打开显示设备");
-                    // 暂时使用固定分辨率
                     (Some(device), 1024, 600)
                 }
                 Err(e) => {
@@ -36,8 +37,8 @@ impl Pen {
             (None, 0, 0)
         };
 
-        let buffer_size = (width * height) as usize;
-        let buffer = vec![0u8; buffer_size];
+        let buffer_size = (width * height * 4) as usize;
+        let buffer = vec![0xFF; buffer_size];
 
         Self {
             no_draw,
@@ -87,9 +88,12 @@ impl Pen {
             return;
         }
         
-        let offset = (y as u32 * self.width + x as u32) as usize;
-        if offset < self.buffer.len() {
-            self.buffer[offset] = 0xFF;
+        let offset = ((y as u32 * self.width + x as u32) * 4) as usize;
+        if offset + 3 < self.buffer.len() {
+            self.buffer[offset] = 0;
+            self.buffer[offset + 1] = 0;
+            self.buffer[offset + 2] = 0;
+            self.buffer[offset + 3] = 255;
         }
     }
 
@@ -107,6 +111,14 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
             println!("开始刷新显示");
+            unsafe {
+                let fb_var_info = std::mem::zeroed::<libc::fb_var_screeninfo>();
+                let ret = libc::ioctl(device.as_raw_fd(), libc::FBIOGET_VSCREENINFO, &fb_var_info);
+                if ret < 0 {
+                    println!("获取屏幕信息失败");
+                    return Ok(());
+                }
+            }
             device.write_all(&self.buffer)?;
             device.flush()?;
             println!("显示刷新完成");
