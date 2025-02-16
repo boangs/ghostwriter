@@ -4,6 +4,7 @@ use std::env;
 use clap::Parser;
 use dotenv::dotenv;
 use std::thread;
+use rust_embed::RustEmbed;
 
 use ghostwriter::{
     keyboard::Keyboard,
@@ -91,6 +92,10 @@ struct Args {
     #[arg(long)]
     apply_segmentation: bool,
 }
+
+#[derive(RustEmbed)]
+#[folder = "assets/"]
+struct Asset;
 
 fn main() -> Result<()> {
     dotenv().ok();
@@ -220,10 +225,10 @@ fn ghostwriter(args: &Args) -> Result<()> {
     let mut engine_options = OptionMap::new();
     engine_options.insert("model".to_string(), args.model.clone());
 
-    let engine = match args.engine.as_deref().unwrap_or("openai") {
-        "openai" => OpenAI::new(&engine_options)?,
-        "anthropic" => Anthropic::new(&engine_options)?,
-        "google" => Google::new(&engine_options)?,
+    let engine: Box<dyn LLMEngine> = match args.engine.as_deref().unwrap_or("openai") {
+        "openai" => Box::new(OpenAI::new(&engine_options)),
+        "anthropic" => Box::new(Anthropic::new(&engine_options)),
+        "google" => Box::new(Google::new(&engine_options)),
         _ => panic!("不支持的引擎类型"),
     };
 
@@ -249,7 +254,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
             }
 
             if let Some(response) = engine.get_response() {
-                println!("\nAI 回复: {}", response);
+                println!("\nAI 回复: {}", response.to_string());
                 let mut pen = pen.lock().unwrap();
                 pen.draw_text(&response, (100, 100), 32.0)?;
             }
