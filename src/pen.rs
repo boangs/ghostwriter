@@ -201,6 +201,25 @@ impl Pen {
         self.buffer.copy_from_slice(bitmap);
         self.flush()
     }
+
+    pub fn test_display(&mut self) -> Result<()> {
+        // 将整个屏幕变成黑色
+        for i in 0..self.buffer.len() {
+            self.buffer[i] = 0x00;
+        }
+        self.flush()?;
+        
+        // 等待 1 秒
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        
+        // 将整个屏幕变成白色
+        for i in 0..self.buffer.len() {
+            self.buffer[i] = 0xFF;
+        }
+        self.flush()?;
+        
+        Ok(())
+    }
 }
 
 fn parse_input_event(buffer: &[u8]) -> InputEvent {
