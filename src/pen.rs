@@ -3,6 +3,8 @@ use rusttype::{Font, Scale, Point};
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
+use nix::libc;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -21,7 +23,7 @@ impl Pen {
             match OpenOptions::new()
                 .read(true)
                 .write(true)
-                .custom_flags(libc::O_RDWR | libc::O_NONBLOCK)
+                .custom_flags(libc::O_RDWR)
                 .open("/dev/dri/card0")
             {
                 Ok(device) => {
@@ -111,14 +113,6 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
             println!("开始刷新显示");
-            unsafe {
-                let fb_var_info = std::mem::zeroed::<libc::fb_var_screeninfo>();
-                let ret = libc::ioctl(device.as_raw_fd(), libc::FBIOGET_VSCREENINFO, &fb_var_info);
-                if ret < 0 {
-                    println!("获取屏幕信息失败");
-                    return Ok(());
-                }
-            }
             device.write_all(&self.buffer)?;
             device.flush()?;
             println!("显示刷新完成");
