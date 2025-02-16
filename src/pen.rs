@@ -75,7 +75,7 @@ impl Pen {
                 });
             }
         }
-        self.flush_display()?;
+        self.flush()?;
         println!("文本绘制完成");
         Ok(())
     }
@@ -94,7 +94,7 @@ impl Pen {
                             for &(x, y) in &points {
                                 self.draw_point(x, y);
                             }
-                            self.flush_display()?;
+                            self.flush()?;
                             points.clear();
                         }
                     },
@@ -133,12 +133,20 @@ impl Pen {
         }
     }
 
-    fn flush_display(&mut self) -> Result<()> {
+    pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
             device.write_all(&self.buffer)?;
             device.sync_all()?;
         }
         Ok(())
+    }
+
+    pub fn draw_bitmap(&mut self, bitmap: &[u8]) -> Result<()> {
+        if bitmap.len() != self.buffer.len() {
+            return Err(anyhow::anyhow!("位图大小不匹配"));
+        }
+        self.buffer.copy_from_slice(bitmap);
+        self.flush()
     }
 }
 

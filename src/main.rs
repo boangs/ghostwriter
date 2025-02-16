@@ -148,7 +148,7 @@ fn main() -> Result<()> {
                 let mut pen = pen.lock().unwrap();
                 
                 // 使用更大的字体大小
-                pen.draw_text(&response, (100, 100), 32.0)?;  // 增加字体大小到 32.0
+                pen.draw_text(&response, (100, 100), 32.0)?;
                 pen.flush()?;
             }
             
@@ -279,7 +279,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
                 let mut pen = pen.lock().unwrap();
                 
                 // 使用更大的字体大小
-                pen.draw_text(&response, (100, 100), 32.0)?;  // 增加字体大小到 32.0
+                pen.draw_text(&response, (100, 100), 32.0)?;
                 pen.flush()?;
             }
             
