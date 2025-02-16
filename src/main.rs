@@ -132,6 +132,7 @@ fn main() -> Result<()> {
             // 添加测试文本
             let test_message = "你好";
             println!("发送给 AI 的消息: {}", test_message);
+            let mut engine = engine.lock().unwrap();
             engine.add_text_content(test_message);
             
             // 执行 API 调用
@@ -149,7 +150,6 @@ fn main() -> Result<()> {
                 
                 // 使用更大的字体大小
                 pen.draw_text(&response, (100, 100), 32.0)?;
-                pen.flush()?;
             }
             
             // 清理内容，准备下一次交互
