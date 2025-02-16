@@ -151,11 +151,11 @@ impl Touch {
                     match event.code {
                         53 => {  // ABS_MT_POSITION_X
                             self.last_x = event.value;
-                            println!("触摸 X坐标: {}", self.last_x);
+                            println!("触摸事件 - X: {}, Y: {}", self.last_x, self.last_y);
                         },
                         54 => {  // ABS_MT_POSITION_Y
                             self.last_y = event.value;
-                            println!("触摸 Y坐标: {}", self.last_y);
+                            println!("触摸事件 - X: {}, Y: {}", self.last_x, self.last_y);
                         },
                         57 => {  // ABS_MT_TRACKING_ID
                             if event.value == -1 {
@@ -170,38 +170,29 @@ impl Touch {
                     }
                 } else {
                     // 处理触控笔事件
-                    if self.pen_pressure > 0 {  // 只在笔尖接触屏幕时处理坐标
-                        match event.code {
-                            0 => {  // ABS_X
-                                self.last_x = event.value;
-                                println!("笔 X坐标: {}", self.last_x);
-                            },
-                            1 => {  // ABS_Y
-                                self.last_y = event.value;
-                                println!("笔 Y坐标: {}", self.last_y);
-                            },
-                            24 => {  // ABS_PRESSURE
-                                self.pen_pressure = event.value;
-                            },
-                            _ => {}
-                        }
-                    } else if event.code == 24 {  // 更新压力值
-                        self.pen_pressure = event.value;
-                        if event.value > 0 {
-                            println!("笔尖接触屏幕");
-                        } else {
-                            println!("笔尖离开屏幕");
-                        }
+                    match event.code {
+                        0 => {  // ABS_X
+                            self.last_x = event.value;
+                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                        },
+                        1 => {  // ABS_Y
+                            self.last_y = event.value;
+                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                        },
+                        24 => {  // ABS_PRESSURE
+                            self.pen_pressure = event.value;
+                            println!("触控笔 - 类型: {}, X: {}, Y: {}, 压力: {}", 
+                                event.type_, self.last_x, self.last_y, self.pen_pressure);
+                        },
+                        _ => {}
                     }
                 }
             },
             1 => {  // EV_KEY
                 if !is_touch && event.code == 320 {  // BTN_TOUCH for pen
-                    if event.value > 0 {
-                        println!("笔尖接触屏幕");
-                    } else {
-                        println!("笔尖离开屏幕");
-                    }
+                    println!("触控笔 - 类型: {}, 按键事件: {}", event.type_, event.value);
                 }
             },
             _ => {}
