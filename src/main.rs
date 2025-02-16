@@ -1,34 +1,19 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::env;
-
-use serde_json::Value as json;
-
 use clap::Parser;
-
-use base64::prelude::*;
-
 use dotenv::dotenv;
-
-use rust_embed::Embed;
 
 use ghostwriter::{
     keyboard::Keyboard,
     llm_engine::{anthropic::Anthropic, openai::OpenAI, google::Google, LLMEngine},
     pen::Pen,
-    screenshot::Screenshot,
-    segmenter::analyze_image,
     touch::Touch,
-    util::{svg_to_bitmap, write_bitmap_to_file, OptionMap},
+    util::OptionMap,
 };
 
 const REMARKABLE_WIDTH: u32 = 768;
 const REMARKABLE_HEIGHT: u32 = 1024;
-
-#[derive(Embed)]
-#[folder = "prompts/"]
-struct Asset;
 
 #[derive(Parser)]
 #[command(author, version)]
@@ -122,16 +107,16 @@ fn main() -> Result<()> {
     let mut engine_options = OptionMap::new();
     engine_options.insert("model".to_string(), args.model.clone());
 
-    let engine: Arc<Mutex<Box<dyn LLMEngine>>> = match args.engine.as_deref().unwrap_or("openai") {
-        "openai" => Arc::new(Mutex::new(Box::new(OpenAI::new(&engine_options)?))),
-        "anthropic" => Arc::new(Mutex::new(Box::new(Anthropic::new(&engine_options)?))),
-        "google" => Arc::new(Mutex::new(Box::new(Google::new(&engine_options)?))),
+    let engine: Box<dyn LLMEngine> = match args.engine.as_deref().unwrap_or("openai") {
+        "openai" => Box::new(OpenAI::new(&engine_options)),
+        "anthropic" => Box::new(Anthropic::new(&engine_options)),
+        "google" => Box::new(Google::new(&engine_options)),
         _ => panic!("不支持的引擎类型"),
     };
 
+    let engine = Arc::new(Mutex::new(engine));
     let pen = Arc::new(Mutex::new(Pen::new(args.no_draw)));
     let touch = Arc::new(Mutex::new(Touch::new(args.no_draw)));
-    let keyboard = Arc::new(Mutex::new(Keyboard::new(args.no_draw, args.no_draw_progress)));
 
     println!("等待触发（触摸右上角）...");
     
