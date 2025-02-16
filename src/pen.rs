@@ -24,13 +24,19 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let display_device = if !no_draw {
-            match File::open("/dev/fb0") {
+            match std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .custom_flags(libc::O_SYNC)
+                .open("/dev/fb0") 
+            {
                 Ok(file) => {
-                    println!("成功打开显示设备");
+                    println!("成功打开显示设备，fd: {}", file.as_raw_fd());
                     Some(file)
                 },
                 Err(e) => {
-                    println!("打开显示设备失败: {}", e);
+                    println!("打开显示设备失败: {} (errno={})", 
+                        e, e.raw_os_error().unwrap_or(-1));
                     None
                 }
             }
@@ -133,24 +139,41 @@ impl Pen {
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
-            if device.write_all(&self.buffer).is_err() {
-                println!("尝试重新打开显示设备");
-                self.display_device = std::fs::OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open("/dev/fb0")
-                    .ok();
+            println!("开始写入显示缓冲区，大小: {} 字节", self.buffer.len());
+            
+            match device.write_all(&self.buffer) {
+                Ok(_) => {
+                    println!("缓冲区写入成功");
+                    match device.sync_all() {
+                        Ok(_) => println!("缓冲区同步成功"),
+                        Err(e) => println!("缓冲区同步失败: {} (errno={})", 
+                            e, e.raw_os_error().unwrap_or(-1))
+                    }
+                },
+                Err(e) => {
+                    println!("缓冲区写入失败: {} (errno={})", 
+                        e, e.raw_os_error().unwrap_or(-1));
+                        
+                    println!("尝试重新打开显示设备");
+                    self.display_device = std::fs::OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .custom_flags(libc::O_SYNC)  // 添加同步标志
+                        .open("/dev/fb0")
+                        .map_err(|e| {
+                            println!("重新打开显示设备失败: {} (errno={})",
+                                e, e.raw_os_error().unwrap_or(-1));
+                            e
+                        })
+                        .ok();
                     
-                if let Some(new_device) = &mut self.display_device {
-                    new_device.write_all(&self.buffer)?;
-                    new_device.sync_all()?;
-                    println!("显示设备刷新完成");
-                } else {
-                    println!("警告：无法重新打开显示设备");
+                    if let Some(new_device) = &mut self.display_device {
+                        println!("显示设备重新打开成功，尝试写入");
+                        new_device.write_all(&self.buffer)?;
+                        new_device.sync_all()?;
+                        println!("显示设备刷新完成");
+                    }
                 }
-            } else {
-                device.sync_all()?;
-                println!("显示设备刷新完成");
             }
         } else {
             println!("警告：显示设备未初始化");
