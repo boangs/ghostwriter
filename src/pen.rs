@@ -16,9 +16,6 @@ const REMARKABLE_HEIGHT: u32 = 1872;
 const PEN_MAX_X: i32 = 15725;  // 触控笔 X 坐标最大值
 const PEN_MAX_Y: i32 = 20967;  // 触控笔 Y 坐标最大值
 
-// 定义 EPDC 刷新命令的 ioctl 号
-ioctl_write_int!(mxcfb_send_update, b'F', 0x2E, i32);
-
 const MXCFB_SEND_UPDATE: u64 = 0x4622; // 0x2E 转换为 ioctl 命令
 
 pub struct Pen {
