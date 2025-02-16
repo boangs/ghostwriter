@@ -134,7 +134,7 @@ impl Touch {
         }
 
         // 在处理触摸事件后检查位置
-        if self.touch_complete && self.last_x > 1800 && self.last_y < 100 {
+        if self.touch_complete && self.last_x > 1800 && self.last_y < 200 {
             println!("触发右上角操作！");
             self.touch_complete = false;  // 重置状态
             return Ok(true);
