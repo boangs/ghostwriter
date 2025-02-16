@@ -133,7 +133,14 @@ impl Touch {
             Err(e) => println!("Select error: {}", e),
         }
 
-        Ok(self.touch_complete)
+        // 在处理触摸事件后检查位置
+        if self.touch_complete && self.last_x > 1800 && self.last_y < 100 {
+            println!("触发右上角操作！");
+            self.touch_complete = false;  // 重置状态
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn process_event(&mut self, event: &InputEvent, is_touch: bool) {
@@ -144,30 +151,40 @@ impl Touch {
         match event.type_ {
             3 => {  // EV_ABS
                 match event.code {
-                    0 => self.last_x = event.value,  // X坐标
-                    1 => self.last_y = event.value,  // Y坐标
-                    24 => {  // 压力值
-                        self.pen_pressure = event.value;
-                        if !is_touch {
-                            if event.value > 0 {
-                                self.touch_started = true;
-                            } else {
-                                self.touch_complete = true;
-                            }
+                    53 => {  // ABS_MT_POSITION_X
+                        self.last_x = event.value;
+                        println!("X坐标: {}", self.last_x);
+                    },
+                    54 => {  // ABS_MT_POSITION_Y
+                        self.last_y = event.value;
+                        println!("Y坐标: {}", self.last_y);
+                    },
+                    57 => {  // ABS_MT_TRACKING_ID
+                        if event.value == -1 {
+                            self.touch_complete = true;
+                            println!("触摸结束");
+                        } else {
+                            self.touch_started = true;
+                            println!("触摸开始");
                         }
                     },
                     _ => {}
                 }
             },
             1 => {  // EV_KEY
-                if event.code == 320 {  // BTN_TOUCH
-                    if is_touch {
-                        if event.value > 0 {
-                            self.touch_started = true;
-                        } else {
-                            self.touch_complete = true;
-                        }
+                if event.code == 330 {  // BTN_TOUCH
+                    if event.value > 0 {
+                        self.touch_started = true;
+                        println!("触摸按下");
+                    } else {
+                        println!("触摸抬起");
                     }
+                }
+            },
+            0 => {  // EV_SYN
+                // 在同步事件时检查是否在右上角
+                if self.touch_complete && self.last_x > 1800 && self.last_y < 100 {
+                    println!("检测到右上角触摸！坐标: ({}, {})", self.last_x, self.last_y);
                 }
             },
             _ => {}
