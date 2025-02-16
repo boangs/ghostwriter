@@ -189,7 +189,12 @@ fn draw_svg(
         write_bitmap_to_file(&bitmap, save_bitmap)?;
     }
     if !no_draw {
-        pen.draw_bitmap(&bitmap)?;
+        // 将 Vec<Vec<bool>> 转换为 Vec<u8>
+        let flat_bitmap: Vec<u8> = bitmap
+            .iter()
+            .flat_map(|row| row.iter().map(|&pixel| if pixel { 0 } else { 255 }))
+            .collect();
+        pen.draw_bitmap(&flat_bitmap)?;
     }
     keyboard.progress_end()?;
     Ok(())
