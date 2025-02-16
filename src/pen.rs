@@ -20,7 +20,6 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let (display_device, width, height) = if !no_draw {
-            // 尝试不同的显示设备
             let devices = ["/dev/fb0", "/dev/graphics/fb0", "/dev/fb/0"];
             let mut device_info = None;
             
@@ -35,7 +34,7 @@ impl Pen {
                     println!("成功打开显示设备: {}", device_path);
                     let fd = device.as_raw_fd();
                     println!("显示设备文件描述符: {}", fd);
-                    device_info = Some((device, 1024, 600));
+                    device_info = Some((Some(device), 1024, 600));
                     break;
                 }
             }
