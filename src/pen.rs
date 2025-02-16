@@ -109,8 +109,8 @@ impl Pen {
             if let Some(outline) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
                     if v > 0.1 {
-                        let x = outline.min.x as i32 + x as i32;
-                        let y = outline.min.y as i32 + y as i32;
+                        let x = outline.min.x as i32 + 10 * x as i32;
+                        let y = outline.min.y as i32 + 10 * y as i32;
                         let _ = self.draw_point(x, y, 2000);
                     }
                 });
