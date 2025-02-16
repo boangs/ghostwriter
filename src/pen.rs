@@ -81,59 +81,40 @@ impl Pen {
     }
 
     pub fn handle_pen_input(&mut self) -> Result<()> {
-        let mut event_buffer = [0u8; 24];
-        let mut points = Vec::new();
+        // 从 /dev/input/event2 读取笔输入
+        let device = "/dev/input/event2";  // Elan marker input
         
-        if let Some(pen_device) = &mut self.pen_device {
-            if let Ok(_) = pen_device.read_exact(&mut event_buffer) {
-                let event = parse_input_event(&event_buffer);
-                
-                match event.type_ {
-                    0 => {  // EV_SYN
-                        if !points.is_empty() {
-                            for &(x, y) in &points {
-                                self.draw_point(x, y);
-                            }
-                            self.flush()?;
-                            points.clear();
-                        }
-                    },
-                    3 => {  // EV_ABS
-                        match event.code {
-                            0 => {  // ABS_X
-                                self.last_x = event.value;
-                            },
-                            1 => {  // ABS_Y 
-                                self.last_y = event.value;
-                            },
-                            24 => { // ABS_PRESSURE
-                                self.is_drawing = event.value > 0;
-                                if self.is_drawing {
-                                    points.push((self.last_x, self.last_y));
-                                }
-                            },
-                            _ => {}
-                        }
-                    },
-                    _ => {}
-                }
-            }
-        }
+        // 打开设备
+        let mut input_device = File::open(device)?;
+        
+        // 读取事件
+        let mut event_buf = [0u8; 24];
+        input_device.read_exact(&mut event_buf)?;
+        
+        // 解析事件
+        let x = /* 从event_buf解析x坐标 */;
+        let y = /* 从event_buf解析y坐标 */;
+        
+        // 绘制点
+        self.draw_point(x, y)?;
+        self.flush()?;
+        
         Ok(())
     }
 
-    pub fn draw_point(&mut self, x: i32, y: i32) {
+    pub fn draw_point(&mut self, x: i32, y: i32) -> Result<()> {
         if x < 0 || x >= self.width as i32 || y < 0 || y >= self.height as i32 {
-            return;
+            return Ok(());
         }
         
         let index = (y as usize * self.width as usize + x as usize) * 2;
         if index + 1 >= self.buffer.len() {
-            return;
+            return Ok(());
         }
         
         self.buffer[index] = 0x00;     // 完全黑色
         self.buffer[index + 1] = 0x00; // 完全黑色
+        Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
