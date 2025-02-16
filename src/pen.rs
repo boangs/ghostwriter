@@ -7,6 +7,7 @@ use std::os::unix::io::AsRawFd;
 use nix::libc;
 use nix::sys::mman::{mmap, MapFlags, ProtFlags};
 use std::ptr;
+use std::num::NonZeroUsize;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -41,8 +42,8 @@ impl Pen {
                     let fb_size = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
                     let addr = unsafe {
                         mmap(
-                            ptr::null_mut(),
-                            fb_size,
+                            None,
+                            NonZeroUsize::new(fb_size).unwrap(),
                             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                             MapFlags::MAP_SHARED,
                             file.as_raw_fd(),
