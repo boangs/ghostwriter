@@ -59,6 +59,7 @@ impl Pen {
             y: position.1 as f32 + v_metrics.ascent 
         }).collect();
         
+        println!("开始绘制文本: {}", text);
         for glyph in glyphs {
             if let Some(outline) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
@@ -66,10 +67,13 @@ impl Pen {
                         let x = outline.min.x as i32 + x as i32;
                         let y = outline.min.y as i32 + y as i32;
                         self.draw_pixel(x, y);
+                        println!("绘制点: ({}, {})", x, y);
                     }
                 });
             }
         }
+        self.flush()?;
+        println!("文本绘制完成");
         
         Ok(())
     }
@@ -93,20 +97,21 @@ impl Pen {
         for (y, row) in bitmap.iter().enumerate() {
             for (x, &pixel) in row.iter().enumerate() {
                 if pixel {
-                    println!("Draw pixel at ({}, {})", x, y);
+                    self.draw_pixel(x as i32, y as i32);
                 }
             }
-            sleep(Duration::from_millis(5));
         }
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(device) = &mut self.display_device {
-            // 将缓冲区写入显示设备
+            println!("开始刷新显示");
             device.write_all(&self.buffer)?;
             device.flush()?;
-            println!("刷新显示内容");
+            println!("显示刷新完成");
+        } else {
+            println!("显示设备未打开");
         }
         Ok(())
     }
