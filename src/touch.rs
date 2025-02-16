@@ -60,7 +60,7 @@ impl Touch {
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
-            let mut timeout = TimeVal::new(0, 10_000);
+            let mut timeout = TimeVal::new(0, 0);
             
             match select(fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
                 Ok(n) if n > 0 => {
@@ -103,8 +103,6 @@ impl Touch {
                             },
                             0 => {  // EV_SYN
                                 if self.touch_complete {
-                                    println!("触摸结束: ({}, {})", self.last_x, self.last_y);
-                                    // 检查是否在右上角区域 (1800-2048, 0-200)
                                     if self.last_x > 1800 && self.last_x <= 2048 && 
                                        self.last_y >= 0 && self.last_y < 200 {
                                         self.touch_started = false;
