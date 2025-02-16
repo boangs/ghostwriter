@@ -3,6 +3,7 @@ use rusttype::{Font, Scale, Point};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
 use nix::libc;
 
 const REMARKABLE_WIDTH: u32 = 1404;
