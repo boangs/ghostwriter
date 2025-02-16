@@ -2,35 +2,71 @@ use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::OpenOptions;
 use std::io::{Write, Seek, SeekFrom};
-use std::process::Command;
-use std::thread::sleep;
-use std::time::Duration;
+use drm::control::{self, Device as ControlDevice};
+use drm::Device;
 
-const REMARKABLE_WIDTH: u32 = 1404;
-const REMARKABLE_HEIGHT: u32 = 1872;
-const FB_DEVICE: &str = "/dev/fb0";
-
+// 先不设定具体的显示设备路径
 pub struct Pen {
     no_draw: bool,
-    pub framebuffer: Option<std::fs::File>,
+    drm_device: Option<std::fs::File>,
+    width: u32,
+    height: u32,
+    buffer: Vec<u8>,
 }
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        // 不再停止 xochitl
-        let framebuffer = if !no_draw {
-            // 尝试以只写方式打开帧缓冲区
-            OpenOptions::new()
+        let (drm_device, width, height) = if !no_draw {
+            println!("尝试打开 DRM 设备: /dev/dri/card0");
+            match OpenOptions::new()
+                .read(true)
                 .write(true)
-                .open(FB_DEVICE)
-                .ok()
+                .open("/dev/dri/card0")
+            {
+                Ok(device) => {
+                    println!("成功打开 DRM 设备");
+                    // 获取显示分辨率
+                    let res = unsafe {
+                        let dev = &device as &dyn Device;
+                        dev.get_resources().unwrap()
+                    };
+                    
+                    if let Some(connector) = res.connectors.first() {
+                        let modes = unsafe {
+                            let dev = &device as &dyn ControlDevice;
+                            dev.get_connector(*connector, false).unwrap()
+                        };
+                        
+                        if let Some(mode) = modes.modes().first() {
+                            println!("显示分辨率: {}x{}", mode.size().0, mode.size().1);
+                            (Some(device), mode.size().0, mode.size().1)
+                        } else {
+                            println!("无法获取显示模式，使用默认分辨率");
+                            (Some(device), 1024, 600)
+                        }
+                    } else {
+                        println!("无法获取显示连接器，使用默认分辨率");
+                        (Some(device), 1024, 600)
+                    }
+                }
+                Err(e) => {
+                    println!("打开 DRM 设备失败: {}", e);
+                    (None, 0, 0)
+                }
+            }
         } else {
-            None
+            (None, 0, 0)
         };
-        
+
+        let buffer_size = (width * height) as usize;
+        let buffer = vec![0u8; buffer_size];
+
         Self {
             no_draw,
-            framebuffer,
+            drm_device,
+            width,
+            height,
+            buffer,
         }
     }
 
@@ -61,26 +97,17 @@ impl Pen {
     }
 
     pub fn cleanup(&mut self) {
-        // 不再需要重启 xochitl
+        // 清理资源
     }
 
     fn draw_pixel(&mut self, x: i32, y: i32) {
-        if x < 0 || y < 0 || x >= REMARKABLE_WIDTH as i32 || y >= REMARKABLE_HEIGHT as i32 {
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
             return;
         }
-
-        println!("Draw pixel at ({}, {})", x, y);
         
-        if let Some(fb) = &mut self.framebuffer {
-            let offset = (y as u32 * REMARKABLE_WIDTH + x as u32) as u64;
-            if let Err(e) = fb.seek(SeekFrom::Start(offset)) {
-                println!("Failed to seek framebuffer: {}", e);
-                return;
-            }
-            
-            if let Err(e) = fb.write_all(&[0xFF]) {
-                println!("Failed to write to framebuffer: {}", e);
-            }
+        let offset = (y as u32 * self.width + x as u32) as usize;
+        if offset < self.buffer.len() {
+            self.buffer[offset] = 0xFF;
         }
     }
 
@@ -97,8 +124,13 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(fb) = &mut self.framebuffer {
-            fb.flush()?;
+        if let Some(device) = &mut self.drm_device {
+            // 将缓冲区内容刷新到屏幕
+            unsafe {
+                let dev = device as &dyn Device;
+                // TODO: 实现 DRM 缓冲区刷新
+                println!("刷新显示内容");
+            }
         }
         Ok(())
     }

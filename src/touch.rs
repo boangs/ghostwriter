@@ -60,7 +60,7 @@ impl Touch {
             let mut fd_set = FdSet::new();
             fd_set.insert(fd);
             
-            let mut timeout = TimeVal::new(0, 100_000);
+            let mut timeout = TimeVal::new(0, 10_000);
             
             match select(fd + 1, Some(&mut fd_set), None, None, Some(&mut timeout)) {
                 Ok(n) if n > 0 => {
@@ -84,9 +84,11 @@ impl Touch {
                                 match event.code {
                                     53 => {  // ABS_MT_POSITION_X
                                         self.last_x = event.value;
+                                        println!("X: {}", self.last_x);
                                     },
                                     54 => {  // ABS_MT_POSITION_Y
                                         self.last_y = event.value;
+                                        println!("Y: {}", self.last_y);
                                     },
                                     57 => {  // ABS_MT_TRACKING_ID
                                         if event.value == -1 {
