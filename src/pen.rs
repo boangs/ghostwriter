@@ -5,6 +5,8 @@ use std::io::{Write, Seek, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use nix::libc;
+use drm::control::{Device as ControlDevice, connector, crtc};
+use drm::Device;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -14,11 +16,13 @@ pub struct Pen {
     width: u32,
     height: u32,
     buffer: Vec<u8>,
+    fb_id: Option<u32>,
+    crtc_id: Option<u32>,
 }
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        let (display_device, width, height) = if !no_draw {
+        let (display_device, width, height, fb_id, crtc_id) = if !no_draw {
             println!("尝试打开显示设备: /dev/dri/card0");
             match OpenOptions::new()
                 .read(true)
@@ -28,15 +32,38 @@ impl Pen {
             {
                 Ok(device) => {
                     println!("成功打开显示设备");
-                    (Some(device), 1024, 600)
+                    let dev = &device as &dyn Device;
+                    
+                    // 获取资源
+                    let res = unsafe { dev.get_resources().unwrap() };
+                    let conn = res.connectors[0];
+                    let crtc = res.crtcs[0];
+                    
+                    // 获取连接器信息
+                    let conn_info = unsafe {
+                        device.get_connector(conn, false).unwrap()
+                    };
+                    
+                    // 创建帧缓冲区
+                    let fb_id = unsafe {
+                        device.add_framebuffer(
+                            1024, 600,
+                            32, 32,
+                            1024 * 4,
+                            0,
+                            &[],
+                        ).unwrap()
+                    };
+                    
+                    (Some(device), 1024, 600, Some(fb_id), Some(crtc))
                 }
                 Err(e) => {
                     println!("打开显示设备失败: {}", e);
-                    (None, 0, 0)
+                    (None, 0, 0, None, None)
                 }
             }
         } else {
-            (None, 0, 0)
+            (None, 0, 0, None, None)
         };
 
         let buffer_size = (width * height * 4) as usize;
@@ -48,6 +75,8 @@ impl Pen {
             width,
             height,
             buffer,
+            fb_id,
+            crtc_id,
         }
     }
 
@@ -111,13 +140,24 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(device) = &mut self.display_device {
+        if let (Some(device), Some(fb_id), Some(crtc_id)) = 
+            (&mut self.display_device, self.fb_id, self.crtc_id) {
             println!("开始刷新显示");
-            device.write_all(&self.buffer)?;
-            device.flush()?;
+            
+            unsafe {
+                let dev = device as &dyn Device;
+                // 更新帧缓冲区内容
+                dev.map_dumb_buffer(fb_id, &self.buffer)?;
+                
+                // 设置 CRTC
+                let mode = crtc::Mode::new(
+                    self.width, self.height,
+                    60  // 刷新率
+                );
+                dev.set_crtc(crtc_id, Some(fb_id), 0, 0, &[fb_id], Some(mode))?;
+            }
+            
             println!("显示刷新完成");
-        } else {
-            println!("显示设备未打开");
         }
         Ok(())
     }
@@ -125,6 +165,12 @@ impl Pen {
 
 impl Drop for Pen {
     fn drop(&mut self) {
+        if let (Some(device), Some(fb_id)) = (&self.display_device, self.fb_id) {
+            unsafe {
+                let dev = device as &dyn Device;
+                let _ = dev.destroy_framebuffer(fb_id);
+            }
+        }
         self.cleanup();
     }
 }
