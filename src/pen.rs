@@ -71,7 +71,7 @@ impl Pen {
                     if v > 0.1 {
                         let x = outline.min.x as i32 + x as i32;
                         let y = outline.min.y as i32 + y as i32;
-                        self.draw_point(x, y, self.pressure)?;
+                        let _ = self.draw_point(x, y, self.pressure);
                     }
                 });
             }
