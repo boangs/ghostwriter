@@ -150,9 +150,9 @@ impl Pen {
     }
 
     fn convert_coordinates(&self, x: i32, y: i32) -> (i32, i32) {
-        // 将触控笔坐标映射到显示分辨率
-        let display_x = (x as f32 * REMARKABLE_WIDTH as f32 / PEN_MAX_X as f32) as i32;
-        let display_y = (y as f32 * REMARKABLE_HEIGHT as f32 / PEN_MAX_Y as f32) as i32;
+        // 调整坐标映射范围
+        let display_x = (x as f32 * REMARKABLE_WIDTH as f32 / (PEN_MAX_X as f32 / 2.0)) as i32;
+        let display_y = (y as f32 * REMARKABLE_HEIGHT as f32 / (PEN_MAX_Y as f32 / 2.0)) as i32;
         
         println!("坐标转换: 原始({}, {}) -> 显示({}, {})", 
             x, y, display_x, display_y);
