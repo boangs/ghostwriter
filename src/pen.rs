@@ -350,11 +350,10 @@ impl Pen {
             
             // 直接写入帧缓冲区
             device.write_all(&self.buffer)?;
-            println!("直接写入帧缓冲区完成");
+            println!("写入帧缓冲区完成");
             
-            // 尝试强制刷新
-            device.sync_all()?;
-            println!("帧缓冲区同步完成");
+            // 确保数据写入
+            device.flush()?;
         } else {
             println!("未找到显示设备");
         }
