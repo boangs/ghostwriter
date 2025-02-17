@@ -51,7 +51,7 @@ struct MxcfbAltBufferData {
 
 const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
-const MXCFB_SEND_UPDATE: u64 = 0x4044462E;  // 正确的 ioctl 命令号
+const MXCFB_SEND_UPDATE: u64 = 0x4048462e;  // 正确的 ioctl 命令号
 
 // 修改显示设备路径
 const FB_DEVICES: &[&str] = &[
@@ -63,7 +63,11 @@ const RMPP_UPDATE_DISPLAY: u64 = 0x5730;
 
 // 修改共享内存路径
 const SHMEM_PATH: &str = "/rmpp-qtfb";
-const SCREEN_SIZE: usize = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
+const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT * 4) as usize;
+
+// 每个像素的位深度
+const BITS_PER_PIXEL: u32 = 32;
+const BYTES_PER_PIXEL: u32 = BITS_PER_PIXEL / 8;
 
 pub struct Pen {
     no_draw: bool,
@@ -228,27 +232,25 @@ impl Pen {
             return Ok(());
         }
         
-        let index = (display_y as usize * REMARKABLE_WIDTH as usize + display_x as usize) * 2;
-        if index + 1 >= self.buffer.len() {
+        let index = (display_y as usize * REMARKABLE_WIDTH as usize + display_x as usize) * BYTES_PER_PIXEL as usize;
+        if index + 3 >= self.buffer.len() {
             return Ok(());
         }
         
-        // 将压力值（0-4095）转换为灰度值（0-15）
+        // 修改灰度值计算
         let gray_level = match pressure {
-            0 => 15,
+            0 => 255,
             1..=4095 => {
-                15 - ((pressure as f32 / 4095.0 * 15.0) as u8)
+                255 - ((pressure as f32 / 4095.0 * 255.0) as u8)
             },
             _ => 0,
         };
         
-        let value = (gray_level as u16) * 0x1111;
-        
-        println!("绘制点 - 位置: ({}, {}), 压力: {}, 灰度: {}, 值: {:04X}", 
-            display_x, display_y, pressure, gray_level, value);
-        
-        self.buffer[index] = (value & 0xFF) as u8;
-        self.buffer[index + 1] = ((value >> 8) & 0xFF) as u8;
+        // RGBA 格式
+        self.buffer[index] = gray_level;     // R
+        self.buffer[index + 1] = gray_level; // G
+        self.buffer[index + 2] = gray_level; // B
+        self.buffer[index + 3] = 255;        // A
         
         Ok(())
     }
@@ -263,22 +265,38 @@ impl Pen {
                     self.buffer.len()
                 );
                 
-                // 2. 通知 Qt 应用程序刷新显示
+                // 2. 通知显示更新
                 if let Some(device) = &self.pen_device {
-                    let update_data = RmppUpdateData {
+                    let update_data = MxcfbUpdateData {
                         update_region: MxcfbRect {
                             top: 0,
                             left: 0,
                             width: self.width,
                             height: self.height,
                         },
+                        waveform_mode: REMARKABLE_WAVEFORM_MODE_DU,
                         update_mode: REMARKABLE_UPDATE_MODE_PARTIAL,
+                        update_marker: 0,
+                        temp: 0x1000,
                         flags: 0,
+                        dither_mode: 0,
+                        quant_bit: 0,
+                        alt_buffer_data: MxcfbAltBufferData {
+                            phys_addr: 0,
+                            width: 0,
+                            height: 0,
+                            alt_update_region: MxcfbRect {
+                                top: 0,
+                                left: 0,
+                                width: 0,
+                                height: 0,
+                            },
+                        },
                     };
                     
                     let fd = device.as_raw_fd();
                     let result = unsafe {
-                        ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _)
+                        ioctl(fd, MXCFB_SEND_UPDATE, &update_data as *const _)
                     };
                     
                     if result < 0 {
@@ -324,10 +342,12 @@ impl Pen {
         
         for y in rect_y..rect_y+rect_height {
             for x in rect_x..rect_x+rect_width {
-                let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * 2;
-                if index + 1 < self.buffer.len() {
+                let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * BYTES_PER_PIXEL as usize;
+                if index + 3 < self.buffer.len() {
                     self.buffer[index] = 0x00;
                     self.buffer[index + 1] = 0x00;
+                    self.buffer[index + 2] = 0x00;
+                    self.buffer[index + 3] = 255;
                 }
             }
         }
