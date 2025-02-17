@@ -70,8 +70,8 @@ const BITS_PER_PIXEL: u32 = 32;
 const BYTES_PER_PIXEL: u32 = BITS_PER_PIXEL / 8;
 
 // 帧缓冲区相关常量和结构体定义
-const FBIOGET_VSCREENINFO: c_int = 0x4600;
-const FBIOGET_FSCREENINFO: c_int = 0x4602;
+const FBIOGET_VSCREENINFO: u64 = 0x4600;
+const FBIOGET_FSCREENINFO: u64 = 0x4602;
 
 #[repr(C)]
 struct FbVarScreeninfo {
