@@ -55,7 +55,8 @@ const MXCFB_SEND_UPDATE: u64 = 0x4048462e;  // 正确的 ioctl 命令号
 
 // 修改显示设备路径
 const FB_DEVICES: &[&str] = &[
-    "/dev/fb0",  // rMPP 主显示设备
+    "/dev/dri/card0",  // DRM 设备
+    "/dev/fb0",        // 传统帧缓冲设备作为备选
 ];
 
 // rMPP 的更新命令
@@ -181,55 +182,18 @@ impl Pen {
         };
 
         let pen_device = if !no_draw {
-            // 尝试打开所有可能的显示设备
+            // 尝试打开显示设备
             let mut device = None;
             for device_path in FB_DEVICES {
                 println!("尝试打开显示设备: {}", device_path);
                 match std::fs::OpenOptions::new()
                     .read(true)
                     .write(true)
+                    .custom_flags(libc::O_NONBLOCK)  // 添加非阻塞标志
                     .open(device_path) 
                 {
-                    Ok(mut file) => {
+                    Ok(file) => {
                         println!("成功打开显示设备: {}", device_path);
-                        
-                        // 获取帧缓冲区信息
-                        let mut var_info: FbVarScreeninfo = unsafe { std::mem::zeroed() };
-                        let mut fix_info: FbFixScreeninfo = unsafe { std::mem::zeroed() };
-                        
-                        unsafe {
-                            let fd = file.as_raw_fd();
-                            if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info as *mut _) >= 0 {
-                                println!("帧缓冲区可变信息:");
-                                println!("  分辨率: {}x{}", var_info.xres, var_info.yres);
-                                println!("  虚拟分辨率: {}x{}", var_info.xres_virtual, var_info.yres_virtual);
-                                println!("  位深度: {}", var_info.bits_per_pixel);
-                                println!("  灰度级别: {}", var_info.grayscale);
-                                println!("  颜色格式:");
-                                println!("    Red:   offset={}, length={}, msb_right={}", 
-                                    var_info.red.offset, var_info.red.length, var_info.red.msb_right);
-                                println!("    Green: offset={}, length={}, msb_right={}", 
-                                    var_info.green.offset, var_info.green.length, var_info.green.msb_right);
-                                println!("    Blue:  offset={}, length={}, msb_right={}", 
-                                    var_info.blue.offset, var_info.blue.length, var_info.blue.msb_right);
-                                println!("    Trans: offset={}, length={}, msb_right={}", 
-                                    var_info.transp.offset, var_info.transp.length, var_info.transp.msb_right);
-                            } else {
-                                println!("无法获取帧缓冲区可变信息");
-                            }
-                            
-                            if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info as *mut _) >= 0 {
-                                println!("帧缓冲区固定信息:");
-                                println!("  设备 ID: {}", String::from_utf8_lossy(&fix_info.id));
-                                println!("  内存大小: {} 字节", fix_info.smem_len);
-                                println!("  行长度: {} 字节", fix_info.line_length);
-                                println!("  类型: {}", fix_info.type_);
-                                println!("  视觉类型: {}", fix_info.visual);
-                            } else {
-                                println!("无法获取帧缓冲区固定信息");
-                            }
-                        }
-                        
                         device = Some(file);
                         break;
                     },
@@ -361,12 +325,32 @@ impl Pen {
             // 移动到文件开始
             device.seek(SeekFrom::Start(0))?;
             
-            // 直接写入帧缓冲区
+            // 写入缓冲区
             device.write_all(&self.buffer)?;
-            println!("写入帧缓冲区完成");
+            println!("写入缓冲区完成");
             
-            // 确保数据写入
-            device.flush()?;
+            // 创建更新区域
+            let update_data = RmppUpdateData {
+                update_region: MxcfbRect {
+                    top: 0,
+                    left: 0,
+                    width: self.width,
+                    height: self.height,
+                },
+                update_mode: 0, // 全屏更新
+                flags: 0,       // 无特殊标志
+            };
+            
+            // 发送更新命令
+            unsafe {
+                let fd = device.as_raw_fd();
+                let result = ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _ as *const libc::c_void);
+                if result >= 0 {
+                    println!("显示更新命令发送成功");
+                } else {
+                    println!("显示更新命令发送失败: {}", std::io::Error::last_os_error());
+                }
+            }
         } else {
             println!("未找到显示设备");
         }
