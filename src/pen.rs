@@ -5,10 +5,12 @@ use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use nix::libc::{self, c_int, ioctl};
-use nix::sys::mman::{mmap, MapFlags, ProtFlags};
+use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, ftruncate, shm_unlink};
 use std::ptr;
 use std::num::NonZeroUsize;
 use nix::ioctl_write_int;
+use std::ffi::CString;
+use std::os::unix::io::RawFd;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -58,9 +60,12 @@ const FB_DEVICES: &[&str] = &[
 // rMPP 的 EPDC 更新命令
 const RMPP_UPDATE_DISPLAY: u64 = 0x5730;  // 从 qtfb 项目获取的命令号
 
+const SHMEM_PATH: &str = "/rmpp-qtfb";
+const SCREEN_SIZE: usize = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
+
 pub struct Pen {
     no_draw: bool,
-    display_device: Option<File>,
+    shmem_fd: Option<RawFd>,
     framebuffer: Option<*mut u8>,
     pen_device: Option<File>,
     width: u32,
@@ -73,8 +78,39 @@ pub struct Pen {
 }
 
 impl Pen {
-    pub fn new(no_draw: bool) -> Self {
-        let display_device = if !no_draw {
+    pub fn new(no_draw: bool) -> Result<Self> {
+        let (framebuffer, shmem_fd) = if !no_draw {
+            // 打开或创建共享内存
+            let shmem_path = CString::new(SHMEM_PATH)?;
+            let fd = unsafe {
+                shm_open(
+                    shmem_path.as_ptr(),
+                    libc::O_RDWR | libc::O_CREAT,
+                    0o644
+                )?
+            };
+            
+            // 设置共享内存大小
+            unsafe { ftruncate(fd, SCREEN_SIZE as i64)? };
+            
+            // 映射共享内存
+            let addr = unsafe {
+                mmap(
+                    None,
+                    NonZeroUsize::new(SCREEN_SIZE).unwrap(),
+                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+                    MapFlags::MAP_SHARED,
+                    fd,
+                    0
+                )?
+            };
+            
+            (Some(addr as *mut u8), Some(fd))
+        } else {
+            (None, None)
+        };
+
+        let pen_device = if !no_draw {
             // 尝试打开所有可能的显示设备
             let mut device = None;
             for device_path in FB_DEVICES {
@@ -99,47 +135,19 @@ impl Pen {
             None
         };
 
-        let (framebuffer, buffer) = if let Some(ref display_device) = display_device {
-            // 映射帧缓冲区
-            let fb_size = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
-            let addr = unsafe {
-                mmap(
-                    None,
-                    NonZeroUsize::new(fb_size).unwrap(),
-                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                    MapFlags::MAP_SHARED,
-                    display_device.as_raw_fd(),
-                    0,
-                )
-            };
-            
-            match addr {
-                Ok(ptr) => {
-                    println!("成功映射帧缓冲区");
-                    (Some(ptr as *mut u8), vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
-                },
-                Err(e) => {
-                    println!("映射帧缓冲区失败: {}", e);
-                    (None, vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
-                }
-            }
-        } else {
-            (None, vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
-        };
-
-        Self {
+        Ok(Self {
             no_draw,
-            display_device,
+            shmem_fd,
             framebuffer,
-            pen_device: None,
+            pen_device,
             width: REMARKABLE_WIDTH,
             height: REMARKABLE_HEIGHT,
-            buffer,
+            buffer: vec![0xFF; SCREEN_SIZE],
             last_x: 0,
             last_y: 0,
             pressure: 0,
             is_drawing: false,
-        }
+        })
     }
 
     pub fn draw_text(&mut self, text: &str, position: (i32, i32), size: f32) -> Result<()> {
@@ -250,27 +258,8 @@ impl Pen {
                     fb,
                     self.buffer.len()
                 );
-                
-                if let Some(device) = &self.display_device {
-                    let update_data = RmppUpdateData {
-                        update_region: MxcfbRect {
-                            top: 0,
-                            left: 0,
-                            width: REMARKABLE_WIDTH,
-                            height: REMARKABLE_HEIGHT,
-                        },
-                        update_mode: 0,  // 全屏更新
-                        flags: 0,
-                    };
-
-                    let fd = device.as_raw_fd();
-                    match ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _) {
-                        -1 => println!("发送刷新命令失败: {}", std::io::Error::last_os_error()),
-                        _ => println!("发送刷新命令成功"),
-                    }
-                }
-                println!("帧缓冲区更新完成");
             }
+            println!("更新共享内存完成");
         }
         Ok(())
     }
@@ -311,6 +300,13 @@ impl Drop for Pen {
                     fb as *mut std::ffi::c_void,
                     self.buffer.len()
                 );
+            }
+        }
+        
+        if let Some(fd) = self.shmem_fd {
+            unsafe {
+                let shmem_path = CString::new(SHMEM_PATH).unwrap();
+                let _ = shm_unlink(shmem_path.as_ptr());
             }
         }
     }
