@@ -129,7 +129,7 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<Box<dyn ControlDevice>>,
+    drm_device: Option<File>,
     framebuffer: Option<framebuffer::Handle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
@@ -148,7 +148,7 @@ impl Pen {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
             let drm_file = File::open("/dev/dri/card0")?;
-            let drm_device: Box<dyn ControlDevice> = Box::new(drm::control::Device::new(drm_file)?);
+            let drm_device = drm::control::Device::new(drm_file.try_clone()?)?;
             
             // 获取可用的连接器
             let res_handles = drm_device.resource_handles()?;
@@ -188,7 +188,7 @@ impl Pen {
             )?;
 
             println!("成功初始化 DRM 设备");
-            (Some(drm_device), Some(fb_id), Some(crtc), Some(connector), Some(mode))
+            (Some(drm_file), Some(fb_id), Some(crtc), Some(connector), Some(mode))
         } else {
             (None, None, None, None, None)
         };
@@ -311,8 +311,10 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
             (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
+            let drm_device = drm::control::Device::new(device.try_clone()?)?;
+            
             // 更新帧缓冲区内容
-            device.add_fb(
+            drm_device.add_fb(
                 &self.buffer, 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
@@ -322,10 +324,8 @@ impl Pen {
             )?;
 
             // 设置 CRTC
-            device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
+            drm_device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
             println!("显示更新完成");
-        } else {
-            println!("未找到显示设备");
         }
         Ok(())
     }
@@ -371,12 +371,12 @@ impl Pen {
 impl Drop for Pen {
     fn drop(&mut self) {
         if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
-            // 清理帧缓冲区
-            if let Err(e) = device.destroy_framebuffer(fb) {
-                eprintln!("清理帧缓冲区失败: {}", e);
+            if let Ok(drm_device) = drm::control::Device::new(device.try_clone().unwrap()) {
+                if let Err(e) = drm_device.destroy_framebuffer(fb) {
+                    eprintln!("清理帧缓冲区失败: {}", e);
+                }
             }
         }
-        // DRM 设备会在 drop 时自动关闭
     }
 }
 
