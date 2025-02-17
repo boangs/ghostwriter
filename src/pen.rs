@@ -82,17 +82,19 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
         let (framebuffer, shmem_fd) = if !no_draw {
-            let shmem_path = CString::new(SHMEM_PATH)?;
             let fd = unsafe {
                 shm_open(
-                    SHMEM_PATH,  // 直接使用字符串字面量
+                    SHMEM_PATH,
                     OFlag::O_RDWR | OFlag::O_CREAT,
                     Mode::from_bits_truncate(0o644)
                 )?
             };
             
+            // 处理 ftruncate 的返回值
             unsafe { 
-                ftruncate(fd, SCREEN_SIZE as i64)?;
+                if ftruncate(fd, SCREEN_SIZE as i64) == -1 {
+                    return Err(anyhow::anyhow!("Failed to set shared memory size"));
+                }
             };
             
             let addr = unsafe {
