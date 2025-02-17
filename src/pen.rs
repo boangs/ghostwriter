@@ -85,7 +85,7 @@ impl Pen {
             let shmem_path = CString::new(SHMEM_PATH)?;
             let fd = unsafe {
                 shm_open(
-                    &shmem_path,
+                    SHMEM_PATH,  // 直接使用字符串字面量
                     OFlag::O_RDWR | OFlag::O_CREAT,
                     Mode::from_bits_truncate(0o644)
                 )?
@@ -306,8 +306,7 @@ impl Drop for Pen {
         
         if let Some(fd) = self.shmem_fd {
             unsafe {
-                let shmem_path = CString::new(SHMEM_PATH).unwrap();
-                let _ = shm_unlink(&shmem_path);
+                let _ = shm_unlink(SHMEM_PATH);  // 直接使用字符串字面量
             }
         }
     }
