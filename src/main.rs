@@ -125,6 +125,13 @@ fn main() -> Result<()> {
     let pen = Arc::new(Mutex::new(Pen::new(args.no_draw)?));
     let touch = Arc::new(Mutex::new(Touch::new(args.no_draw)));
 
+    // 运行显示测试
+    {
+        let mut pen = pen.lock().unwrap();
+        pen.test_display()?;
+        println!("显示测试完成");
+    }
+
     println!("等待触发（触摸右上角）...");
     
     loop {
@@ -240,6 +247,13 @@ fn ghostwriter(args: &Args) -> Result<()> {
     };
 
     let engine = shared!(engine);
+
+    // 运行显示测试
+    {
+        let mut pen = pen.lock().unwrap();
+        pen.test_display()?;
+        println!("显示测试完成");
+    }
 
     println!("等待触发（触摸右上角）...");
     

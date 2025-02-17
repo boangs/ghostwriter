@@ -53,15 +53,15 @@ const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
 const MXCFB_SEND_UPDATE: u64 = 0x4044462E;  // 正确的 ioctl 命令号
 
-// 修改显示设备常量
+// 修改显示设备路径
 const FB_DEVICES: &[&str] = &[
-    "/dev/fb1",  // rMPP 主显示设备
-    "/dev/fb0",  // 备用
+    "/dev/fb0",  // rMPP 主显示设备
 ];
 
-// rMPP 的 EPDC 更新命令
-const RMPP_UPDATE_DISPLAY: u64 = 0x5730;  // 从 qtfb 项目获取的命令号
+// rMPP 的更新命令
+const RMPP_UPDATE_DISPLAY: u64 = 0x5730;
 
+// 修改共享内存路径
 const SHMEM_PATH: &str = "/rmpp-qtfb";
 const SCREEN_SIZE: usize = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
 
@@ -277,13 +277,21 @@ impl Pen {
                     };
                     
                     let fd = device.as_raw_fd();
-                    unsafe {
-                        ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _);
+                    let result = unsafe {
+                        ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _)
+                    };
+                    
+                    if result < 0 {
+                        println!("更新显示失败: {}", std::io::Error::last_os_error());
+                    } else {
+                        println!("显示更新成功");
                     }
+                } else {
+                    println!("未找到显示设备");
                 }
-                
-                println!("更新共享内存和发送刷新命令完成");
             }
+        } else {
+            println!("未找到帧缓冲区");
         }
         Ok(())
     }
@@ -297,20 +305,40 @@ impl Pen {
     }
 
     pub fn test_display(&mut self) -> Result<()> {
-        // 将整个屏幕变成黑色
-        for i in 0..self.buffer.len() {
-            self.buffer[i] = 0x00;
-        }
-        self.flush()?;
+        println!("开始显示测试...");
         
-        // 等待 1 秒
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        
-        // 将整个屏幕变成白色
+        // 1. 清屏为白色
         for i in 0..self.buffer.len() {
             self.buffer[i] = 0xFF;
         }
         self.flush()?;
+        println!("清屏完成");
+        
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        
+        // 2. 绘制一个黑色矩形
+        let rect_x = 100;
+        let rect_y = 100;
+        let rect_width = 200;
+        let rect_height = 200;
+        
+        for y in rect_y..rect_y+rect_height {
+            for x in rect_x..rect_x+rect_width {
+                let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * 2;
+                if index + 1 < self.buffer.len() {
+                    self.buffer[index] = 0x00;
+                    self.buffer[index + 1] = 0x00;
+                }
+            }
+        }
+        self.flush()?;
+        println!("绘制矩形完成");
+        
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        
+        // 3. 绘制测试文本
+        self.draw_text("测试显示功能", (300, 300), 32.0)?;
+        println!("绘制文本完成");
         
         Ok(())
     }
