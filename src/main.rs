@@ -122,7 +122,7 @@ fn main() -> Result<()> {
     };
 
     let engine = Arc::new(Mutex::new(engine));
-    let pen = Arc::new(Mutex::new(Pen::new(args.no_draw)));
+    let pen = Arc::new(Mutex::new(Pen::new(args.no_draw)?));
     let touch = Arc::new(Mutex::new(Touch::new(args.no_draw)));
 
     println!("等待触发（触摸右上角）...");
@@ -211,7 +211,7 @@ fn load_config(filename: &str) -> String {
 
 fn ghostwriter(args: &Args) -> Result<()> {
     let keyboard = shared!(Keyboard::new(args.no_draw, args.no_draw_progress));
-    let pen = shared!(Pen::new(args.no_draw));
+    let pen = shared!(Pen::new(args.no_draw)?);
     let touch = shared!(Touch::new(args.no_draw));
 
     // 设置环境变量
