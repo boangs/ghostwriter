@@ -202,18 +202,31 @@ impl Pen {
                             if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info as *mut _) >= 0 {
                                 println!("帧缓冲区可变信息:");
                                 println!("  分辨率: {}x{}", var_info.xres, var_info.yres);
+                                println!("  虚拟分辨率: {}x{}", var_info.xres_virtual, var_info.yres_virtual);
                                 println!("  位深度: {}", var_info.bits_per_pixel);
-                                println!("  颜色格式: R{}G{}B{}, A{}", 
-                                    var_info.red.length, 
-                                    var_info.green.length,
-                                    var_info.blue.length,
-                                    var_info.transp.length);
+                                println!("  灰度级别: {}", var_info.grayscale);
+                                println!("  颜色格式:");
+                                println!("    Red:   offset={}, length={}, msb_right={}", 
+                                    var_info.red.offset, var_info.red.length, var_info.red.msb_right);
+                                println!("    Green: offset={}, length={}, msb_right={}", 
+                                    var_info.green.offset, var_info.green.length, var_info.green.msb_right);
+                                println!("    Blue:  offset={}, length={}, msb_right={}", 
+                                    var_info.blue.offset, var_info.blue.length, var_info.blue.msb_right);
+                                println!("    Trans: offset={}, length={}, msb_right={}", 
+                                    var_info.transp.offset, var_info.transp.length, var_info.transp.msb_right);
+                            } else {
+                                println!("无法获取帧缓冲区可变信息");
                             }
                             
                             if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info as *mut _) >= 0 {
                                 println!("帧缓冲区固定信息:");
+                                println!("  设备 ID: {}", String::from_utf8_lossy(&fix_info.id));
                                 println!("  内存大小: {} 字节", fix_info.smem_len);
                                 println!("  行长度: {} 字节", fix_info.line_length);
+                                println!("  类型: {}", fix_info.type_);
+                                println!("  视觉类型: {}", fix_info.visual);
+                            } else {
+                                println!("无法获取帧缓冲区固定信息");
                             }
                         }
                         
@@ -334,11 +347,11 @@ impl Pen {
             _ => 0,
         };
         
-        // RGBA 格式
-        self.buffer[index] = gray_level;     // R
-        self.buffer[index + 1] = gray_level; // G
-        self.buffer[index + 2] = gray_level; // B
-        self.buffer[index + 3] = 255;        // A
+        // 使用单一灰度值
+        let pixel_value = gray_level;
+        for i in 0..BYTES_PER_PIXEL as usize {
+            self.buffer[index + i] = pixel_value;
+        }
         
         Ok(())
     }
