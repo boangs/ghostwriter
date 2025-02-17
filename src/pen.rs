@@ -7,6 +7,8 @@ use drm::control::Mode as DrmMode;
 use drm::Device as DrDevice;
 use drm::buffer::DrmFourcc;
 use drm::Device;
+use drm::SystemError;
+use drm::control::Device as _; // 导入 trait 作为私有项
 use nix::libc;
 
 const REMARKABLE_WIDTH: u32 = 1404;
@@ -149,7 +151,7 @@ impl Pen {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
             let drm_file = File::open("/dev/dri/card0")?;
-            let drm_device = Device::open(drm_file.try_clone()?)?;
+            let drm_device = drm_file.try_clone()?;
             
             // 获取可用的连接器
             let res_handles = drm_device.resource_handles()?;
@@ -312,7 +314,7 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
             (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
-            let drm_device = Device::open(device.try_clone()?)?;
+            let drm_device = device.try_clone()?;
             
             // 更新帧缓冲区内容
             drm_device.add_fb(
@@ -372,7 +374,7 @@ impl Pen {
 impl Drop for Pen {
     fn drop(&mut self) {
         if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
-            if let Ok(drm_device) = Device::open(device.try_clone().unwrap()) {
+            if let Ok(drm_device) = device.try_clone() {
                 if let Err(e) = drm_device.destroy_framebuffer(fb) {
                     eprintln!("清理帧缓冲区失败: {}", e);
                 }
