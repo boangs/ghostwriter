@@ -15,7 +15,39 @@ const REMARKABLE_HEIGHT: u32 = 1872;
 const PEN_MAX_X: i32 = 15725;  // 触控笔 X 坐标最大值
 const PEN_MAX_Y: i32 = 20967;  // 触控笔 Y 坐标最大值
 
-const MXCFB_SEND_UPDATE: u64 = 0x4622; // 0x2E 转换为 ioctl 命令
+// reMarkable 的 EPDC 更新结构
+#[repr(C)]
+struct MxcfbUpdateData {
+    update_region: MxcfbRect,
+    waveform_mode: u32,
+    update_mode: u32,
+    update_marker: u32,
+    temp: i32,
+    flags: u32,
+    dither_mode: i32,
+    quant_bit: i32,
+    alt_buffer_data: MxcfbAltBufferData,
+}
+
+#[repr(C)]
+struct MxcfbRect {
+    top: u32,
+    left: u32,
+    width: u32,
+    height: u32,
+}
+
+#[repr(C)]
+struct MxcfbAltBufferData {
+    phys_addr: u64,
+    width: u32,
+    height: u32,
+    alt_update_region: MxcfbRect,
+}
+
+const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
+const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
+const MXCFB_SEND_UPDATE: u64 = 0x4044462E;  // 正确的 ioctl 命令号
 
 pub struct Pen {
     no_draw: bool,
@@ -197,17 +229,42 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(fb) = self.framebuffer {
             unsafe {
-                // 复制缓冲区内容到帧缓冲区
                 ptr::copy_nonoverlapping(
                     self.buffer.as_ptr(),
                     fb,
                     self.buffer.len()
                 );
                 
-                // 如果有显示设备，发送刷新命令
                 if let Some(device) = &self.display_device {
+                    let update_data = MxcfbUpdateData {
+                        update_region: MxcfbRect {
+                            top: 0,
+                            left: 0,
+                            width: REMARKABLE_WIDTH,
+                            height: REMARKABLE_HEIGHT,
+                        },
+                        waveform_mode: REMARKABLE_WAVEFORM_MODE_DU,
+                        update_mode: REMARKABLE_UPDATE_MODE_PARTIAL,
+                        update_marker: 0,
+                        temp: 25,
+                        flags: 0,
+                        dither_mode: 0,
+                        quant_bit: 0,
+                        alt_buffer_data: MxcfbAltBufferData {
+                            phys_addr: 0,
+                            width: 0,
+                            height: 0,
+                            alt_update_region: MxcfbRect {
+                                top: 0,
+                                left: 0,
+                                width: 0,
+                                height: 0,
+                            },
+                        },
+                    };
+
                     let fd = device.as_raw_fd();
-                    match ioctl(fd, MXCFB_SEND_UPDATE, 0) {
+                    match ioctl(fd, MXCFB_SEND_UPDATE, &update_data as *const _) {
                         -1 => println!("发送刷新命令失败: {}", std::io::Error::last_os_error()),
                         _ => println!("发送刷新命令成功"),
                     }
