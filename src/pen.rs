@@ -11,6 +11,8 @@ use std::num::NonZeroUsize;
 use nix::ioctl_write_int;
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
+use nix::fcntl::OFlag;
+use nix::sys::stat::Mode;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -80,20 +82,19 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
         let (framebuffer, shmem_fd) = if !no_draw {
-            // 打开或创建共享内存
             let shmem_path = CString::new(SHMEM_PATH)?;
             let fd = unsafe {
                 shm_open(
-                    shmem_path.as_ptr(),
-                    libc::O_RDWR | libc::O_CREAT,
-                    0o644
+                    &shmem_path,
+                    OFlag::O_RDWR | OFlag::O_CREAT,
+                    Mode::from_bits_truncate(0o644)
                 )?
             };
             
-            // 设置共享内存大小
-            unsafe { ftruncate(fd, SCREEN_SIZE as i64)? };
+            unsafe { 
+                ftruncate(fd, SCREEN_SIZE as i64)?;
+            };
             
-            // 映射共享内存
             let addr = unsafe {
                 mmap(
                     None,
@@ -306,7 +307,7 @@ impl Drop for Pen {
         if let Some(fd) = self.shmem_fd {
             unsafe {
                 let shmem_path = CString::new(SHMEM_PATH).unwrap();
-                let _ = shm_unlink(shmem_path.as_ptr());
+                let _ = shm_unlink(&shmem_path);
             }
         }
     }
