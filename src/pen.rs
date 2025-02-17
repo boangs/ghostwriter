@@ -323,44 +323,10 @@ impl Pen {
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.pen_device {
-            // 检查设备路径
-            let metadata = device.metadata()?;
-            let dev_id = metadata.dev();
-            let major = (dev_id >> 8) & 0xff;
-            let minor = dev_id & 0xff;
-            println!("设备信息: major={}, minor={}", major, minor);
-            
-            // 获取文件描述符
-            let fd = device.as_raw_fd();
-            
-            // 尝试映射帧缓冲区
-            let fb_size = SCREEN_SIZE;
-            let fb_ptr = unsafe {
-                mmap(
-                    None,
-                    NonZeroUsize::new(fb_size).unwrap(),
-                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                    MapFlags::MAP_SHARED,
-                    fd,
-                    0
-                )?
-            };
-            
-            // 复制数据到帧缓冲区
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    self.buffer.as_ptr(),
-                    fb_ptr as *mut u8,
-                    fb_size
-                );
-            }
-            
-            // 取消映射
-            unsafe {
-                nix::sys::mman::munmap(fb_ptr, fb_size)?;
-            }
-            
-            println!("帧缓冲区更新完成");
+            // 直接写入设备
+            device.write_all(&self.buffer)?;
+            device.flush()?;
+            println!("直接写入设备完成");
         } else {
             println!("未找到显示设备");
         }
@@ -387,31 +353,19 @@ impl Pen {
         
         std::thread::sleep(std::time::Duration::from_secs(1));
         
-        // 2. 绘制一个黑色矩形
-        let rect_x = 100;
-        let rect_y = 100;
-        let rect_width = 200;
-        let rect_height = 200;
-        
-        for y in rect_y..rect_y+rect_height {
-            for x in rect_x..rect_x+rect_width {
+        // 2. 绘制一个简单的黑色条纹图案
+        for y in 0..REMARKABLE_HEIGHT {
+            for x in 0..REMARKABLE_WIDTH {
                 let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * BYTES_PER_PIXEL as usize;
-                if index + 3 < self.buffer.len() {
-                    self.buffer[index] = 0x00;     // R
-                    self.buffer[index + 1] = 0x00; // G
-                    self.buffer[index + 2] = 0x00; // B
-                    self.buffer[index + 3] = 255;  // A
+                if y % 100 < 50 {  // 每100像素绘制50像素宽的黑色条纹
+                    for i in 0..BYTES_PER_PIXEL as usize {
+                        self.buffer[index + i] = 0x00;
+                    }
                 }
             }
         }
         self.flush()?;
-        println!("绘制矩形完成");
-        
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        
-        // 3. 绘制测试文本
-        self.draw_text("测试显示功能", (300, 300), 32.0)?;
-        println!("绘制文本完成");
+        println!("绘制条纹图案完成");
         
         Ok(())
     }
