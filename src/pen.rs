@@ -49,6 +49,14 @@ const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
 const MXCFB_SEND_UPDATE: u64 = 0x4044462E;  // 正确的 ioctl 命令号
 
+// 尝试不同的显示设备路径
+const FB_DEVICES: &[&str] = &[
+    "/dev/fb0",
+    "/dev/fb1",
+    "/dev/qtfb",  // 可能的 Qt framebuffer 设备
+    "/dev/remarkable_fb",  // 可能的自定义设备
+];
+
 pub struct Pen {
     no_draw: bool,
     display_device: Option<File>,
@@ -65,52 +73,58 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        let (display_device, framebuffer) = if !no_draw {
-            match std::fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .custom_flags(libc::O_SYNC)
-                .open("/dev/fb0") 
-            {
-                Ok(file) => {
-                    println!("成功打开显示设备，fd: {}", file.as_raw_fd());
-                    
-                    // 映射帧缓冲区
-                    let fb_size = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
-                    let addr = unsafe {
-                        mmap(
-                            None,
-                            NonZeroUsize::new(fb_size).unwrap(),
-                            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                            MapFlags::MAP_SHARED,
-                            file.as_raw_fd(),
-                            0,
-                        )
-                    };
-                    
-                    match addr {
-                        Ok(ptr) => {
-                            println!("成功映射帧缓冲区");
-                            (Some(file), Some(ptr as *mut u8))
-                        },
-                        Err(e) => {
-                            println!("映射帧缓冲区失败: {}", e);
-                            (Some(file), None)
-                        }
+        let display_device = if !no_draw {
+            // 尝试打开所有可能的显示设备
+            for device_path in FB_DEVICES {
+                println!("尝试打开显示设备: {}", device_path);
+                match std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(device_path) 
+                {
+                    Ok(file) => {
+                        println!("成功打开显示设备: {}", device_path);
+                        Some(file)
+                    },
+                    Err(e) => {
+                        println!("打开显示设备 {} 失败: {}", device_path, e);
+                        None
                     }
+                }
+            }
+            None
+        } else {
+            None
+        };
+
+        let (framebuffer, buffer) = if let Some(display_device) = display_device {
+            // 映射帧缓冲区
+            let fb_size = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
+            let addr = unsafe {
+                mmap(
+                    None,
+                    NonZeroUsize::new(fb_size).unwrap(),
+                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+                    MapFlags::MAP_SHARED,
+                    display_device.as_raw_fd(),
+                    0,
+                )
+            };
+            
+            match addr {
+                Ok(ptr) => {
+                    println!("成功映射帧缓冲区");
+                    (Some(ptr as *mut u8), vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
                 },
                 Err(e) => {
-                    println!("打开显示设备失败: {} (errno={})", 
-                        e, e.raw_os_error().unwrap_or(-1));
-                    (None, None)
+                    println!("映射帧缓冲区失败: {}", e);
+                    (None, vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
                 }
             }
         } else {
-            (None, None)
+            (None, vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2])
         };
 
-        let buffer = vec![0xFF; REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2];
-        
         Self {
             no_draw,
             display_device,
