@@ -2,14 +2,9 @@ use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::File;
 use std::io::{Read, Write};
-use drm::control::{connector, crtc, framebuffer, Device as ControlDevice};
+use drm::control::{connector, crtc, framebuffer};
 use drm::control::Mode as DrmMode;
-use drm::Device as DrDevice;
 use drm::buffer::DrmFourcc;
-use drm::Device;
-use drm::SystemError;
-use drm::control::Device as _; // 导入 trait 作为私有项
-use drm::control::framebuffer::Handle as FbHandle;
 use nix::libc;
 
 const REMARKABLE_WIDTH: u32 = 1404;
@@ -134,7 +129,7 @@ struct FbBitfield {
 pub struct Pen {
     no_draw: bool,
     drm_device: Option<File>,
-    framebuffer: Option<FbHandle>,
+    framebuffer: Option<framebuffer::Handle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
     mode: Option<DrmMode>,
@@ -152,14 +147,13 @@ impl Pen {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
             let drm_file = File::open("/dev/dri/card0")?;
-            let drm_device = drm_file.try_clone()?;
             
             // 获取可用的连接器
-            let res_handles = drm_device.resource_handles()?;
+            let res_handles = drm_file.resource_handles()?;
             let connector = res_handles.connectors()
                 .iter()
                 .find(|&&conn_handle| {
-                    if let Ok(info) = drm_device.get_connector(conn_handle, false) {
+                    if let Ok(info) = drm_file.get_connector(conn_handle, false) {
                         info.state() == connector::State::Connected
                     } else {
                         false
@@ -169,7 +163,7 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到已连接的显示器"))?;
 
             // 获取连接器信息
-            let connector_info = drm_device.get_connector(connector, false)?;
+            let connector_info = drm_file.get_connector(connector, false)?;
             let mode = connector_info.modes()[0];  // 使用第一个可用的显示模式
 
             // 获取编码器
@@ -177,12 +171,12 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到编码器"))?;
 
             // 获取 CRTC
-            let crtc = drm_device.get_encoder(encoder)?
+            let crtc = drm_file.get_encoder(encoder)?
                 .crtc()
                 .ok_or_else(|| anyhow::anyhow!("没有找到 CRTC"))?;
 
             // 创建帧缓冲区
-            let fb_id = drm_device.create_framebuffer(
+            let fb_id = drm_file.create_framebuffer(
                 &[0u8; SCREEN_SIZE], 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
@@ -315,9 +309,8 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
             (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
-            
             // 更新帧缓冲区内容
-            device.add_fb::<FbHandle>(
+            device.add_fb(
                 &self.buffer, 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
@@ -329,6 +322,8 @@ impl Pen {
             // 设置 CRTC
             device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
             println!("显示更新完成");
+        } else {
+            println!("未找到显示设备");
         }
         Ok(())
     }
@@ -374,10 +369,12 @@ impl Pen {
 impl Drop for Pen {
     fn drop(&mut self) {
         if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
-            if let Err(e) = device.destroy_framebuffer::<FbHandle>(fb) {
+            // 清理帧缓冲区
+            if let Err(e) = device.destroy_framebuffer(fb) {
                 eprintln!("清理帧缓冲区失败: {}", e);
             }
         }
+        // DRM 设备会在 drop 时自动关闭
     }
 }
 
