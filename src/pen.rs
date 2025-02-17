@@ -14,12 +14,13 @@ use std::os::unix::io::RawFd;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 
-const REMARKABLE_WIDTH: u32 = 1404;
-const REMARKABLE_HEIGHT: u32 = 1872;
-const PEN_MAX_X: i32 = 15725;  // 触控笔 X 坐标最大值
-const PEN_MAX_Y: i32 = 20967;  // 触控笔 Y 坐标最大值
+// Paper Pro 的显示参数
+const REMARKABLE_WIDTH: u32 = 1872;
+const REMARKABLE_HEIGHT: u32 = 1404;
+const PEN_MAX_X: i32 = 20967;  // Paper Pro 触控笔 X 坐标最大值
+const PEN_MAX_Y: i32 = 15725;  // Paper Pro 触控笔 Y 坐标最大值
 
-// reMarkable 的 EPDC 更新结构
+// Paper Pro 的 EPDC 更新结构
 #[repr(C)]
 struct MxcfbUpdateData {
     update_region: MxcfbRect,
@@ -49,24 +50,22 @@ struct MxcfbAltBufferData {
     alt_update_region: MxcfbRect,
 }
 
+// Paper Pro 的显示更新模式
 const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
-const MXCFB_SEND_UPDATE: u64 = 0x4048462e;  // 正确的 ioctl 命令号
+const MXCFB_SEND_UPDATE: u64 = 0x4048462e;
 
-// 修改显示设备路径
+// Paper Pro 的显示设备路径
 const FB_DEVICES: &[&str] = &[
-    "/dev/fb0",  // rMPP 主显示设备
+    "/dev/fb0",
 ];
 
-// rMPP 的更新命令
-const RMPP_UPDATE_DISPLAY: u64 = 0x5730;
+// 共享内存配置
+const SHMEM_PATH: &str = "/rmpp-fb";
+const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT) as usize;
 
-// 修改共享内存路径
-const SHMEM_PATH: &str = "/rmpp-qtfb";
-const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT * 4) as usize;
-
-// 每个像素的位深度
-const BITS_PER_PIXEL: u32 = 32;
+// 显示参数
+const BITS_PER_PIXEL: u32 = 8;  // Paper Pro 使用 8 位灰度
 const BYTES_PER_PIXEL: u32 = BITS_PER_PIXEL / 8;
 
 // 帧缓冲区相关常量和结构体定义
