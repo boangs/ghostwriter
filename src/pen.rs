@@ -330,56 +330,37 @@ impl Pen {
             let minor = dev_id & 0xff;
             println!("设备信息: major={}, minor={}", major, minor);
             
-            // DRM 设备的主设备号是 226
-            let is_drm = major == 226;
-            println!("设备类型: {}", if is_drm { "DRM" } else { "传统帧缓冲区" });
+            // 获取文件描述符
+            let fd = device.as_raw_fd();
             
-            if is_drm {
-                println!("检测到 DRM 设备，使用 DRM 模式更新显示");
-                // DRM 设备需要特殊处理
-                // 暂时只读取设备信息
-                let mut buf = [0u8; 1024];
-                match device.read(&mut buf) {
-                    Ok(n) => {
-                        println!("读取到 {} 字节的设备信息", n);
-                        // 这里先不做任何更新，只打印信息
-                    }
-                    Err(e) => {
-                        println!("读取设备信息失败: {}", e);
-                    }
-                }
-            } else {
-                println!("使用传统帧缓冲区模式更新显示");
-                // 移动到文件开始
-                device.seek(SeekFrom::Start(0))?;
-                
-                // 写入缓冲区
-                device.write_all(&self.buffer)?;
-                println!("写入缓冲区完成");
-                
-                // 创建更新区域
-                let update_data = RmppUpdateData {
-                    update_region: MxcfbRect {
-                        top: 0,
-                        left: 0,
-                        width: self.width,
-                        height: self.height,
-                    },
-                    update_mode: 0, // 全屏更新
-                    flags: 0,       // 无特殊标志
-                };
-                
-                // 发送更新命令
-                unsafe {
-                    let fd = device.as_raw_fd();
-                    let result = ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _ as *const libc::c_void);
-                    if result >= 0 {
-                        println!("显示更新命令发送成功");
-                    } else {
-                        println!("显示更新命令发送失败: {}", std::io::Error::last_os_error());
-                    }
-                }
+            // 尝试映射帧缓冲区
+            let fb_size = SCREEN_SIZE;
+            let fb_ptr = unsafe {
+                mmap(
+                    None,
+                    NonZeroUsize::new(fb_size).unwrap(),
+                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+                    MapFlags::MAP_SHARED,
+                    fd,
+                    0
+                )?
+            };
+            
+            // 复制数据到帧缓冲区
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    self.buffer.as_ptr(),
+                    fb_ptr as *mut u8,
+                    fb_size
+                );
             }
+            
+            // 取消映射
+            unsafe {
+                nix::sys::mman::munmap(fb_ptr, fb_size)?;
+            }
+            
+            println!("帧缓冲区更新完成");
         } else {
             println!("未找到显示设备");
         }
@@ -396,26 +377,6 @@ impl Pen {
 
     pub fn test_display(&mut self) -> Result<()> {
         println!("开始显示测试...");
-        
-        if let Some(ref device) = self.pen_device {
-            // 检查设备类型
-            let metadata = device.metadata()?;
-            let dev_id = metadata.dev();
-            let major = (dev_id >> 8) & 0xff;
-            let minor = dev_id & 0xff;
-            println!("设备信息: major={}, minor={}", major, minor);
-            
-            // DRM 设备的主设备号是 226
-            let is_drm = major == 226;
-            println!("设备类型: {}", if is_drm { "DRM" } else { "传统帧缓冲区" });
-            
-            if is_drm {
-                println!("检测到 DRM 设备，执行 DRM 模式测试");
-                // 暂时跳过测试
-                println!("DRM 设备测试待实现");
-                return Ok(());
-            }
-        }
         
         // 1. 清屏为白色
         for i in 0..self.buffer.len() {
