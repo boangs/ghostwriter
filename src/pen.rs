@@ -326,7 +326,13 @@ impl Pen {
             // 检查设备路径
             let metadata = device.metadata()?;
             let dev_id = metadata.dev();
-            let is_drm = (dev_id >> 8) & 0xff == 226;  // DRM 设备的主设备号是 226
+            let major = (dev_id >> 8) & 0xff;
+            let minor = dev_id & 0xff;
+            println!("设备信息: major={}, minor={}", major, minor);
+            
+            // DRM 设备的主设备号是 226
+            let is_drm = major == 226;
+            println!("设备类型: {}", if is_drm { "DRM" } else { "传统帧缓冲区" });
             
             if is_drm {
                 println!("检测到 DRM 设备，使用 DRM 模式更新显示");
@@ -395,7 +401,13 @@ impl Pen {
             // 检查设备类型
             let metadata = device.metadata()?;
             let dev_id = metadata.dev();
-            let is_drm = (dev_id >> 8) & 0xff == 226;
+            let major = (dev_id >> 8) & 0xff;
+            let minor = dev_id & 0xff;
+            println!("设备信息: major={}, minor={}", major, minor);
+            
+            // DRM 设备的主设备号是 226
+            let is_drm = major == 226;
+            println!("设备类型: {}", if is_drm { "DRM" } else { "传统帧缓冲区" });
             
             if is_drm {
                 println!("检测到 DRM 设备，执行 DRM 模式测试");
