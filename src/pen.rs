@@ -49,13 +49,14 @@ const REMARKABLE_WAVEFORM_MODE_DU: u32 = 1;
 const REMARKABLE_UPDATE_MODE_PARTIAL: u32 = 0;
 const MXCFB_SEND_UPDATE: u64 = 0x4044462E;  // 正确的 ioctl 命令号
 
-// 尝试不同的显示设备路径
+// 修改显示设备常量
 const FB_DEVICES: &[&str] = &[
-    "/dev/fb0",
-    "/dev/fb1",
-    "/dev/qtfb",  // 可能的 Qt framebuffer 设备
-    "/dev/remarkable_fb",  // 可能的自定义设备
+    "/dev/fb1",  // rMPP 主显示设备
+    "/dev/fb0",  // 备用
 ];
+
+// rMPP 的 EPDC 更新命令
+const RMPP_UPDATE_DISPLAY: u64 = 0x5730;  // 从 qtfb 项目获取的命令号
 
 pub struct Pen {
     no_draw: bool,
@@ -251,41 +252,25 @@ impl Pen {
                 );
                 
                 if let Some(device) = &self.display_device {
-                    let update_data = MxcfbUpdateData {
+                    let update_data = RmppUpdateData {
                         update_region: MxcfbRect {
                             top: 0,
                             left: 0,
                             width: REMARKABLE_WIDTH,
                             height: REMARKABLE_HEIGHT,
                         },
-                        waveform_mode: REMARKABLE_WAVEFORM_MODE_DU,
-                        update_mode: REMARKABLE_UPDATE_MODE_PARTIAL,
-                        update_marker: 0,
-                        temp: 25,
+                        update_mode: 0,  // 全屏更新
                         flags: 0,
-                        dither_mode: 0,
-                        quant_bit: 0,
-                        alt_buffer_data: MxcfbAltBufferData {
-                            phys_addr: 0,
-                            width: 0,
-                            height: 0,
-                            alt_update_region: MxcfbRect {
-                                top: 0,
-                                left: 0,
-                                width: 0,
-                                height: 0,
-                            },
-                        },
                     };
 
                     let fd = device.as_raw_fd();
-                    match ioctl(fd, MXCFB_SEND_UPDATE, &update_data as *const _) {
+                    match ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _) {
                         -1 => println!("发送刷新命令失败: {}", std::io::Error::last_os_error()),
                         _ => println!("发送刷新命令成功"),
                     }
                 }
+                println!("帧缓冲区更新完成");
             }
-            println!("帧缓冲区更新完成");
         }
         Ok(())
     }
@@ -355,4 +340,11 @@ struct InputEvent {
     type_: u16,
     code: u16,
     value: i32,
+}
+
+#[repr(C)]
+struct RmppUpdateData {
+    update_region: MxcfbRect,
+    update_mode: u32,
+    flags: u32,
 }
