@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use drm::control::{connector, crtc, framebuffer};
 use drm::control::Mode as DrmMode;
-use drm::control::Device;
+use drm::Device;
 use drm::buffer::DrmFourcc;
 use nix::libc;
 
@@ -129,7 +129,7 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<drm::control::Device<File>>,
+    drm_device: Option<drm::Device<File>>,
     framebuffer: Option<framebuffer::Handle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
@@ -148,7 +148,7 @@ impl Pen {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
             let drm_file = File::open("/dev/dri/card0")?;
-            let drm_device = drm::control::Device::new(drm_file)?;
+            let drm_device = drm::Device::new(drm_file)?;
             
             // 获取可用的连接器
             let res_handles = drm_device.resource_handles()?;
