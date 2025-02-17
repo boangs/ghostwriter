@@ -322,33 +322,55 @@ impl Pen {
 
     pub fn flush(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.pen_device {
-            // 移动到文件开始
-            device.seek(SeekFrom::Start(0))?;
+            // 检查设备路径
+            let metadata = device.metadata()?;
+            let dev_id = metadata.rdev();
+            let is_drm = (dev_id >> 8) & 0xff == 226;  // DRM 设备的主设备号是 226
             
-            // 写入缓冲区
-            device.write_all(&self.buffer)?;
-            println!("写入缓冲区完成");
-            
-            // 创建更新区域
-            let update_data = RmppUpdateData {
-                update_region: MxcfbRect {
-                    top: 0,
-                    left: 0,
-                    width: self.width,
-                    height: self.height,
-                },
-                update_mode: 0, // 全屏更新
-                flags: 0,       // 无特殊标志
-            };
-            
-            // 发送更新命令
-            unsafe {
-                let fd = device.as_raw_fd();
-                let result = ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _ as *const libc::c_void);
-                if result >= 0 {
-                    println!("显示更新命令发送成功");
-                } else {
-                    println!("显示更新命令发送失败: {}", std::io::Error::last_os_error());
+            if is_drm {
+                println!("检测到 DRM 设备，使用 DRM 模式更新显示");
+                // DRM 设备需要特殊处理
+                // 暂时只读取设备信息
+                let mut buf = [0u8; 1024];
+                match device.read(&mut buf) {
+                    Ok(n) => {
+                        println!("读取到 {} 字节的设备信息", n);
+                        // 这里先不做任何更新，只打印信息
+                    }
+                    Err(e) => {
+                        println!("读取设备信息失败: {}", e);
+                    }
+                }
+            } else {
+                println!("使用传统帧缓冲区模式更新显示");
+                // 移动到文件开始
+                device.seek(SeekFrom::Start(0))?;
+                
+                // 写入缓冲区
+                device.write_all(&self.buffer)?;
+                println!("写入缓冲区完成");
+                
+                // 创建更新区域
+                let update_data = RmppUpdateData {
+                    update_region: MxcfbRect {
+                        top: 0,
+                        left: 0,
+                        width: self.width,
+                        height: self.height,
+                    },
+                    update_mode: 0, // 全屏更新
+                    flags: 0,       // 无特殊标志
+                };
+                
+                // 发送更新命令
+                unsafe {
+                    let fd = device.as_raw_fd();
+                    let result = ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _ as *const libc::c_void);
+                    if result >= 0 {
+                        println!("显示更新命令发送成功");
+                    } else {
+                        println!("显示更新命令发送失败: {}", std::io::Error::last_os_error());
+                    }
                 }
             }
         } else {
@@ -367,6 +389,20 @@ impl Pen {
 
     pub fn test_display(&mut self) -> Result<()> {
         println!("开始显示测试...");
+        
+        if let Some(ref device) = self.pen_device {
+            // 检查设备类型
+            let metadata = device.metadata()?;
+            let dev_id = metadata.rdev();
+            let is_drm = (dev_id >> 8) & 0xff == 226;
+            
+            if is_drm {
+                println!("检测到 DRM 设备，执行 DRM 模式测试");
+                // 暂时跳过测试
+                println!("DRM 设备测试待实现");
+                return Ok(());
+            }
+        }
         
         // 1. 清屏为白色
         for i in 0..self.buffer.len() {
@@ -387,10 +423,10 @@ impl Pen {
             for x in rect_x..rect_x+rect_width {
                 let index = (y as usize * REMARKABLE_WIDTH as usize + x as usize) * BYTES_PER_PIXEL as usize;
                 if index + 3 < self.buffer.len() {
-                    self.buffer[index] = 0x00;
-                    self.buffer[index + 1] = 0x00;
-                    self.buffer[index + 2] = 0x00;
-                    self.buffer[index + 3] = 255;
+                    self.buffer[index] = 0x00;     // R
+                    self.buffer[index + 1] = 0x00; // G
+                    self.buffer[index + 2] = 0x00; // B
+                    self.buffer[index + 3] = 255;  // A
                 }
             }
         }
