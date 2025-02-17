@@ -1,10 +1,10 @@
 use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Write, Seek, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
-use nix::libc::{self, c_int, ioctl, ftruncate, fb_var_screeninfo, fb_fix_screeninfo, FBIOGET_VSCREENINFO, FBIOGET_FSCREENINFO};
+use nix::libc::{self, c_int, ioctl, ftruncate};
 use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, shm_unlink};
 use std::ptr;
 use std::num::NonZeroUsize;
@@ -69,6 +69,69 @@ const SCREEN_SIZE: usize = (REMARKABLE_WIDTH * REMARKABLE_HEIGHT * 4) as usize;
 const BITS_PER_PIXEL: u32 = 32;
 const BYTES_PER_PIXEL: u32 = BITS_PER_PIXEL / 8;
 
+// 帧缓冲区相关常量和结构体定义
+const FBIOGET_VSCREENINFO: c_int = 0x4600;
+const FBIOGET_FSCREENINFO: c_int = 0x4602;
+
+#[repr(C)]
+struct FbVarScreeninfo {
+    xres: u32,
+    yres: u32,
+    xres_virtual: u32,
+    yres_virtual: u32,
+    xoffset: u32,
+    yoffset: u32,
+    bits_per_pixel: u32,
+    grayscale: u32,
+    red: FbBitfield,
+    green: FbBitfield,
+    blue: FbBitfield,
+    transp: FbBitfield,
+    nonstd: u32,
+    activate: u32,
+    height: u32,
+    width: u32,
+    accel_flags: u32,
+    pixclock: u32,
+    left_margin: u32,
+    right_margin: u32,
+    upper_margin: u32,
+    lower_margin: u32,
+    hsync_len: u32,
+    vsync_len: u32,
+    sync: u32,
+    vmode: u32,
+    rotate: u32,
+    colorspace: u32,
+    reserved: [u32; 4],
+}
+
+#[repr(C)]
+struct FbFixScreeninfo {
+    id: [u8; 16],
+    smem_start: u64,
+    smem_len: u32,
+    type_: u32,
+    type_aux: u32,
+    visual: u32,
+    xpanstep: u16,
+    ypanstep: u16,
+    ywrapstep: u16,
+    line_length: u32,
+    mmio_start: u64,
+    mmio_len: u32,
+    accel: u32,
+    capabilities: u16,
+    reserved: [u16; 2],
+}
+
+#[repr(C)]
+struct FbBitfield {
+    offset: u32,
+    length: u32,
+    msb_right: u32,
+}
+
 pub struct Pen {
     no_draw: bool,
     shmem_fd: Option<RawFd>,
@@ -127,16 +190,16 @@ impl Pen {
                     .write(true)
                     .open(device_path) 
                 {
-                    Ok(file) => {
+                    Ok(mut file) => {
                         println!("成功打开显示设备: {}", device_path);
                         
                         // 获取帧缓冲区信息
-                        let mut var_info: fb_var_screeninfo = unsafe { std::mem::zeroed() };
-                        let mut fix_info: fb_fix_screeninfo = unsafe { std::mem::zeroed() };
+                        let mut var_info: FbVarScreeninfo = unsafe { std::mem::zeroed() };
+                        let mut fix_info: FbFixScreeninfo = unsafe { std::mem::zeroed() };
                         
                         unsafe {
                             let fd = file.as_raw_fd();
-                            if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info) >= 0 {
+                            if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info as *mut _) >= 0 {
                                 println!("帧缓冲区可变信息:");
                                 println!("  分辨率: {}x{}", var_info.xres, var_info.yres);
                                 println!("  位深度: {}", var_info.bits_per_pixel);
@@ -147,7 +210,7 @@ impl Pen {
                                     var_info.transp.length);
                             }
                             
-                            if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info) >= 0 {
+                            if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info as *mut _) >= 0 {
                                 println!("帧缓冲区固定信息:");
                                 println!("  内存大小: {} 字节", fix_info.smem_len);
                                 println!("  行长度: {} 字节", fix_info.line_length);
@@ -281,7 +344,10 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(device) = &self.pen_device {
+        if let Some(ref mut device) = self.pen_device {
+            // 移动到文件开始
+            device.seek(SeekFrom::Start(0))?;
+            
             // 直接写入帧缓冲区
             device.write_all(&self.buffer)?;
             println!("直接写入帧缓冲区完成");
