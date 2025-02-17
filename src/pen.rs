@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write, Seek, SeekFrom};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
+use std::os::unix::fs::MetadataExt;
 use nix::libc::{self, c_int, ioctl, ftruncate};
 use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, shm_unlink};
 use std::ptr;
@@ -324,7 +325,7 @@ impl Pen {
         if let Some(ref mut device) = self.pen_device {
             // 检查设备路径
             let metadata = device.metadata()?;
-            let dev_id = metadata.rdev();
+            let dev_id = metadata.dev();
             let is_drm = (dev_id >> 8) & 0xff == 226;  // DRM 设备的主设备号是 226
             
             if is_drm {
@@ -393,7 +394,7 @@ impl Pen {
         if let Some(ref device) = self.pen_device {
             // 检查设备类型
             let metadata = device.metadata()?;
-            let dev_id = metadata.rdev();
+            let dev_id = metadata.dev();
             let is_drm = (dev_id >> 8) & 0xff == 226;
             
             if is_drm {
