@@ -98,7 +98,7 @@ impl Pen {
             None
         };
 
-        let (framebuffer, buffer) = if let Some(display_device) = display_device {
+        let (framebuffer, buffer) = if let Some(ref display_device) = display_device {
             // 映射帧缓冲区
             let fb_size = REMARKABLE_WIDTH as usize * REMARKABLE_HEIGHT as usize * 2;
             let addr = unsafe {
