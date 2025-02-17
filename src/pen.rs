@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
-use nix::libc::{self, c_int, ioctl, ftruncate};
+use nix::libc::{self, c_int, ioctl, ftruncate, fb_var_screeninfo, fb_fix_screeninfo, FBIOGET_VSCREENINFO, FBIOGET_FSCREENINFO};
 use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, shm_unlink};
 use std::ptr;
 use std::num::NonZeroUsize;
@@ -129,6 +129,31 @@ impl Pen {
                 {
                     Ok(file) => {
                         println!("成功打开显示设备: {}", device_path);
+                        
+                        // 获取帧缓冲区信息
+                        let mut var_info: fb_var_screeninfo = unsafe { std::mem::zeroed() };
+                        let mut fix_info: fb_fix_screeninfo = unsafe { std::mem::zeroed() };
+                        
+                        unsafe {
+                            let fd = file.as_raw_fd();
+                            if ioctl(fd, FBIOGET_VSCREENINFO, &mut var_info) >= 0 {
+                                println!("帧缓冲区可变信息:");
+                                println!("  分辨率: {}x{}", var_info.xres, var_info.yres);
+                                println!("  位深度: {}", var_info.bits_per_pixel);
+                                println!("  颜色格式: R{}G{}B{}, A{}", 
+                                    var_info.red.length, 
+                                    var_info.green.length,
+                                    var_info.blue.length,
+                                    var_info.transp.length);
+                            }
+                            
+                            if ioctl(fd, FBIOGET_FSCREENINFO, &mut fix_info) >= 0 {
+                                println!("帧缓冲区固定信息:");
+                                println!("  内存大小: {} 字节", fix_info.smem_len);
+                                println!("  行长度: {} 字节", fix_info.line_length);
+                            }
+                        }
+                        
                         device = Some(file);
                         break;
                     },
@@ -256,60 +281,16 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let Some(fb) = self.framebuffer {
-            unsafe {
-                // 1. 更新共享内存
-                ptr::copy_nonoverlapping(
-                    self.buffer.as_ptr(),
-                    fb,
-                    self.buffer.len()
-                );
-                
-                // 2. 通知显示更新
-                if let Some(device) = &self.pen_device {
-                    let update_data = MxcfbUpdateData {
-                        update_region: MxcfbRect {
-                            top: 0,
-                            left: 0,
-                            width: self.width,
-                            height: self.height,
-                        },
-                        waveform_mode: REMARKABLE_WAVEFORM_MODE_DU,
-                        update_mode: REMARKABLE_UPDATE_MODE_PARTIAL,
-                        update_marker: 0,
-                        temp: 0x1000,
-                        flags: 0,
-                        dither_mode: 0,
-                        quant_bit: 0,
-                        alt_buffer_data: MxcfbAltBufferData {
-                            phys_addr: 0,
-                            width: 0,
-                            height: 0,
-                            alt_update_region: MxcfbRect {
-                                top: 0,
-                                left: 0,
-                                width: 0,
-                                height: 0,
-                            },
-                        },
-                    };
-                    
-                    let fd = device.as_raw_fd();
-                    let result = unsafe {
-                        ioctl(fd, MXCFB_SEND_UPDATE, &update_data as *const _)
-                    };
-                    
-                    if result < 0 {
-                        println!("更新显示失败: {}", std::io::Error::last_os_error());
-                    } else {
-                        println!("显示更新成功");
-                    }
-                } else {
-                    println!("未找到显示设备");
-                }
-            }
+        if let Some(device) = &self.pen_device {
+            // 直接写入帧缓冲区
+            device.write_all(&self.buffer)?;
+            println!("直接写入帧缓冲区完成");
+            
+            // 尝试强制刷新
+            device.sync_all()?;
+            println!("帧缓冲区同步完成");
         } else {
-            println!("未找到帧缓冲区");
+            println!("未找到显示设备");
         }
         Ok(())
     }
