@@ -256,13 +256,34 @@ impl Pen {
     pub fn flush(&mut self) -> Result<()> {
         if let Some(fb) = self.framebuffer {
             unsafe {
+                // 1. 更新共享内存
                 ptr::copy_nonoverlapping(
                     self.buffer.as_ptr(),
                     fb,
                     self.buffer.len()
                 );
+                
+                // 2. 通知 Qt 应用程序刷新显示
+                if let Some(device) = &self.pen_device {
+                    let update_data = RmppUpdateData {
+                        update_region: MxcfbRect {
+                            top: 0,
+                            left: 0,
+                            width: self.width,
+                            height: self.height,
+                        },
+                        update_mode: REMARKABLE_UPDATE_MODE_PARTIAL,
+                        flags: 0,
+                    };
+                    
+                    let fd = device.as_raw_fd();
+                    unsafe {
+                        ioctl(fd, RMPP_UPDATE_DISPLAY, &update_data as *const _);
+                    }
+                }
+                
+                println!("更新共享内存和发送刷新命令完成");
             }
-            println!("更新共享内存完成");
         }
         Ok(())
     }
