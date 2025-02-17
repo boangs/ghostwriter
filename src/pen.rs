@@ -6,9 +6,10 @@ use drm::control::{connector, crtc, framebuffer, Device as ControlDevice};
 use drm::control::Mode as DrmMode;
 use drm::Device as DrDevice;
 use drm::buffer::DrmFourcc;
-use drm::{Device, DrmDevice};
+use drm::Device;
 use drm::SystemError;
 use drm::control::Device as _; // 导入 trait 作为私有项
+use drm::control::framebuffer::Handle as FbHandle;
 use nix::libc;
 
 const REMARKABLE_WIDTH: u32 = 1404;
@@ -132,8 +133,8 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<DrmDevice>,
-    framebuffer: Option<framebuffer::Handle>,
+    drm_device: Option<File>,
+    framebuffer: Option<FbHandle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
     mode: Option<DrmMode>,
@@ -150,7 +151,8 @@ impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
-            let drm_device = DrmDevice::new("/dev/dri/card0")?;
+            let drm_file = File::open("/dev/dri/card0")?;
+            let drm_device = drm_file.try_clone()?;
             
             // 获取可用的连接器
             let res_handles = drm_device.resource_handles()?;
@@ -190,7 +192,7 @@ impl Pen {
             )?;
 
             println!("成功初始化 DRM 设备");
-            (Some(drm_device), Some(fb_id), Some(crtc), Some(connector), Some(mode))
+            (Some(drm_file), Some(fb_id), Some(crtc), Some(connector), Some(mode))
         } else {
             (None, None, None, None, None)
         };
@@ -315,7 +317,7 @@ impl Pen {
             (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
             
             // 更新帧缓冲区内容
-            device.add_fb(
+            device.add_fb::<FbHandle>(
                 &self.buffer, 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
@@ -372,7 +374,7 @@ impl Pen {
 impl Drop for Pen {
     fn drop(&mut self) {
         if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
-            if let Err(e) = device.destroy_framebuffer(fb) {
+            if let Err(e) = device.destroy_framebuffer::<FbHandle>(fb) {
                 eprintln!("清理帧缓冲区失败: {}", e);
             }
         }
