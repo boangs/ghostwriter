@@ -1,22 +1,12 @@
 use anyhow::Result;
 use rusttype::{Font, Scale, Point};
 use std::fs::File;
-use std::io::{Read, Write, Seek, SeekFrom};
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
-use std::os::unix::fs::MetadataExt;
-use nix::libc::{self, c_int, ioctl, ftruncate};
-use nix::sys::mman::{mmap, MapFlags, ProtFlags, shm_open, shm_unlink};
-use std::ptr;
-use std::num::NonZeroUsize;
-use nix::ioctl_write_int;
-use std::ffi::CString;
-use std::os::unix::io::RawFd;
-use nix::fcntl::OFlag;
-use nix::sys::stat::Mode;
-use drm::{Device as DrDevice, control::Device};
-use drm::control::{connector, crtc, framebuffer, Mode};
+use std::io::{Read, Write};
+use drm::control::{Device, connector, crtc, framebuffer};
+use drm::control::Mode as DrmMode;
+use drm::Device as DrmDevice;
 use drm::buffer::DrmFourcc;
+use nix::libc;
 
 const REMARKABLE_WIDTH: u32 = 1404;
 const REMARKABLE_HEIGHT: u32 = 1872;
@@ -139,11 +129,11 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<DrDevice>,
+    drm_device: Option<File>,
     framebuffer: Option<framebuffer::Handle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
-    mode: Option<Mode>,
+    mode: Option<DrmMode>,
     buffer: Vec<u8>,
     width: u32,
     height: u32,
@@ -157,14 +147,14 @@ impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
-            let drm_device = DrDevice::new("/dev/dri/card0")?;
+            let drm_file = File::open("/dev/dri/card0")?;
             
             // 获取可用的连接器
-            let res_handles = drm_device.resource_handles()?;
+            let res_handles = Device::resource_handles(&drm_file)?;
             let connector = res_handles.connectors()
                 .iter()
                 .find(|&&conn_handle| {
-                    if let Ok(info) = drm_device.get_connector(conn_handle, false) {
+                    if let Ok(info) = Device::get_connector(&drm_file, conn_handle, false) {
                         info.state() == connector::State::Connected
                     } else {
                         false
@@ -174,7 +164,7 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到已连接的显示器"))?;
 
             // 获取连接器信息
-            let connector_info = drm_device.get_connector(connector, false)?;
+            let connector_info = Device::get_connector(&drm_file, connector, false)?;
             let mode = connector_info.modes()[0];  // 使用第一个可用的显示模式
 
             // 获取编码器
@@ -182,22 +172,22 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到编码器"))?;
 
             // 获取 CRTC
-            let crtc = drm_device.get_encoder(encoder)?
+            let crtc = Device::get_encoder(&drm_file, encoder)?
                 .crtc()
                 .ok_or_else(|| anyhow::anyhow!("没有找到 CRTC"))?;
 
             // 创建帧缓冲区
-            let fb_id = drm_device.create_framebuffer(
+            let fb_id = Device::create_framebuffer(&drm_file, 
                 &[0u8; SCREEN_SIZE], 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
-                drm::buffer::DrmFourcc::Xrgb8888,
+                DrmFourcc::Xrgb8888,
                 &[REMARKABLE_WIDTH * 4],
                 &[0],
             )?;
 
             println!("成功初始化 DRM 设备");
-            (Some(drm_device), Some(fb_id), Some(crtc), Some(connector), Some(mode))
+            (Some(drm_file), Some(fb_id), Some(crtc), Some(connector), Some(mode))
         } else {
             (None, None, None, None, None)
         };
@@ -321,17 +311,17 @@ impl Pen {
         if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
             (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
             // 更新帧缓冲区内容
-            device.add_fb(
+            Device::add_fb(device,
                 &self.buffer, 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
-                drm::buffer::DrmFourcc::Xrgb8888,
+                DrmFourcc::Xrgb8888,
                 &[REMARKABLE_WIDTH * 4],
                 &[0],
             )?;
 
             // 设置 CRTC
-            device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
+            Device::set_crtc(device, crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
             println!("显示更新完成");
         } else {
             println!("未找到显示设备");
@@ -381,11 +371,11 @@ impl Drop for Pen {
     fn drop(&mut self) {
         if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
             // 清理帧缓冲区
-            if let Err(e) = device.destroy_framebuffer(fb) {
+            if let Err(e) = Device::destroy_framebuffer(device, fb) {
                 eprintln!("清理帧缓冲区失败: {}", e);
             }
         }
-        // DRM 设备会在 Drop 时自动关闭
+        // DRM 设备会在 File 被 drop 时自动关闭
     }
 }
 
