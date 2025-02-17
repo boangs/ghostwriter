@@ -139,7 +139,7 @@ struct FbBitfield {
 
 pub struct Pen {
     no_draw: bool,
-    drm_device: Option<std::fs::File>,
+    drm_device: Option<File>,
     framebuffer: Option<framebuffer::Handle>,
     crtc: Option<crtc::Handle>,
     connector: Option<connector::Handle>,
@@ -157,18 +157,14 @@ impl Pen {
     pub fn new(no_draw: bool) -> Result<Self> {
         let (drm_device, framebuffer, crtc, connector, mode) = if !no_draw {
             println!("尝试打开显示设备: {}", "/dev/dri/card0");
-            let drm_device = std::fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .custom_flags(libc::O_NONBLOCK)
-                .open("/dev/dri/card0")?;
-
+            let drm_device = File::open("/dev/dri/card0")?;
+            
             // 获取可用的连接器
-            let res_handles = drm_device.resource_handles()?;
+            let res_handles = Device::resource_handles(&drm_device)?;
             let connector = res_handles.connectors()
                 .iter()
                 .find(|&&conn_handle| {
-                    if let Ok(info) = drm_device.get_connector(conn_handle, false) {
+                    if let Ok(info) = Device::get_connector(&drm_device, conn_handle, false) {
                         info.state() == connector::State::Connected
                     } else {
                         false
@@ -178,7 +174,7 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到已连接的显示器"))?;
 
             // 获取连接器信息
-            let connector_info = drm_device.get_connector(connector, false)?;
+            let connector_info = Device::get_connector(&drm_device, connector, false)?;
             let mode = connector_info.modes()[0];  // 使用第一个可用的显示模式
 
             // 获取编码器
@@ -186,15 +182,16 @@ impl Pen {
                 .ok_or_else(|| anyhow::anyhow!("没有找到编码器"))?;
 
             // 获取 CRTC
-            let crtc = drm_device.get_encoder(encoder)?
+            let crtc = Device::get_encoder(&drm_device, encoder)?
                 .crtc()
                 .ok_or_else(|| anyhow::anyhow!("没有找到 CRTC"))?;
 
             // 创建帧缓冲区
-            let fb_id = drm_device.create_framebuffer(&[0u8; SCREEN_SIZE], 
+            let fb_id = Device::create_framebuffer(&drm_device, 
+                &[0u8; SCREEN_SIZE], 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
-                DrmFourcc::Xrgb8888,
+                drm::buffer::DrmFourcc::Xrgb8888,
                 &[REMARKABLE_WIDTH * 4],
                 &[0],
             )?;
@@ -321,19 +318,20 @@ impl Pen {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        if let (Some(ref mut device), Some(fb), Some(crtc), Some(mode)) = 
-            (&mut self.drm_device, self.framebuffer, self.crtc, self.mode) {
+        if let (Some(ref device), Some(fb), Some(crtc), Some(mode)) = 
+            (&self.drm_device, self.framebuffer, self.crtc, self.mode) {
             // 更新帧缓冲区内容
-            device.add_fb(&self.buffer, 
+            Device::add_fb(device,
+                &self.buffer, 
                 REMARKABLE_WIDTH, 
                 REMARKABLE_HEIGHT,
-                DrmFourcc::Xrgb8888,
+                drm::buffer::DrmFourcc::Xrgb8888,
                 &[REMARKABLE_WIDTH * 4],
                 &[0],
             )?;
 
             // 设置 CRTC
-            device.set_crtc(crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
+            Device::set_crtc(device, crtc, Some(fb), (0, 0), &[self.connector.unwrap()], Some(mode))?;
             println!("显示更新完成");
         } else {
             println!("未找到显示设备");
@@ -381,9 +379,9 @@ impl Pen {
 
 impl Drop for Pen {
     fn drop(&mut self) {
-        if let (Some(ref mut device), Some(fb)) = (&mut self.drm_device, self.framebuffer) {
+        if let (Some(ref device), Some(fb)) = (&self.drm_device, self.framebuffer) {
             // 清理帧缓冲区
-            if let Err(e) = device.destroy_framebuffer(fb) {
+            if let Err(e) = Device::destroy_framebuffer(device, fb) {
                 eprintln!("清理帧缓冲区失败: {}", e);
             }
         }
