@@ -75,6 +75,7 @@ impl Pen {
     pub fn new(no_draw: bool) -> Self {
         let display_device = if !no_draw {
             // 尝试打开所有可能的显示设备
+            let mut device = None;
             for device_path in FB_DEVICES {
                 println!("尝试打开显示设备: {}", device_path);
                 match std::fs::OpenOptions::new()
@@ -84,15 +85,15 @@ impl Pen {
                 {
                     Ok(file) => {
                         println!("成功打开显示设备: {}", device_path);
-                        Some(file)
+                        device = Some(file);
+                        break;
                     },
                     Err(e) => {
                         println!("打开显示设备 {} 失败: {}", device_path, e);
-                        None
                     }
                 }
             }
-            None
+            device
         } else {
             None
         };
