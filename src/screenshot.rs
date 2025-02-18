@@ -81,7 +81,7 @@ impl Screenshot {
         
         let mut file = std::fs::OpenOptions::new()
             .read(true)
-            .open(format!("/proc/{}/mem"))?;
+            .open(format!("/proc/{pid}/mem"))?;
         
         let chunk_size = 1024 * 1024;
         let mut offset = 0;
