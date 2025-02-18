@@ -200,7 +200,7 @@ fn load_config(filename: &str) -> String {
     }
 }
 
-fn ghostwriter(args: &Args) -> Result<()> {
+fn ghostwriter(args: &Args) -> Result<String> {
     let keyboard = shared!(Keyboard::new(args.no_draw, args.no_draw_progress,));
     let pen = shared!(Pen::new(args.no_draw));
     let touch = shared!(Touch::new(args.no_draw));
@@ -329,7 +329,7 @@ fn ghostwriter(args: &Args) -> Result<()> {
             if let Ok(keyboard) = lock!(keyboard).as_ref() {
                 keyboard.progress_end()?;
             }
-            return Ok(());
+            return Ok(String::new());
         }
 
         let prompt_general_raw = load_config(&args.prompt);
@@ -364,10 +364,10 @@ fn ghostwriter(args: &Args) -> Result<()> {
         engine.add_image_content(&base64_image);
 
         info!("Executing the engine (call out to {}", engine_name);
-        engine.execute()?;
-
+        let response = engine.execute()?;
+        
         if args.no_loop {
-            break Ok(());
+            return Ok(response);
         }
     }
 }

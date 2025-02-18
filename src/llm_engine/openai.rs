@@ -86,7 +86,7 @@ impl LLMEngine for OpenAI {
         self.content.clear();
     }
 
-    fn execute(&mut self) -> Result<()> {
+    fn execute(&mut self) -> Result<String> {
         let body = json!({
             "model": self.model,
             "messages": [{
@@ -133,7 +133,7 @@ impl LLMEngine for OpenAI {
             if let Some(tool) = tool {
                 if let Some(callback) = &mut tool.callback {
                     callback(function_input.clone());
-                    Ok(())
+                    Ok(json["choices"][0]["message"]["content"].as_str().unwrap().to_string())
                 } else {
                     Err(anyhow::anyhow!(
                         "No callback registered for tool {}",
