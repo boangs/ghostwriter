@@ -9,7 +9,7 @@ pub struct Keyboard {
 impl Keyboard {
     pub fn new() -> Result<Self> {
         Ok(Keyboard {
-            pen: Arc::new(Mutex::new(crate::pen::Pen::new(false)?)),
+            pen: Arc::new(Mutex::new(crate::pen::Pen::new(false))),
         })
     }
 
@@ -18,16 +18,16 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         // 基础设置
-        let start_x = 100.0;
-        let start_y = 100.0;
-        let char_width = 50.0;
-        let line_height = 60.0;
+        let start_x = 100;
+        let start_y = 100;
+        let char_width = 50;
+        let line_height = 60;
         let mut current_x = start_x;
         let mut current_y = start_y;
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 700.0 {
+            if current_x > 700 {
                 current_x = start_x;
                 current_y += line_height;
             }
@@ -41,21 +41,20 @@ impl Keyboard {
         Ok(())
     }
 
-    fn write_character(&self, pen: &mut crate::pen::Pen, c: char, x: f32, y: f32) -> Result<()> {
-        // 这里需要实现具体的笔画绘制逻辑
-        // 可以使用预定义的笔画数据库或者简化的笔画系统
+    fn write_character(&self, pen: &mut crate::pen::Pen, c: char, x: i32, y: i32) -> Result<()> {
+        // 使用 pen 的基础绘制功能来模拟书写
+        pen.pen_up()?;
+        pen.goto_xy((x, y))?;
+        pen.pen_down()?;
         
-        // 示例：简单地画一个方框代表一个字
-        pen.begin_draw()?;
+        // 简单地画一个方框代表一个字
+        // 使用 goto_xy 和 pen up/down 来画线
+        pen.goto_xy((x + 40, y))?;
+        pen.goto_xy((x + 40, y + 40))?;
+        pen.goto_xy((x, y + 40))?;
+        pen.goto_xy((x, y))?;
         
-        // 画一个方框表示字符边界
-        pen.move_to(x, y)?;
-        pen.line_to(x + 40.0, y)?;
-        pen.line_to(x + 40.0, y + 40.0)?;
-        pen.line_to(x, y + 40.0)?;
-        pen.line_to(x, y)?;
-        
-        pen.end_draw()?;
+        pen.pen_up()?;
         Ok(())
     }
 
