@@ -7,8 +7,8 @@ use crate::util::svg_to_bitmap;
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
-const REMARKABLE_WIDTH: i32 = 1404;
-const REMARKABLE_HEIGHT: i32 = 1872;
+const REMARKABLE_WIDTH: i32 = 1620;
+const REMARKABLE_HEIGHT: i32 = 2160;
 
 pub struct Pen {
     device: Option<Device>,
