@@ -99,7 +99,7 @@ struct Args {
     #[arg(long, default_value = "info")]
     log_level: String,
 
-    #[arg(long, default_value = "你好，你是什么大语言模型")]
+    #[arg(long, default_value = "你好，写一篇200字的笑话")]
     initial_text: String,
 }
 
