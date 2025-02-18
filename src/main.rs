@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
     // 构造SVG文本
     let svg = format!(
         r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
-            <text x='50' y='100' font-family='Noto Sans CJK SC' font-size='24'>{}</text>
+            <text x='50' y='100' font-family='Source Han Sans CN Light' font-size='24'>{}</text>
         </svg>"#,
         args.initial_text
     );

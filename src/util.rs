@@ -7,14 +7,23 @@ use resvg::usvg;
 use resvg::usvg::{fontdb, Options, Tree};
 use std::collections::HashMap;
 use std::sync::Arc;
+use rust_embed::RustEmbed;
 
 pub type OptionMap = HashMap<String, String>;
+
+#[derive(RustEmbed)]
+#[folder = "assets/"]
+struct Asset;
 
 pub fn svg_to_bitmap(svg_data: &str, width: u32, height: u32) -> Result<Vec<Vec<bool>>> {
     let mut opt = Options::default();
     let mut fontdb = fontdb::Database::new();
-    fontdb.load_system_fonts();
-
+    
+    // 加载嵌入的字体
+    if let Some(font_data) = Asset::get("SourceHanSansCN-Light.otf") {
+        fontdb.load_font_data(font_data.data.to_vec());
+    }
+    
     opt.fontdb = Arc::new(fontdb);
 
     let tree = match Tree::from_str(svg_data, &opt) {
