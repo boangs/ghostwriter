@@ -22,13 +22,14 @@ impl Pen {
         let device = if no_draw {
             None
         } else {
-            Some(Device::open("/dev/input/touchscreen0").unwrap())
+            Some(Device::open("/dev/input/event0").unwrap())
         };
         
         let framebuffer = if no_draw {
             None
         } else {
             Some(File::options()
+                .read(true)
                 .write(true)
                 .open("/dev/fb0")
                 .unwrap())
@@ -179,8 +180,11 @@ impl Pen {
 
     fn refresh_screen(&mut self) -> Result<()> {
         if let Some(fb) = &mut self.framebuffer {
-            fb.write_all(&[0])?; // 触发屏幕刷新
-            fb.flush()?;
+            let ioctl_cmd: u64 = 0x4048462E;  // MXCFB_SEND_UPDATE
+            let update_data: [u8; 8] = [0; 8];
+            unsafe {
+                libc::ioctl(fb.as_raw_fd(), ioctl_cmd, &update_data);
+            }
         }
         Ok(())
     }
