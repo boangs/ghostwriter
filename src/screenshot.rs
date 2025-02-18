@@ -90,32 +90,13 @@ impl Screenshot {
         let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
         
-        let dd_command = format!(
-            "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={}",
-            pid, buffer_size, address
-        );
-        info!("Executing command: {}", dd_command);
+        let mem_path = format!("/proc/{}/mem", pid);
+        info!("Opening {} and reading {} bytes at offset {}", mem_path, buffer_size, address);
         
-        let output = std::process::Command::new("dd")
-            .arg(format!("if=/proc/{}/mem", pid))
-            .arg(format!("count={}", buffer_size))
-            .arg("bs=1024")
-            .arg("iflag=skip_bytes,count_bytes")
-            .arg(format!("skip={}", address))
-            .output()?;
-            
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            info!("dd command failed: {}", error);
-            anyhow::bail!("Failed to read memory: {}", error);
-        }
+        let mut file = std::fs::File::open(mem_path)?;
+        file.seek(std::io::SeekFrom::Start(address))?;
+        file.read_exact(&mut buffer)?;
         
-        if output.stdout.len() != buffer_size {
-            info!("Expected {} bytes but got {}", buffer_size, output.stdout.len());
-            anyhow::bail!("Incomplete read from framebuffer");
-        }
-        
-        buffer.copy_from_slice(&output.stdout);
         Ok(buffer)
     }
 
