@@ -112,6 +112,7 @@ fn main() -> Result<()> {
     )
     .init();
 
+    info!("初始文本: {}", args.initial_text);
     let mut pen = Pen::new(false);
     
     // 构造SVG文本
@@ -121,6 +122,7 @@ fn main() -> Result<()> {
         </svg>"#,
         args.initial_text
     );
+    info!("生成的SVG: {}", svg);
     
     // 转换SVG为位图
     let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
@@ -129,6 +131,7 @@ fn main() -> Result<()> {
     for (y, row) in bitmap.iter().enumerate() {
         for (x, &pixel) in row.iter().enumerate() {
             if pixel {
+                info!("绘制点: ({}, {})", x, y);
                 pen.draw_point((x as i32, y as i32))?;
             }
         }

@@ -150,9 +150,11 @@ impl Pen {
     }
 
     pub fn draw_point(&mut self, (x, y): (i32, i32)) -> Result<()> {
+        debug!("笔开始绘制点: ({}, {})", x, y);
         self.pen_down()?;
         self.goto_xy((x, y))?;
         self.pen_up()?;
+        debug!("笔结束绘制点");
         Ok(())
     }
 }
