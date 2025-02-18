@@ -53,20 +53,20 @@ impl Screenshot {
         let pids = String::from_utf8(output.stdout)?;
         for pid in pids.split_whitespace() {
             let has_fb = process::Command::new("grep")
-                .args(&["-C1", "/dev/fb0", &format!("/proc/{}/maps", pid)])
+                .args(&["-C1", "/dev/dri/card0", &format!("/proc/{}/maps", pid)])
                 .output()?;
             if !has_fb.stdout.is_empty() {
                 return Ok(pid.to_string());
             }
         }
-        anyhow::bail!("No xochitl process with /dev/fb0 found")
+        anyhow::bail!("No xochitl process with /dev/dri/card0 found")
     }
 
     fn find_framebuffer_address(pid: &str) -> Result<u64> {
         let output = process::Command::new("sh")
             .arg("-c")
             .arg(format!(
-                "grep -C1 '/dev/fb0' /proc/{}/maps | tail -n1 | sed 's/-.*$//'",
+                "grep -C1 '/dev/dri/card0' /proc/{}/maps | tail -n1 | sed 's/-.*$//'",
                 pid
             ))
             .output()?;
