@@ -3,20 +3,14 @@ use evdev::{Device, EventType, InputEvent};
 use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
-use std::fs::File;
-use std::io::Write;
-use std::os::unix::io::AsRawFd;
-use libc;
 
-const INPUT_WIDTH: usize = 15725;
-const INPUT_HEIGHT: usize = 20966;
-
-const REMARKABLE_WIDTH: u32 = 768;
-const REMARKABLE_HEIGHT: u32 = 1024;
+const INPUT_WIDTH: i32 = 15725;
+const INPUT_HEIGHT: i32 = 20967;
+const REMARKABLE_WIDTH: i32 = 1404;
+const REMARKABLE_HEIGHT: i32 = 1872;
 
 pub struct Pen {
     device: Option<Device>,
-    framebuffer: Option<File>,
 }
 
 impl Pen {
@@ -24,23 +18,10 @@ impl Pen {
         let device = if no_draw {
             None
         } else {
-            Some(Device::open("/dev/input/event0").unwrap())
+            Some(Device::open("/dev/input/event1").unwrap())  // 尝试 event1
         };
         
-        let framebuffer = if no_draw {
-            None
-        } else {
-            Some(File::options()
-                .read(true)
-                .write(true)
-                .open("/dev/fb0")
-                .unwrap())
-        };
-
-        Self { 
-            device,
-            framebuffer 
-        }
+        Self { device }
     }
 
     pub fn draw_line_screen(&mut self, p1: (i32, i32), p2: (i32, i32)) -> Result<()> {
@@ -84,7 +65,9 @@ impl Pen {
     }
 
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
+        debug!("开始绘制位图");
         let mut is_pen_down = false;
+        
         for (y, row) in bitmap.iter().enumerate() {
             for (x, &pixel) in row.iter().enumerate() {
                 if pixel {
@@ -92,23 +75,21 @@ impl Pen {
                         self.goto_xy_screen((x as i32, y as i32))?;
                         self.pen_down()?;
                         is_pen_down = true;
-                        sleep(Duration::from_millis(1));
                     }
                     self.goto_xy_screen((x as i32, y as i32))?;
+                    sleep(Duration::from_millis(1));
                 } else if is_pen_down {
                     self.pen_up()?;
                     is_pen_down = false;
-                    sleep(Duration::from_millis(1));
                 }
             }
             if is_pen_down {
                 self.pen_up()?;
                 is_pen_down = false;
             }
-            self.refresh_screen()?; // 每行结束刷新一次屏幕
             sleep(Duration::from_millis(5));
         }
-        self.refresh_screen()?; // 最后再刷新一次
+        debug!("位图绘制完成");
         Ok(())
     }
 
@@ -179,24 +160,16 @@ impl Pen {
         debug!("笔结束绘制点");
         Ok(())
     }
-
-    fn refresh_screen(&mut self) -> Result<()> {
-        if let Some(fb) = &mut self.framebuffer {
-            let ioctl_cmd: u64 = 0x4048462E;  // MXCFB_SEND_UPDATE
-            let update_data: [u8; 8] = [0; 8];
-            unsafe {
-                libc::ioctl(fb.as_raw_fd(), ioctl_cmd, &update_data);
-            }
-        }
-        Ok(())
-    }
 }
-fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {
-    // Swap and normalize the coordinates
+
+fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
+    let (x, y) = point;
+    // 坐标转换
     let x_normalized = x as f32 / REMARKABLE_WIDTH as f32;
     let y_normalized = y as f32 / REMARKABLE_HEIGHT as f32;
-
-    let x_input = ((1.0 - y_normalized) * INPUT_HEIGHT as f32) as i32;
-    let y_input = (x_normalized * INPUT_WIDTH as f32) as i32;
+    
+    let x_input = (x_normalized * INPUT_WIDTH as f32) as i32;
+    let y_input = (y_normalized * INPUT_HEIGHT as f32) as i32;
+    
     (x_input, y_input)
 }
