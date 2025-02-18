@@ -43,7 +43,7 @@ impl Pen {
             // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
             let svg = format!(
                 r#"<svg width='50' height='50' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='5' y='35' font-family='LXGW WenKai Screen' font-size='35'>{}</text>
+                    <text x='5' y='35' font-family='LXGW WenKai GB Screen' font-size='35'>{}</text>
                 </svg>"#,
                 c
             );
