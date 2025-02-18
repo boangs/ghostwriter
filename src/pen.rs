@@ -192,26 +192,16 @@ impl Pen {
     }
 
     fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
-        for (y, row) in bitmap.iter().enumerate() {
-            let mut start_point: Option<(i32, i32)> = None;
-            
-            for (x, &pixel) in row.iter().enumerate() {
-                if pixel {
-                    if start_point.is_none() {
-                        start_point = Some((start_x + x as i32, start_y + y as i32));
-                    }
-                } else if let Some(start) = start_point {
-                    // 找到一个连续线段的结束，画这条线
-                    let end = (start_x + x as i32 - 1, start_y + y as i32);
-                    self.draw_line_screen(start, end)?;
-                    start_point = None;
+        // 一次性画出整个字符
+        for y in 0..bitmap.len() {
+            for x in 0..bitmap[y].len() {
+                if bitmap[y][x] {
+                    // 对于每个黑色像素，画一个点
+                    self.pen_up()?;
+                    self.goto_xy_screen((start_x + x as i32, start_y + y as i32))?;
+                    self.pen_down()?;
+                    self.goto_xy_screen((start_x + x as i32, start_y + y as i32))?;
                 }
-            }
-            
-            // 如果这一行结束时还有未画完的线段
-            if let Some(start) = start_point {
-                let end = (start_x + row.len() as i32 - 1, start_y + y as i32);
-                self.draw_line_screen(start, end)?;
             }
         }
         Ok(())
