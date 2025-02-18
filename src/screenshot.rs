@@ -63,15 +63,23 @@ impl Screenshot {
     }
 
     fn find_framebuffer_address(pid: &str) -> Result<u64> {
+        let cmd = format!(
+            "grep '/dev/dri/card0' /proc/{}/maps | head -n1 | sed 's/-.*$//'",
+            pid
+        );
+        info!("Executing command: {}", cmd);
+        
         let output = process::Command::new("sh")
             .arg("-c")
-            .arg(format!(
-                "grep '/dev/dri/card0' /proc/{}/maps | head -n1 | sed 's/-.*$//'",
-                pid
-            ))
+            .arg(&cmd)
             .output()?;
+            
         let address_hex = String::from_utf8(output.stdout)?.trim().to_string();
+        info!("Found address: {}", address_hex);
+        
         let address = u64::from_str_radix(&address_hex, 16)?;
+        info!("Converted to decimal: {}", address);
+        
         Ok(address)
     }
 
