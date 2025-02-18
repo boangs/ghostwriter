@@ -4,8 +4,7 @@ use anyhow::Result;
 use log::{debug, info};
 use serde_json::json;
 use serde_json::Value as json;
-
-use ureq::Error; 
+use ureq;
 
 pub struct Tool {
     name: String,
@@ -114,20 +113,25 @@ impl LLMEngine for OpenAI {
     fn execute(&mut self) -> Result<String> {
         info!("执行 OpenAI LLM 引擎");
         
-        // 构建请求
-        let request = self.build_request()?;
-        
-        // 发送请求到 OpenAI API
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(format!("{}/v1/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&request)
-            .send()?;
+        // 构建请求体
+        let messages = vec![json!({
+            "role": "user",
+            "content": &self.content
+        })];
+
+        let body = json!({
+            "model": self.model,
+            "messages": messages
+        });
+
+        // 发送请求
+        let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
+            .set("Authorization", &format!("Bearer {}", self.api_key))
+            .send_json(&body)?;
 
         // 解析响应
-        let response_json: serde_json::Value = response.json()?;
-        let message = response_json["choices"][0]["message"]["content"]
+        let json: serde_json::Value = response.into_json()?;
+        let message = json["choices"][0]["message"]["content"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("无法从响应中获取文本"))?;
 
