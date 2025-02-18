@@ -26,24 +26,24 @@ impl Pen {
 
     pub fn write_text(&mut self, text: &str) -> Result<()> {
         debug!("开始书写文本: {}", text);
-        let start_x = 100;
-        let start_y = 100;
-        let char_width = 50;
-        let line_height = 60;
+        let start_x = 50;
+        let start_y = 50;
+        let char_width = 30;
+        let line_height = 5;
         let mut current_x = start_x;
         let mut current_y = start_y;
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 700 {
+            if current_x > 1000 {
                 current_x = start_x;
                 current_y += line_height;
             }
 
             // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
             let svg = format!(
-                r#"<svg width='50' height='50' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='5' y='35' font-family='LXGW WenKai GB Screen' font-size='35'>{}</text>
+                r#"<svg width='30' height='30' xmlns='http://www.w3.org/2000/svg'>
+                    <text x='5' y='35' font-family='LXGW WenKai GB Screen' font-size='12'>{}</text>
                 </svg>"#,
                 c
             );
