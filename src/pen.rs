@@ -18,7 +18,7 @@ impl Pen {
         let device = if no_draw {
             None
         } else {
-            Some(Device::open("/dev/input/event1").unwrap())  // 尝试 event1
+            Some(Device::open("/dev/input/event2").unwrap())  // 尝试 event1
         };
         
         Self { device }
