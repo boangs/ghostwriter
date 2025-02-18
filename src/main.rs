@@ -275,7 +275,9 @@ fn ghostwriter(args: &Args) -> Result<()> {
             lock!(touch).wait_for_trigger()?;
         }
 
-        lock!(keyboard).progress()?;
+        if let Ok(keyboard) = lock!(keyboard).as_ref() {
+            keyboard.progress()?;
+        }
 
         info!("Getting screenshot (or loading input image)");
         let base64_image = if let Some(input_png) = &args.input_png {
@@ -287,11 +289,15 @@ fn ghostwriter(args: &Args) -> Result<()> {
             }
             screenshot.base64()?
         };
-        lock!(keyboard).progress()?;
+        if let Ok(keyboard) = lock!(keyboard).as_ref() {
+            keyboard.progress()?;
+        }
 
         if args.no_submit {
             debug!("Image not submitted to OpenAI due to --no-submit flag");
-            lock!(keyboard).progress_end()?;
+            if let Ok(keyboard) = lock!(keyboard).as_ref() {
+                keyboard.progress_end()?;
+            }
             return Ok(());
         }
 
