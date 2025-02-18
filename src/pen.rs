@@ -35,7 +35,7 @@ impl Pen {
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 1100 {
+            if current_x > 1050 {
                 current_x = start_x;
                 current_y += line_height;
             }
@@ -49,7 +49,7 @@ impl Pen {
             );
             
             // 获取字符的位图
-            let bitmap = svg_to_bitmap(&svg, 30, 30)?;
+            let bitmap = svg_to_bitmap(&svg, 35, 45)?;
             
             // 绘制这个字符的位图
             self.draw_char_bitmap(&bitmap, current_x, current_y)?;
