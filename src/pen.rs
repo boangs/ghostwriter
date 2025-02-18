@@ -5,6 +5,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::fs::File;
 use std::io::Write;
+use std::os::unix::io::AsRawFd;
+use libc;
 
 const INPUT_WIDTH: usize = 15725;
 const INPUT_HEIGHT: usize = 20966;
