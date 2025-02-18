@@ -146,7 +146,7 @@ impl Pen {
             device.send_events(&[
                 InputEvent::new(EventType::KEY, 320, 1), // BTN_TOOL_PEN
                 InputEvent::new(EventType::KEY, 330, 1), // BTN_TOUCH
-                InputEvent::new(EventType::ABSOLUTE, 24, 2630), // ABS_PRESSURE (max pressure)
+                InputEvent::new(EventType::ABSOLUTE, 24, 3600), // ABS_PRESSURE (max pressure)
                 InputEvent::new(EventType::ABSOLUTE, 25, 0), // ABS_DISTANCE
                 InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ])?;
