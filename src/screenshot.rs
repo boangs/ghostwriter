@@ -64,7 +64,7 @@ impl Screenshot {
 
     fn find_framebuffer_address(pid: &str) -> Result<u64> {
         let cmd = format!(
-            "grep '/dev/dri/card0' /proc/{}/maps | head -n1 | sed 's/-.*$//'",
+            "grep '/dev/dri/card0' /proc/{}/maps | head -n1",
             pid
         );
         info!("Executing command: {}", cmd);
@@ -74,8 +74,11 @@ impl Screenshot {
             .arg(&cmd)
             .output()?;
             
-        let address_hex = String::from_utf8(output.stdout)?.trim().to_string();
-        info!("Found address: {}", address_hex);
+        let maps_line = String::from_utf8(output.stdout)?.trim().to_string();
+        info!("Found maps line: {}", maps_line);
+        
+        let address_hex = maps_line.split('-').next().unwrap_or("").trim().to_string();
+        info!("Extracted address: {}", address_hex);
         
         let address = u64::from_str_radix(&address_hex, 16)?;
         info!("Converted to decimal: {}", address);
