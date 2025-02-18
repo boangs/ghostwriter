@@ -76,11 +76,30 @@ impl Screenshot {
     }
 
     fn read_framebuffer(pid: &str, address: u64) -> Result<Vec<u8>> {
-        let buffer_size = 1404 * 1872 * 2;
+        let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
-        let mut file = std::fs::File::open(format!("/proc/{}/mem", pid))?;
-        file.seek(std::io::SeekFrom::Start(address))?;
-        file.read_exact(&mut buffer)?;
+        
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(format!("/proc/{}/mem"))?;
+        
+        let chunk_size = 1024 * 1024;
+        let mut offset = 0;
+        
+        while offset < buffer_size {
+            let to_read = std::cmp::min(chunk_size, buffer_size - offset);
+            file.seek(std::io::SeekFrom::Start(address + offset as u64))?;
+            match file.read_exact(&mut buffer[offset..offset + to_read]) {
+                Ok(_) => offset += to_read,
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::Interrupted {
+                        continue;
+                    }
+                    return Err(e.into());
+                }
+            }
+        }
+        
         Ok(buffer)
     }
 
