@@ -1,5 +1,6 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
+use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
 
