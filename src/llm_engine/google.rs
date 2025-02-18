@@ -58,6 +58,32 @@ impl Google {
             
         Ok(response)
     }
+
+    fn execute(&mut self) -> Result<String> {
+        info!("执行 Google LLM 引擎");
+        
+        // 构建请求体
+        let body = json!({
+            "model": self.model,
+            "messages": [{
+                "role": "user",
+                "content": &self.content
+            }]
+        });
+
+        // 发送请求
+        let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
+            .set("Authorization", &format!("Bearer {}", self.api_key))
+            .send_json(&body)?;
+
+        // 解析响应
+        let json: serde_json::Value = response.into_json()?;
+        let message = json["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("无法从响应中获取文本"))?;
+
+        Ok(message.to_string())
+    }
 }
 
 impl LLMEngine for Google {
@@ -105,20 +131,5 @@ impl LLMEngine for Google {
 
     fn clear_content(&mut self) {
         self.content.clear();
-    }
-
-    fn execute(&mut self) -> Result<String> {
-        info!("Executing Google LLM engine");
-        
-        // 构建请求
-        let request = self.build_request()?;
-        
-        // 发送请求并获取响应
-        let response = self.send_request(&request)?;
-        
-        // 从响应中提取文本
-        let text = response.text()?;
-        
-        Ok(text)
     }
 }
