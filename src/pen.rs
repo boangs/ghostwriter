@@ -3,6 +3,7 @@ use evdev::{Device, EventType, InputEvent};
 use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
+use crate::util::svg_to_bitmap;
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
