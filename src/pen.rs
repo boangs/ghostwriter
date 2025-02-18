@@ -148,6 +148,13 @@ impl Pen {
         }
         Ok(())
     }
+
+    pub fn draw_point(&mut self, (x, y): (i32, i32)) -> Result<()> {
+        self.pen_down()?;
+        self.goto_xy((x, y))?;
+        self.pen_up()?;
+        Ok(())
+    }
 }
 fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {
     // Swap and normalize the coordinates

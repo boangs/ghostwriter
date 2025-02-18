@@ -25,13 +25,8 @@ const REMARKABLE_HEIGHT: u32 = 1024;
 #[folder = "prompts/"]
 struct Asset;
 
-#[derive(Parser)]
-#[command(author, version)]
-#[command(about = "Vision-LLM Agent for the reMarkable2")]
-#[command(
-    long_about = "Ghostwriter is an exploration of how to interact with vision-LLM through the handwritten medium of the reMarkable2. It is a pluggable system; you can provide a custom prompt and custom 'tools' that the agent can use."
-)]
-#[command(after_help = "See https://github.com/awwaiid/ghostwriter for updates!")]
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 struct Args {
     /// Sets the engine to use (openai, anthropic);
     /// Sometimes we can guess the engine from the model name
@@ -103,9 +98,12 @@ struct Args {
     /// Set the log level. Try 'debug' or 'trace'
     #[arg(long, default_value = "info")]
     log_level: String,
+
+    #[arg(long, default_value = "你好")]
+    initial_text: String,
 }
 
-fn main() -> Result<()> {
+async fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
@@ -114,7 +112,29 @@ fn main() -> Result<()> {
     )
     .init();
 
-    ghostwriter(&args)
+    let mut pen = Pen::new(false)?;
+    
+    // 构造SVG文本
+    let svg = format!(
+        r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
+            <text x='50' y='100' font-family='Noto Sans CJK SC' font-size='24'>{}</text>
+        </svg>"#,
+        args.initial_text
+    );
+    
+    // 转换SVG为位图
+    let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
+    
+    // 使用笔绘制位图
+    for (y, row) in bitmap.iter().enumerate() {
+        for (x, &pixel) in row.iter().enumerate() {
+            if pixel {
+                pen.draw_point((x as i32, y as i32))?;
+            }
+        }
+    }
+    
+    Ok(())
 }
 
 macro_rules! shared {
