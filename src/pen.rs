@@ -35,7 +35,7 @@ impl Pen {
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 1200 {
+            if current_x > 1100 {
                 current_x = start_x;
                 current_y += line_height;
             }
@@ -43,7 +43,7 @@ impl Pen {
             // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
             let svg = format!(
                 r#"<svg width='30' height='30' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='5' y='15' font-family='LXGW WenKai GB Screen' font-size='20'>{}</text>
+                    <text x='5' y='15' font-family='LXGW WenKai GB Screen' font-size='25'>{}</text>
                 </svg>"#,
                 c
             );
