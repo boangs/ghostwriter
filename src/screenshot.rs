@@ -37,7 +37,7 @@ impl Screenshot {
         let pid = Self::find_xochitl_pid()?;
 
         // Find framebuffer location in memory
-        let skip_bytes = Self::find_framebuffer_address(&pid)?;
+        let (skip_bytes, _) = Self::find_framebuffer_address(&pid)?;
 
         // Read the framebuffer data
         let screenshot_data = Self::read_framebuffer(&pid, skip_bytes)?;
@@ -62,7 +62,7 @@ impl Screenshot {
         anyhow::bail!("No xochitl process with /dev/dri/card0 found")
     }
 
-    fn find_framebuffer_address(pid: &str) -> Result<u64> {
+    fn find_framebuffer_address(pid: &str) -> Result<(u64, u64)> {
         let cmd = format!(
             "grep '/dev/dri/card0' /proc/{}/maps | head -n1",
             pid
@@ -77,13 +77,13 @@ impl Screenshot {
         let maps_line = String::from_utf8(output.stdout)?.trim().to_string();
         info!("Found maps line: {}", maps_line);
         
-        let address_hex = maps_line.split('-').next().unwrap_or("").trim().to_string();
-        info!("Extracted address: {}", address_hex);
+        let addresses: Vec<&str> = maps_line.split_whitespace()[0].split('-').collect();
+        let start_addr = u64::from_str_radix(addresses[0], 16)?;
+        let end_addr = u64::from_str_radix(addresses[1], 16)?;
         
-        let address = u64::from_str_radix(&address_hex, 16)?;
-        info!("Converted to decimal: {}", address);
+        info!("Memory region: start={}, end={}, size={}", start_addr, end_addr, end_addr - start_addr);
         
-        Ok(address)
+        Ok((start_addr, end_addr - start_addr))
     }
 
     fn read_framebuffer(pid: &str, address: u64) -> Result<Vec<u8>> {
@@ -93,9 +93,27 @@ impl Screenshot {
         let mem_path = format!("/proc/{}/mem", pid);
         info!("Opening {} and reading {} bytes at offset {}", mem_path, buffer_size, address);
         
-        let mut file = std::fs::File::open(mem_path)?;
-        file.seek(std::io::SeekFrom::Start(address))?;
-        file.read_exact(&mut buffer)?;
+        unsafe {
+            use std::os::unix::io::AsRawFd;
+            let file = std::fs::File::open(mem_path)?;
+            let fd = file.as_raw_fd();
+            
+            let ptr = libc::mmap(
+                std::ptr::null_mut(),
+                buffer_size,
+                libc::PROT_READ,
+                libc::MAP_SHARED,
+                fd,
+                address as i64
+            );
+            
+            if ptr == libc::MAP_FAILED {
+                anyhow::bail!("mmap failed: {}", std::io::Error::last_os_error());
+            }
+            
+            std::ptr::copy_nonoverlapping(ptr as *const u8, buffer.as_mut_ptr(), buffer_size);
+            libc::munmap(ptr, buffer_size);
+        }
         
         Ok(buffer)
     }
