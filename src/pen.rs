@@ -26,7 +26,7 @@ impl Pen {
 
     pub fn write_text(&mut self, text: &str) -> Result<()> {
         debug!("开始书写文本: {}", text);
-        let start_x = 50;
+        let start_x = 80;
         let start_y = 50;
         let char_width = 30;
         let line_height = 40;
@@ -35,7 +35,7 @@ impl Pen {
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 1000 {
+            if current_x > 1200 {
                 current_x = start_x;
                 current_y += line_height;
             }
@@ -43,7 +43,7 @@ impl Pen {
             // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
             let svg = format!(
                 r#"<svg width='30' height='30' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='5' y='15' font-family='LXGW WenKai GB Screen' font-size='16'>{}</text>
+                    <text x='5' y='15' font-family='LXGW WenKai GB Screen' font-size='20'>{}</text>
                 </svg>"#,
                 c
             );
