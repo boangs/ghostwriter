@@ -1,6 +1,6 @@
 use anyhow::Result;
 use image::GrayImage;
-use log::debug;
+use log::info;
 use std::fs::File;
 use std::io::Write;
 use std::io::{Read, Seek};
@@ -83,7 +83,7 @@ impl Screenshot {
             "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={}",
             pid, buffer_size, address
         );
-        debug!("Executing command: {}", dd_command);
+        info!("Executing command: {}", dd_command);
         
         let output = std::process::Command::new("dd")
             .arg(format!("if=/proc/{}/mem", pid))
@@ -95,12 +95,12 @@ impl Screenshot {
             
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            debug!("dd command failed: {}", error);
+            info!("dd command failed: {}", error);
             anyhow::bail!("Failed to read memory: {}", error);
         }
         
         if output.stdout.len() != buffer_size {
-            debug!("Expected {} bytes but got {}", buffer_size, output.stdout.len());
+            info!("Expected {} bytes but got {}", buffer_size, output.stdout.len());
             anyhow::bail!("Incomplete read from framebuffer");
         }
         
@@ -180,7 +180,7 @@ impl Screenshot {
     pub fn save_image(&self, filename: &str) -> Result<()> {
         let mut png_file = File::create(filename)?;
         png_file.write_all(&self.data)?;
-        debug!("PNG image saved to {}", filename);
+        info!("PNG image saved to {}", filename);
         Ok(())
     }
 
