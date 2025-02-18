@@ -121,18 +121,7 @@ fn main() -> Result<()> {
     
     // 绘制 AI 响应
     info!("AI 响应: {}", response);
-    let svg = format!(
-        r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
-            <text x='50' y='100' font-family='LXGW WenKai Lite' font-size='24'>{}</text>
-        </svg>"#,
-        response
-    );
-    
-    let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
-    info!("位图大小: {}x{}", bitmap[0].len(), bitmap.len());
-    
-    // 使用 draw_bitmap 替代逐点绘制
-    pen.draw_bitmap(&bitmap)?;
+    pen.write_text(&response)?;
     
     Ok(())
 }
