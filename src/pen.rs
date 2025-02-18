@@ -103,24 +103,17 @@ impl Pen {
     }
 
     pub fn draw_line(&mut self, (x1, y1): (i32, i32), (x2, y2): (i32, i32)) -> Result<()> {
-        // trace!("Drawing from ({}, {}) to ({}, {})", x1, y1, x2, y2);
-
-        // We know this is a straight line
-        // So figure out the length
-        // Then divide it into enough steps to only go 10 units or so
-        // Start at x1, y1
-        // And then for each step add the right amount to x and y
-
         let length = ((x2 as f32 - x1 as f32).powf(2.0) + (y2 as f32 - y1 as f32).powf(2.0)).sqrt();
-        // 5.0 is the maximum distance between points
-        // If this is too small
+        
+        // 如果长度为0，说明是同一个点，直接返回
+        if length == 0.0 {
+            return Ok(());
+        }
+        
+        // 5.0 是点之间的最大距离
         let steps = (length / 5.0).ceil() as i32;
         let dx = (x2 - x1) / steps;
         let dy = (y2 - y1) / steps;
-        // trace!(
-        //     "Drawing from ({}, {}) to ({}, {}) in {} steps",
-        //     x1, y1, x2, y2, steps
-        // );
 
         self.pen_up()?;
         self.goto_xy((x1, y1))?;
@@ -130,11 +123,9 @@ impl Pen {
             let x = x1 + dx * i;
             let y = y1 + dy * i;
             self.goto_xy((x, y))?;
-            // trace!("Drawing to point at ({}, {})", x, y);
         }
 
         self.pen_up()?;
-
         Ok(())
     }
 
