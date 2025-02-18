@@ -298,76 +298,15 @@ fn ghostwriter(args: &Args) -> Result<String> {
         }),
     );
 
-    loop {
-        if args.no_trigger {
-            debug!("Skipping waiting for trigger");
-        } else {
-            info!("Waiting for trigger (hand-touch in the upper-right corner)...");
-            lock!(touch).wait_for_trigger()?;
-        }
+    // 添加初始文本到引擎
+    engine.add_text_content(&args.initial_text);
 
-        if let Ok(keyboard) = lock!(keyboard).as_ref() {
-            keyboard.progress()?;
-        }
-
-        info!("Getting screenshot (or loading input image)");
-        let base64_image = if let Some(input_png) = &args.input_png {
-            BASE64_STANDARD.encode(std::fs::read(input_png)?)
-        } else {
-            let screenshot = Screenshot::new()?;
-            if let Some(save_screenshot) = &args.save_screenshot {
-                screenshot.save_image(save_screenshot)?;
-            }
-            screenshot.base64()?
-        };
-        if let Ok(keyboard) = lock!(keyboard).as_ref() {
-            keyboard.progress()?;
-        }
-
-        if args.no_submit {
-            debug!("Image not submitted to OpenAI due to --no-submit flag");
-            if let Ok(keyboard) = lock!(keyboard).as_ref() {
-                keyboard.progress_end()?;
-            }
-            return Ok(String::new());
-        }
-
-        let prompt_general_raw = load_config(&args.prompt);
-        let prompt_general_json =
-            serde_json::from_str::<serde_json::Value>(prompt_general_raw.as_str())?;
-        let prompt = prompt_general_json["prompt"].as_str().unwrap();
-
-        let segmentation_description = if args.apply_segmentation {
-            info!("Building image segmentation");
-            let input_filename = args
-                .input_png
-                .clone()
-                .unwrap_or(args.save_screenshot.clone().unwrap());
-            match analyze_image(input_filename.as_str()) {
-                Ok(description) => description,
-                Err(e) => format!("Error analyzing image: {}", e),
-            }
-        } else {
-            String::new()
-        };
-        debug!("Segmentation description: {}", segmentation_description);
-
-        engine.clear_content();
-        engine.add_text_content(prompt);
-
-        if args.apply_segmentation {
-            engine.add_text_content(
-               format!("Here are interesting regions based on an automatic segmentation algorithm. Use them to help identify the exact location of interesting features.\n\n{}", segmentation_description).as_str()
-            );
-        }
-
-        engine.add_image_content(&base64_image);
-
-        info!("Executing the engine (call out to {}", engine_name);
-        let response = engine.execute()?;
-        
-        if args.no_loop {
-            return Ok(response);
-        }
+    info!("Executing the engine (call out to {}", engine_name);
+    let response = engine.execute()?;
+    
+    if args.no_loop {
+        Ok(response)
+    } else {
+        Ok(response)
     }
 }
