@@ -113,16 +113,20 @@ fn main() -> Result<()> {
     .init();
 
     info!("初始文本: {}", args.initial_text);
-    
-    // 先绘制初始文本
     let mut pen = Pen::new(false);
+    
+    // 调用 AI 引擎处理
+    info!("开始调用 AI 引擎...");
+    let response = ghostwriter(&args)?;
+    
+    // 绘制 AI 响应
+    info!("AI 响应: {}", response);
     let svg = format!(
         r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
             <text x='50' y='100' font-family='LXGW WenKai Lite' font-size='24'>{}</text>
         </svg>"#,
-        args.initial_text
+        response
     );
-    info!("生成的SVG: {}", svg);
     
     let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
     info!("位图大小: {}x{}", bitmap[0].len(), bitmap.len());
@@ -138,10 +142,6 @@ fn main() -> Result<()> {
         }
     }
     info!("总共绘制了 {} 个点", total_points);
-
-    // 调用 AI 引擎处理
-    info!("开始调用 AI 引擎...");
-    ghostwriter(&args)?;
     
     Ok(())
 }
