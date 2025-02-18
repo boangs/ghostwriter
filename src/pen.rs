@@ -39,62 +39,24 @@ impl Pen {
                 current_y += line_height;
             }
 
-            // 写一个字符
-            self.write_character(c, current_x, current_y)?;
+            // 将单个字符转换为 SVG
+            let svg = format!(
+                r#"<svg width='50' height='50' xmlns='http://www.w3.org/2000/svg'>
+                    <text x='0' y='40' font-family='LXGW WenKai Lite' font-size='40'>{}</text>
+                </svg>"#,
+                c
+            );
+            
+            // 获取字符的位图
+            let bitmap = svg_to_bitmap(&svg, 50, 50)?;
+            
+            // 绘制这个字符的位图
+            self.draw_char_bitmap(&bitmap, current_x, current_y)?;
             sleep(Duration::from_millis(100)); // 字符间停顿
             
             // 移动到下一个字符位置
             current_x += char_width;
         }
-        Ok(())
-    }
-
-    fn write_character(&mut self, c: char, x: i32, y: i32) -> Result<()> {
-        match c {
-            '你' => {
-                // 第一笔
-                self.pen_up()?;
-                self.goto_xy_screen((x, y))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 40, y))?;
-                
-                // 第二笔
-                self.pen_up()?;
-                self.goto_xy_screen((x + 20, y))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 20, y + 40))?;
-                
-                // 第三笔
-                self.pen_up()?;
-                self.goto_xy_screen((x, y + 20))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 40, y + 20))?;
-            },
-            '好' => {
-                // 第一笔
-                self.pen_up()?;
-                self.goto_xy_screen((x + 20, y))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 20, y + 40))?;
-                
-                // 第二笔
-                self.pen_up()?;
-                self.goto_xy_screen((x, y + 20))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 40, y + 20))?;
-            },
-            _ => {
-                // 默认写一个方框
-                self.pen_up()?;
-                self.goto_xy_screen((x, y))?;
-                self.pen_down()?;
-                self.goto_xy_screen((x + 40, y))?;
-                self.goto_xy_screen((x + 40, y + 40))?;
-                self.goto_xy_screen((x, y + 40))?;
-                self.goto_xy_screen((x, y))?;
-            }
-        }
-        self.pen_up()?;
         Ok(())
     }
 
@@ -225,6 +187,32 @@ impl Pen {
         self.goto_xy((x, y))?;
         self.pen_up()?;
         debug!("笔结束绘制点");
+        Ok(())
+    }
+
+    fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
+        for (y, row) in bitmap.iter().enumerate() {
+            let mut start_point: Option<(i32, i32)> = None;
+            
+            for (x, &pixel) in row.iter().enumerate() {
+                if pixel {
+                    if start_point.is_none() {
+                        start_point = Some((start_x + x as i32, start_y + y as i32));
+                    }
+                } else if let Some(start) = start_point {
+                    // 找到一个连续线段的结束，画这条线
+                    let end = (start_x + x as i32 - 1, start_y + y as i32);
+                    self.draw_line_screen(start, end)?;
+                    start_point = None;
+                }
+            }
+            
+            // 如果这一行结束时还有未画完的线段
+            if let Some(start) = start_point {
+                let end = (start_x + row.len() as i32 - 1, start_y + y as i32);
+                self.draw_line_screen(start, end)?;
+            }
+        }
         Ok(())
     }
 }
