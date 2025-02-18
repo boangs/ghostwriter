@@ -79,27 +79,25 @@ impl Screenshot {
         let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
         
-        // 直接使用 dd 命令读取内存
-        let output = std::process::Command::new("dd")
-            .arg(format!("if=/proc/{}/mem", pid))
-            .arg(format!("bs={}", buffer_size))
-            .arg("count=1")
-            .arg(format!("skip={}", address))
-            .output()?;
-            
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            debug!("dd command failed: {}", error);
-            anyhow::bail!("Failed to read memory: {}", error);
-        }
+        // 尝试直接从 DRI 设备读取
+        let mut file = match std::fs::OpenOptions::new()
+            .read(true)
+            .open("/dev/dri/card0") {
+            Ok(f) => f,
+            Err(e) => {
+                debug!("Failed to open /dev/dri/card0: {}", e);
+                anyhow::bail!("Cannot access display device")
+            }
+        };
         
-        if output.stdout.len() != buffer_size {
-            debug!("Expected {} bytes but got {}", buffer_size, output.stdout.len());
-            anyhow::bail!("Incomplete read from framebuffer");
+        // 读取显示内容
+        match file.read_exact(&mut buffer) {
+            Ok(_) => Ok(buffer),
+            Err(e) => {
+                debug!("Failed to read {} bytes from display device: {}", buffer_size, e);
+                anyhow::bail!("Cannot read display data: {}", e)
+            }
         }
-        
-        buffer.copy_from_slice(&output.stdout);
-        Ok(buffer)
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
