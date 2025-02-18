@@ -131,17 +131,8 @@ fn main() -> Result<()> {
     let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
     info!("位图大小: {}x{}", bitmap[0].len(), bitmap.len());
     
-    let mut total_points = 0;
-    for (y, row) in bitmap.iter().enumerate() {
-        for (x, &pixel) in row.iter().enumerate() {
-            if pixel {
-                total_points += 1;
-                info!("绘制点: ({}, {})", x, y);
-                pen.draw_point((x as i32, y as i32))?;
-            }
-        }
-    }
-    info!("总共绘制了 {} 个点", total_points);
+    // 使用 draw_bitmap 替代逐点绘制
+    pen.draw_bitmap(&bitmap)?;
     
     Ok(())
 }
