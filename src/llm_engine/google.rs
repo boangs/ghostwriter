@@ -1,12 +1,9 @@
 use super::LLMEngine;
 use crate::util::{option_or_env, option_or_env_fallback, OptionMap};
 use anyhow::Result;
-use log::{debug, info};
+use log::info;
 use serde_json::json;
 use serde_json::Value as json;
-
-use ureq::Error;
-use reqwest::blocking::Client;
 
 pub struct Tool {
     name: String,
@@ -23,66 +20,8 @@ pub struct Google {
 }
 
 impl Google {
-    fn google_tool_definition(tool: &Tool) -> json {
-        json!({
-            "name": tool.definition["name"],
-            "description": tool.definition["description"],
-            "parameters": tool.definition["parameters"],
-        })
-    }
-
     pub fn add_content(&mut self, content: json) {
         self.content.push(content);
-    }
-
-    fn build_request(&self) -> Result<serde_json::Value> {
-        let mut messages = Vec::new();
-        messages.push(json!({
-            "role": "user",
-            "content": self.content
-        }));
-
-        Ok(json!({
-            "model": self.model,
-            "messages": messages
-        }))
-    }
-
-    fn send_request(&self, request: &serde_json::Value) -> Result<reqwest::blocking::Response> {
-        let client = Client::new();
-        let response = client
-            .post(format!("{}/v1/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(request)
-            .send()?;
-            
-        Ok(response)
-    }
-
-    fn execute(&mut self) -> Result<String> {
-        info!("执行 Google LLM 引擎");
-        
-        // 构建请求体
-        let body = json!({
-            "model": self.model,
-            "messages": [{
-                "role": "user",
-                "content": &self.content
-            }]
-        });
-
-        // 发送请求
-        let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
-            .set("Authorization", &format!("Bearer {}", self.api_key))
-            .send_json(&body)?;
-
-        // 解析响应
-        let json: serde_json::Value = response.into_json()?;
-        let message = json["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("无法从响应中获取文本"))?;
-
-        Ok(message.to_string())
     }
 }
 
@@ -122,14 +61,37 @@ impl LLMEngine for Google {
 
     fn add_image_content(&mut self, base64_image: &str) {
         self.add_content(json!({
-            "inline_data": {
-                "mime_type": "image/png",
-                "data": base64_image,
+            "type": "image_url",
+            "image_url": {
+                "url": format!("data:image/png;base64,{}", base64_image)
             }
         }));
     }
 
     fn clear_content(&mut self) {
         self.content.clear();
+    }
+
+    fn execute(&mut self) -> Result<String> {
+        info!("执行 Google LLM 引擎");
+        
+        let body = json!({
+            "model": self.model,
+            "messages": [{
+                "role": "user",
+                "content": &self.content
+            }]
+        });
+
+        let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
+            .set("Authorization", &format!("Bearer {}", self.api_key))
+            .send_json(&body)?;
+
+        let json: serde_json::Value = response.into_json()?;
+        let message = json["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("无法从响应中获取文本"))?;
+
+        Ok(message.to_string())
     }
 }
