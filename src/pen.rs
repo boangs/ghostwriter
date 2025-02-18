@@ -3,6 +3,8 @@ use evdev::{Device, EventType, InputEvent};
 use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
+use std::fs::File;
+use std::io::Write;
 
 const INPUT_WIDTH: usize = 15725;
 const INPUT_HEIGHT: usize = 20966;
@@ -12,6 +14,7 @@ const REMARKABLE_HEIGHT: u32 = 1024;
 
 pub struct Pen {
     device: Option<Device>,
+    framebuffer: Option<File>,
 }
 
 impl Pen {
@@ -21,8 +24,20 @@ impl Pen {
         } else {
             Some(Device::open("/dev/input/touchscreen0").unwrap())
         };
+        
+        let framebuffer = if no_draw {
+            None
+        } else {
+            Some(File::options()
+                .write(true)
+                .open("/dev/fb0")
+                .unwrap())
+        };
 
-        Self { device }
+        Self { 
+            device,
+            framebuffer 
+        }
     }
 
     pub fn draw_line_screen(&mut self, p1: (i32, i32), p2: (i32, i32)) -> Result<()> {
@@ -77,17 +92,20 @@ impl Pen {
                         sleep(Duration::from_millis(1));
                     }
                     self.goto_xy_screen((x as i32, y as i32))?;
-                    self.goto_xy_screen((x as i32 + 1, y as i32))?;
                 } else if is_pen_down {
                     self.pen_up()?;
                     is_pen_down = false;
                     sleep(Duration::from_millis(1));
                 }
             }
-            self.pen_up()?;
-            is_pen_down = false;
+            if is_pen_down {
+                self.pen_up()?;
+                is_pen_down = false;
+            }
+            self.refresh_screen()?; // 每行结束刷新一次屏幕
             sleep(Duration::from_millis(5));
         }
+        self.refresh_screen()?; // 最后再刷新一次
         Ok(())
     }
 
@@ -156,6 +174,14 @@ impl Pen {
         self.goto_xy((x, y))?;
         self.pen_up()?;
         debug!("笔结束绘制点");
+        Ok(())
+    }
+
+    fn refresh_screen(&mut self) -> Result<()> {
+        if let Some(fb) = &mut self.framebuffer {
+            fb.write_all(&[0])?; // 触发屏幕刷新
+            fb.flush()?;
+        }
         Ok(())
     }
 }
