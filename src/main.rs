@@ -233,8 +233,9 @@ fn ghostwriter(args: &Args) -> Result<()> {
                 lock!(touch_clone).touch_stop().unwrap();
 
                 let mut keyboard = lock!(keyboard_clone);
-
-                draw_text(text, &mut keyboard).unwrap();
+                if let Ok(keyboard) = keyboard.as_mut() {
+                    draw_text(text, keyboard).unwrap();
+                }
             }
         }),
     );
@@ -256,14 +257,15 @@ fn ghostwriter(args: &Args) -> Result<()> {
             }
             let mut keyboard = lock!(keyboard_clone);
             let mut pen = lock!(pen_clone);
-            draw_svg(
-                svg_data,
-                &mut keyboard,
-                &mut pen,
-                save_bitmap.as_ref(),
-                no_draw,
-            )
-            .unwrap();
+            if let Ok(keyboard) = keyboard.as_mut() {
+                draw_svg(
+                    svg_data,
+                    keyboard,
+                    &mut pen,
+                    save_bitmap.as_ref(),
+                    no_draw,
+                ).unwrap();
+            }
         }),
     );
 
