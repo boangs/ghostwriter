@@ -6,6 +6,7 @@ use serde_json::json;
 use serde_json::Value as json;
 
 use ureq::Error;
+use reqwest::blocking::Client;
 
 pub struct Tool {
     name: String,
@@ -32,6 +33,30 @@ impl Google {
 
     pub fn add_content(&mut self, content: json) {
         self.content.push(content);
+    }
+
+    fn build_request(&self) -> Result<serde_json::Value> {
+        let mut messages = Vec::new();
+        messages.push(json!({
+            "role": "user",
+            "content": self.content
+        }));
+
+        Ok(json!({
+            "model": self.model,
+            "messages": messages
+        }))
+    }
+
+    fn send_request(&self, request: &serde_json::Value) -> Result<reqwest::blocking::Response> {
+        let client = Client::new();
+        let response = client
+            .post(format!("{}/v1/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .json(request)
+            .send()?;
+            
+        Ok(response)
     }
 }
 
