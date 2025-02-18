@@ -79,7 +79,12 @@ impl Screenshot {
         let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
         
-        // 使用正确的 dd 参数
+        let dd_command = format!(
+            "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={}",
+            pid, buffer_size, address
+        );
+        debug!("Executing command: {}", dd_command);
+        
         let output = std::process::Command::new("dd")
             .arg(format!("if=/proc/{}/mem", pid))
             .arg(format!("count={}", buffer_size))
