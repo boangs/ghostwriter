@@ -29,7 +29,7 @@ impl Pen {
         let start_x = 50;
         let start_y = 50;
         let char_width = 30;
-        let line_height = 5;
+        let line_height = 40;
         let mut current_x = start_x;
         let mut current_y = start_y;
 
@@ -43,13 +43,13 @@ impl Pen {
             // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
             let svg = format!(
                 r#"<svg width='30' height='30' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='5' y='35' font-family='LXGW WenKai GB Screen' font-size='12'>{}</text>
+                    <text x='5' y='15' font-family='LXGW WenKai GB Screen' font-size='16'>{}</text>
                 </svg>"#,
                 c
             );
             
             // 获取字符的位图
-            let bitmap = svg_to_bitmap(&svg, 50, 50)?;
+            let bitmap = svg_to_bitmap(&svg, 30, 30)?;
             
             // 绘制这个字符的位图
             self.draw_char_bitmap(&bitmap, current_x, current_y)?;
