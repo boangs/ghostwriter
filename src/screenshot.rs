@@ -36,13 +36,10 @@ impl Screenshot {
         // Find xochitl's process
         let pid = Self::find_xochitl_pid()?;
 
-        // Find framebuffer location in memory
-        let (skip_bytes, _) = Self::find_framebuffer_address(&pid)?;
+        // Read the framebuffer data (pid 参数现在只是为了保持接口兼容)
+        let screenshot_data = Self::read_framebuffer(&pid, 0)?;
 
-        // Read the framebuffer data
-        let screenshot_data = Self::read_framebuffer(&pid, skip_bytes)?;
-
-        // Process the image data (transpose, color correction, etc.)
+        // Process the image data
         let processed_data = Self::process_image(screenshot_data)?;
 
         Ok(processed_data)
