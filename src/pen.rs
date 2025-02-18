@@ -53,7 +53,7 @@ impl Pen {
             
             // 绘制这个字符的位图
             self.draw_char_bitmap(&bitmap, current_x, current_y)?;
-            sleep(Duration::from_millis(100)); // 字符间停顿
+            sleep(Duration::from_millis(10)); // 字符间停顿
             
             // 移动到下一个字符位置
             current_x += char_width;
