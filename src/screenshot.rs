@@ -66,19 +66,20 @@ impl Screenshot {
         let output = process::Command::new("sh")
             .arg("-c")
             .arg(format!(
-                "grep -C1 '/dev/dri/card0' /proc/{}/maps | tail -n1 | sed 's/-.*$//'",
+                "grep '/dev/dri/card0' /proc/{}/maps | head -n1 | sed 's/-.*$//'",
                 pid
             ))
             .output()?;
         let address_hex = String::from_utf8(output.stdout)?.trim().to_string();
         let address = u64::from_str_radix(&address_hex, 16)?;
-        Ok(address + 7)
+        Ok(address)
     }
 
-    fn read_framebuffer(pid: &str, skip_bytes: u64) -> Result<Vec<u8>> {
-        let mut buffer = vec![0u8; WINDOW_BYTES];
+    fn read_framebuffer(pid: &str, address: u64) -> Result<Vec<u8>> {
+        let buffer_size = 1404 * 1872 * 2;
+        let mut buffer = vec![0u8; buffer_size];
         let mut file = std::fs::File::open(format!("/proc/{}/mem", pid))?;
-        file.seek(std::io::SeekFrom::Start(skip_bytes))?;
+        file.seek(std::io::SeekFrom::Start(address))?;
         file.read_exact(&mut buffer)?;
         Ok(buffer)
     }
