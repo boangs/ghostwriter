@@ -7,7 +7,7 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new(no_draw: bool, no_draw_progress: bool) -> Result<Self> {
+    pub fn new(no_draw: bool, _no_draw_progress: bool) -> Result<Self> {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
         })
