@@ -229,12 +229,14 @@ impl Pen {
     }
 }
 
-fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {
-    // Swap and normalize the coordinates
+fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
+    let (x, y) = point;
+    // 坐标转换
     let x_normalized = x as f32 / REMARKABLE_WIDTH as f32;
     let y_normalized = y as f32 / REMARKABLE_HEIGHT as f32;
-
+    
     let x_input = (x_normalized * INPUT_WIDTH as f32) as i32;
-    let y_input = ((1.0 - y_normalized) * INPUT_HEIGHT as f32) as i32;
+    let y_input = (y_normalized * INPUT_HEIGHT as f32) as i32;
+    
     (x_input, y_input)
 }
