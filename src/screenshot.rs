@@ -77,7 +77,15 @@ impl Screenshot {
         let maps_line = String::from_utf8(output.stdout)?.trim().to_string();
         info!("Found maps line: {}", maps_line);
         
-        let addresses: Vec<&str> = maps_line.split_whitespace()[0].split('-').collect();
+        let addresses: Vec<&str> = maps_line.split_whitespace().next()
+            .ok_or_else(|| anyhow::anyhow!("No address range found"))?
+            .split('-')
+            .collect();
+            
+        if addresses.len() != 2 {
+            anyhow::bail!("Invalid address range format");
+        }
+        
         let start_addr = u64::from_str_radix(addresses[0], 16)?;
         let end_addr = u64::from_str_radix(addresses[1], 16)?;
         
