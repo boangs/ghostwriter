@@ -192,18 +192,33 @@ impl Pen {
     }
 
     fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
-        // 一次性画出整个字符
+        self.pen_up()?;
+        
+        // 遍历位图中的每个像素
         for y in 0..bitmap.len() {
+            let mut start_point: Option<(i32, i32)> = None;
+            
             for x in 0..bitmap[y].len() {
                 if bitmap[y][x] {
-                    // 对于每个黑色像素，画一个点
-                    self.pen_up()?;
-                    self.goto_xy_screen((start_x + x as i32, start_y + y as i32))?;
-                    self.pen_down()?;
-                    self.goto_xy_screen((start_x + x as i32, start_y + y as i32))?;
+                    if start_point.is_none() {
+                        // 找到这一行的第一个黑色像素
+                        start_point = Some((start_x + x as i32, start_y + y as i32));
+                    }
+                } else if let Some(start) = start_point {
+                    // 找到一个白色像素，结束当前线段
+                    let end = (start_x + x as i32 - 1, start_y + y as i32);
+                    self.draw_line_screen(start, end)?;
+                    start_point = None;
                 }
             }
+            
+            // 处理这一行最后的黑色像素
+            if let Some(start) = start_point {
+                let end = (start_x + bitmap[y].len() as i32 - 1, start_y + y as i32);
+                self.draw_line_screen(start, end)?;
+            }
         }
+        
         Ok(())
     }
 }
