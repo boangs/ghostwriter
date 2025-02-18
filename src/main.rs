@@ -99,7 +99,7 @@ struct Args {
     #[arg(long, default_value = "info")]
     log_level: String,
 
-    #[arg(long, default_value = "你好")]
+    #[arg(long, default_value = "你好，你是什么大语言模型")]
     initial_text: String,
 }
 
@@ -113,9 +113,9 @@ fn main() -> Result<()> {
     .init();
 
     info!("初始文本: {}", args.initial_text);
-    let mut pen = Pen::new(false);
     
-    // 构造SVG文本
+    // 先绘制初始文本
+    let mut pen = Pen::new(false);
     let svg = format!(
         r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
             <text x='50' y='100' font-family='LXGW WenKai Lite' font-size='24'>{}</text>
@@ -124,12 +124,10 @@ fn main() -> Result<()> {
     );
     info!("生成的SVG: {}", svg);
     
-    // 转换SVG为位图
     let bitmap = svg_to_bitmap(&svg, 768, 1024)?;
     info!("位图大小: {}x{}", bitmap[0].len(), bitmap.len());
     
     let mut total_points = 0;
-    // 使用笔绘制位图
     for (y, row) in bitmap.iter().enumerate() {
         for (x, &pixel) in row.iter().enumerate() {
             if pixel {
@@ -140,6 +138,10 @@ fn main() -> Result<()> {
         }
     }
     info!("总共绘制了 {} 个点", total_points);
+
+    // 调用 AI 引擎处理
+    info!("开始调用 AI 引擎...");
+    ghostwriter(&args)?;
     
     Ok(())
 }
