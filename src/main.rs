@@ -103,7 +103,7 @@ struct Args {
     initial_text: String,
 }
 
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
     )
     .init();
 
-    let mut pen = Pen::new(false)?;
+    let mut pen = Pen::new(false);
     
     // 构造SVG文本
     let svg = format!(
