@@ -7,9 +7,9 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new() -> Result<Self> {
+    pub fn new(no_draw: bool, no_draw_progress: bool) -> Result<Self> {
         Ok(Keyboard {
-            pen: Arc::new(Mutex::new(crate::pen::Pen::new(false))),
+            pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
         })
     }
 
@@ -41,14 +41,11 @@ impl Keyboard {
         Ok(())
     }
 
-    fn write_character(&self, pen: &mut crate::pen::Pen, c: char, x: i32, y: i32) -> Result<()> {
-        // 使用 pen 的基础绘制功能来模拟书写
+    fn write_character(&self, pen: &mut crate::pen::Pen, _c: char, x: i32, y: i32) -> Result<()> {
         pen.pen_up()?;
         pen.goto_xy((x, y))?;
         pen.pen_down()?;
         
-        // 简单地画一个方框代表一个字
-        // 使用 goto_xy 和 pen up/down 来画线
         pen.goto_xy((x + 40, y))?;
         pen.goto_xy((x + 40, y + 40))?;
         pen.goto_xy((x, y + 40))?;
@@ -58,8 +55,23 @@ impl Keyboard {
         Ok(())
     }
 
+    pub fn progress(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn progress_end(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn key_cmd_body(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn string_to_keypresses(&self, _text: &str) -> Result<()> {
+        Ok(())
+    }
+
     pub fn write_progress(&self, _progress: f32) -> Result<()> {
-        // 可以选择是否显示进度，这里简化处理
         Ok(())
     }
 }
