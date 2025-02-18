@@ -79,27 +79,21 @@ impl Screenshot {
         let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
         
-        let mut file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(format!("/proc/{pid}/mem"))?;
-        
-        let chunk_size = 1024 * 1024;
-        let mut offset = 0;
-        
-        while offset < buffer_size {
-            let to_read = std::cmp::min(chunk_size, buffer_size - offset);
-            file.seek(std::io::SeekFrom::Start(address + offset as u64))?;
-            match file.read_exact(&mut buffer[offset..offset + to_read]) {
-                Ok(_) => offset += to_read,
-                Err(e) => {
-                    if e.kind() == std::io::ErrorKind::Interrupted {
-                        continue;
-                    }
-                    return Err(e.into());
-                }
-            }
+        // 使用 sudo 来读取内存
+        let output = std::process::Command::new("sudo")
+            .arg("dd")
+            .arg(format!("if=/proc/{}/mem", pid))
+            .arg(format!("bs={}", buffer_size))
+            .arg("count=1")
+            .arg(format!("skip={}", address))
+            .output()?;
+            
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Failed to read memory: {}", error);
         }
         
+        buffer.copy_from_slice(&output.stdout);
         Ok(buffer)
     }
 
