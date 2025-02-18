@@ -40,10 +40,10 @@ impl Pen {
                 current_y += line_height;
             }
 
-            // 将单个字符转换为 SVG
+            // 将单个字符转换为 SVG，调整文字位置和大小
             let svg = format!(
                 r#"<svg width='50' height='50' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='0' y='40' font-family='LXGW WenKai Lite' font-size='40'>{}</text>
+                    <text x='5' y='35' font-family='LXGW WenKai Lite' font-size='35'>{}</text>
                 </svg>"#,
                 c
             );
