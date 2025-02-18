@@ -36,6 +36,31 @@ impl OpenAI {
     pub fn add_content(&mut self, content: json) {
         self.content.push(content);
     }
+
+    fn build_request(&self) -> Result<serde_json::Value> {
+        let mut messages = Vec::new();
+        
+        // 添加系统消息
+        messages.push(json!({
+            "role": "system",
+            "content": "你是一个有帮助的助手。"
+        }));
+
+        // 添加用户内容
+        for content in &self.content {
+            messages.push(json!({
+                "role": "user",
+                "content": content
+            }));
+        }
+
+        // 构建完整请求
+        Ok(json!({
+            "model": self.model,
+            "messages": messages,
+            "tools": self.tools.iter().map(|t| &t.definition).collect::<Vec<_>>()
+        }))
+    }
 }
 
 impl LLMEngine for OpenAI {
