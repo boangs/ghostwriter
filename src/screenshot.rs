@@ -79,9 +79,8 @@ impl Screenshot {
         let buffer_size = WINDOW_BYTES;
         let mut buffer = vec![0u8; buffer_size];
         
-        // 使用 sudo 来读取内存
-        let output = std::process::Command::new("sudo")
-            .arg("dd")
+        // 直接使用 dd 命令读取内存
+        let output = std::process::Command::new("dd")
             .arg(format!("if=/proc/{}/mem", pid))
             .arg(format!("bs={}", buffer_size))
             .arg("count=1")
@@ -90,7 +89,13 @@ impl Screenshot {
             
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
+            debug!("dd command failed: {}", error);
             anyhow::bail!("Failed to read memory: {}", error);
+        }
+        
+        if output.stdout.len() != buffer_size {
+            debug!("Expected {} bytes but got {}", buffer_size, output.stdout.len());
+            anyhow::bail!("Incomplete read from framebuffer");
         }
         
         buffer.copy_from_slice(&output.stdout);
