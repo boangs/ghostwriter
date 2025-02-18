@@ -29,7 +29,7 @@ impl Pen {
         let start_x = 80;
         let start_y = 50;
         let char_width = 30;
-        let line_height = 20;
+        let line_height = 40;
         let mut current_x = start_x;
         let mut current_y = start_y;
 
