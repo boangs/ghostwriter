@@ -18,10 +18,84 @@ impl Pen {
         let device = if no_draw {
             None
         } else {
-            Some(Device::open("/dev/input/event2").unwrap())  // 尝试 event1
+            Some(Device::open("/dev/input/event1").unwrap())
         };
-        
         Self { device }
+    }
+
+    pub fn write_text(&mut self, text: &str) -> Result<()> {
+        debug!("开始书写文本: {}", text);
+        let start_x = 100;
+        let start_y = 100;
+        let char_width = 50;
+        let line_height = 60;
+        let mut current_x = start_x;
+        let mut current_y = start_y;
+
+        for c in text.chars() {
+            // 如果到达行尾，换行
+            if current_x > 700 {
+                current_x = start_x;
+                current_y += line_height;
+            }
+
+            // 写一个字符
+            self.write_character(c, current_x, current_y)?;
+            sleep(Duration::from_millis(100)); // 字符间停顿
+            
+            // 移动到下一个字符位置
+            current_x += char_width;
+        }
+        Ok(())
+    }
+
+    fn write_character(&mut self, c: char, x: i32, y: i32) -> Result<()> {
+        match c {
+            '你' => {
+                // 第一笔
+                self.pen_up()?;
+                self.goto_xy_screen((x, y))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 40, y))?;
+                
+                // 第二笔
+                self.pen_up()?;
+                self.goto_xy_screen((x + 20, y))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 20, y + 40))?;
+                
+                // 第三笔
+                self.pen_up()?;
+                self.goto_xy_screen((x, y + 20))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 40, y + 20))?;
+            },
+            '好' => {
+                // 第一笔
+                self.pen_up()?;
+                self.goto_xy_screen((x + 20, y))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 20, y + 40))?;
+                
+                // 第二笔
+                self.pen_up()?;
+                self.goto_xy_screen((x, y + 20))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 40, y + 20))?;
+            },
+            _ => {
+                // 默认写一个方框
+                self.pen_up()?;
+                self.goto_xy_screen((x, y))?;
+                self.pen_down()?;
+                self.goto_xy_screen((x + 40, y))?;
+                self.goto_xy_screen((x + 40, y + 40))?;
+                self.goto_xy_screen((x, y + 40))?;
+                self.goto_xy_screen((x, y))?;
+            }
+        }
+        self.pen_up()?;
+        Ok(())
     }
 
     pub fn draw_line_screen(&mut self, p1: (i32, i32), p2: (i32, i32)) -> Result<()> {
