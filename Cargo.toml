@@ -21,7 +21,7 @@ rust-embed = "8.0"
 env_logger = "0.11.6"
 log = "0.4.22"
 libc = "0.2"
-
+freetype-rs = "0.32"
 [lib]
 name = "ghostwriter"
 path = "src/lib.rs"

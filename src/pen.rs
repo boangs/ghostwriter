@@ -4,6 +4,7 @@ use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::util::svg_to_bitmap;
+use freetype::{Library, Face};
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
@@ -40,23 +41,31 @@ impl Pen {
                 current_y += line_height;
             }
 
-            // 将单个字符转换为 SVG，使用 LXGW WenKai Screen 字体
-            let svg = format!(
-                r#"<svg width='35' height='45' xmlns='http://www.w3.org/2000/svg'>
-                    <text x='1' y='45' font-family='LXGW WenKai GB Screen' font-size='30'>{}</text>
-                </svg>"#,
-                c
-            );
+            // 获取字符的笔画信息
+            if let Ok(strokes) = get_char_strokes(c) {
+                // 绘制每个笔画
+                for stroke in strokes {
+                    if stroke.len() < 2 {
+                        continue;
+                    }
+                    
+                    // 移动到笔画起点
+                    self.pen_up()?;
+                    let (x, y) = stroke[0];
+                    self.goto_xy_screen((current_x + x, current_y + y))?;
+                    self.pen_down()?;
+                    
+                    // 绘制笔画
+                    for &(x, y) in stroke.iter().skip(1) {
+                        self.goto_xy_screen((current_x + x, current_y + y))?;
+                    }
+                    
+                    sleep(Duration::from_millis(50)); // 笔画间停顿
+                }
+            }
             
-            // 获取字符的位图
-            let bitmap = svg_to_bitmap(&svg, 35, 45)?;
-            
-            // 绘制这个字符的位图
-            self.draw_char_bitmap(&bitmap, current_x, current_y)?;
-            sleep(Duration::from_millis(10)); // 字符间停顿
-            
-            // 移动到下一个字符位置
             current_x += char_width;
+            sleep(Duration::from_millis(100)); // 字符间停顿
         }
         Ok(())
     }
@@ -216,4 +225,76 @@ fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
     let y_input = (y_normalized * INPUT_HEIGHT as f32) as i32;
     
     (x_input, y_input)
+}
+
+pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+    let library = Library::init()?;
+    
+    // 加载我们的字体
+    let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
+    face.set_char_size(0, 16*64, 96, 96)?;
+    
+    // 加载字符
+    face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+    let glyph = face.glyph();
+    let outline = glyph.outline().ok_or(anyhow::anyhow!("No outline found"))?;
+    
+    let mut strokes = Vec::new();
+    let mut current_stroke = Vec::new();
+    
+    outline.decompose(
+        &mut freetype::outline::Decomposer {
+            move_to: |p| {
+                if !current_stroke.is_empty() {
+                    strokes.push(current_stroke.clone());
+                    current_stroke.clear();
+                }
+                current_stroke.push((p.x as i32, p.y as i32));
+                Ok(())
+            },
+            line_to: |p| {
+                current_stroke.push((p.x as i32, p.y as i32));
+                Ok(())
+            },
+            conic_to: |c, p| {
+                // 二次贝塞尔曲线，转换为线段
+                let steps = 10;
+                for i in 1..=steps {
+                    let t = i as f32 / steps as f32;
+                    let x = (1.0 - t).powi(2) * current_stroke.last().unwrap().0 as f32
+                        + 2.0 * (1.0 - t) * t * c.x as f32
+                        + t.powi(2) * p.x as f32;
+                    let y = (1.0 - t).powi(2) * current_stroke.last().unwrap().1 as f32
+                        + 2.0 * (1.0 - t) * t * c.y as f32
+                        + t.powi(2) * p.y as f32;
+                    current_stroke.push((x as i32, y as i32));
+                }
+                Ok(())
+            },
+            cubic_to: |c1, c2, p| {
+                // 三次贝塞尔曲线，转换为线段
+                let steps = 10;
+                for i in 1..=steps {
+                    let t = i as f32 / steps as f32;
+                    let mt = 1.0 - t;
+                    let x = mt.powi(3) * current_stroke.last().unwrap().0 as f32
+                        + 3.0 * mt.powi(2) * t * c1.x as f32
+                        + 3.0 * mt * t.powi(2) * c2.x as f32
+                        + t.powi(3) * p.x as f32;
+                    let y = mt.powi(3) * current_stroke.last().unwrap().1 as f32
+                        + 3.0 * mt.powi(2) * t * c1.y as f32
+                        + 3.0 * mt * t.powi(2) * c2.y as f32
+                        + t.powi(3) * p.y as f32;
+                    current_stroke.push((x as i32, y as i32));
+                }
+                Ok(())
+            },
+        },
+    )?;
+    
+    if !current_stroke.is_empty() {
+        strokes.push(current_stroke);
+    }
+    
+    Ok(strokes)
 }
