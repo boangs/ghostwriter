@@ -105,6 +105,11 @@ struct Args {
     initial_text: String,
 }
 
+fn get_ai_response(prompt: &str) -> Result<String> {
+    let mut engine = OpenAI::new(prompt.to_string());
+    engine.execute()
+}
+
 fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
