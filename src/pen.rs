@@ -1,6 +1,6 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::{debug, info};
+use log::{debug, info, error};
 use std::thread::sleep;
 use std::time::Duration;
 use freetype::Library;
@@ -218,18 +218,66 @@ impl Pen {
 
     pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
         info!("开始获取字符 '{}' 的笔画", c);
-        let library = Library::init()?;
         
-        // 加载我们的字体
-        let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
-        info!("字体加载成功");
+        // 初始化 FreeType
+        let library = match Library::init() {
+            Ok(lib) => {
+                info!("FreeType 库初始化成功");
+                lib
+            },
+            Err(e) => {
+                error!("FreeType 库初始化失败: {}", e);
+                return Err(anyhow::anyhow!("FreeType 初始化失败"));
+            }
+        };
         
-        face.set_char_size(0, 32*64, 96, 96)?;
+        // 加载字体文件
+        info!("尝试加载字体文件: assets/LXGWWenKaiScreen-Regular.ttf");
+        let face = match library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0) {
+            Ok(face) => {
+                info!("字体加载成功");
+                face
+            },
+            Err(e) => {
+                error!("字体加载失败: {}", e);
+                // 尝试其他可能的路径
+                match library.new_face("/usr/share/fonts/LXGWWenKaiScreen-Regular.ttf", 0) {
+                    Ok(face) => {
+                        info!("从系统路径加载字体成功");
+                        face
+                    },
+                    Err(e2) => {
+                        error!("从系统路径加载字体也失败: {}", e2);
+                        return Err(anyhow::anyhow!("字体加载失败"));
+                    }
+                }
+            }
+        };
+        
+        info!("设置字体大小");
+        if let Err(e) = face.set_char_size(0, 32*64, 96, 96) {
+            error!("设置字体大小失败: {}", e);
+            return Err(anyhow::anyhow!("设置字体大小失败"));
+        }
         
         // 加载字符
-        face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+        info!("加载字符 '{}'", c);
+        if let Err(e) = face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE) {
+            error!("加载字符失败: {}", e);
+            return Err(anyhow::anyhow!("加载字符失败"));
+        }
+        
         let glyph = face.glyph();
-        let outline = glyph.outline().ok_or(anyhow::anyhow!("No outline found"))?;
+        let outline = match glyph.outline() {
+            Some(o) => {
+                info!("获取字符轮廓成功");
+                o
+            },
+            None => {
+                error!("无法获取字符轮廓");
+                return Err(anyhow::anyhow!("无法获取字符轮廓"));
+            }
+        };
         
         let mut strokes = Vec::new();
         let mut current_stroke = Vec::new();
