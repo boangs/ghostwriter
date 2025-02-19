@@ -1,6 +1,6 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::debug;
+use log::{debug, info};
 use std::thread::sleep;
 use std::time::Duration;
 use freetype::Library;
@@ -217,11 +217,14 @@ impl Pen {
     }
 
     pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+        info!("开始获取字符 '{}' 的笔画", c);
         let library = Library::init()?;
         
-        // 加载我们的字体，调整字体大小
+        // 加载我们的字体
         let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
-        face.set_char_size(0, 32*64, 96, 96)?;  // 将字体大小从 16*64 改为 32*64
+        info!("字体加载成功");
+        
+        face.set_char_size(0, 32*64, 96, 96)?;
         
         // 加载字符
         face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
@@ -236,65 +239,52 @@ impl Pen {
         let tags = outline.tags();
         let contours = outline.contours();
         
+        info!("字符 '{}' 的轮廓信息:", c);
+        info!("点数: {}", points.len());
+        info!("轮廓数: {}", contours.len());
+        
         if points.is_empty() || contours.is_empty() {
-            debug!("字符 '{}' 没有笔画", c);
+            info!("字符 '{}' 没有笔画", c);
             return Ok(vec![]);
         }
         
         let mut start = 0;
         
         // 处理每个轮廓
-        for contour_end in contours.iter() {
+        for (i, contour_end) in contours.iter().enumerate() {
             let end = *contour_end as usize + 1;
             current_stroke.clear();
+            
+            info!("处理轮廓 {}, 点范围: {} -> {}", i, start, end);
             
             // 处理当前轮廓的点
             for i in start..end {
                 let point = points[i];
                 let tag = tags[i];
                 
+                info!("处理点 {}: ({}, {}), tag: {}", i, point.x, point.y, tag);
+                
                 // 如果是轮廓起点或者控制点
                 if tag & 0x1 != 0 {
                     current_stroke.push((point.x as i32, point.y as i32));
-                } else {
-                    // 处理贝塞尔曲线点
-                    if i + 1 < end {
-                        let next_point = points[i + 1];
-                        let steps = 10;
-                        
-                        // 获取前一个点的拷贝
-                        let prev_x = current_stroke.last().unwrap().0;
-                        let prev_y = current_stroke.last().unwrap().1;
-                        
-                        for step in 1..=steps {
-                            let t = step as f32 / steps as f32;
-                            let mt = 1.0 - t;
-                            
-                            let x = mt.powi(2) * prev_x as f32 
-                                + 2.0 * mt * t * point.x as f32 
-                                + t.powi(2) * next_point.x as f32;
-                            let y = mt.powi(2) * prev_y as f32 
-                                + 2.0 * mt * t * point.y as f32 
-                                + t.powi(2) * next_point.y as f32;
-                                
-                            current_stroke.push((x as i32, y as i32));
-                        }
-                    }
+                    info!("添加点到当前笔画: ({}, {})", point.x, point.y);
                 }
             }
             
             if !current_stroke.is_empty() {
+                info!("添加笔画，点数: {}", current_stroke.len());
                 strokes.push(current_stroke.clone());
             }
             
             start = end;
         }
         
-        // 添加调试日志
-        debug!("字符 '{}' 的笔画数: {}", c, strokes.len());
+        info!("字符 '{}' 的笔画提取完成，共 {} 个笔画", c, strokes.len());
         for (i, stroke) in strokes.iter().enumerate() {
-            debug!("笔画 {} 的点数: {}", i, stroke.len());
-            debug!("笔画 {} 的起点: {:?}, 终点: {:?}", i, stroke.first(), stroke.last());
+            info!("笔画 {}: {} 个点", i, stroke.len());
+            if !stroke.is_empty() {
+                info!("起点: {:?}, 终点: {:?}", stroke.first(), stroke.last());
+            }
         }
         
         Ok(strokes)
