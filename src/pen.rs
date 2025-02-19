@@ -242,16 +242,13 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
     let mut current_stroke = Vec::new();
     
     // 获取轮廓点
-    let n_points = outline.n_points as usize;
-    let n_contours = outline.n_contours as usize;
-    
-    if n_points == 0 || n_contours == 0 {
-        return Ok(vec![]);
-    }
-    
     let points = outline.points();
     let tags = outline.tags();
     let contours = outline.contours();
+    
+    if points.is_empty() || contours.is_empty() {
+        return Ok(vec![]);
+    }
     
     let mut start = 0;
     
