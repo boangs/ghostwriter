@@ -119,16 +119,9 @@ fn main() -> Result<()> {
     pen.test_draw()?;
     sleep(Duration::from_secs(1));
 
-    info!("初始文本: {}", args.initial_text);
+    info!("测试绘制单个汉字：金");
     let mut keyboard = Keyboard::new(false, false)?;
-    
-    // 调用 AI 引擎处理
-    info!("开始调用 AI 引擎...");
-    let response = ghostwriter(&args)?;
-    
-    // 绘制 AI 响应
-    info!("AI 响应: {}", response);
-    keyboard.write_text(&response)?;
+    keyboard.write_text("金")?;
     
     Ok(())
 }
