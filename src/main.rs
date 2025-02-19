@@ -40,6 +40,14 @@ struct Args {
     #[arg(long)]
     save_bitmap: Option<String>,
 
+    /// Output file
+    #[arg(long)]
+    output_file: Option<String>,
+
+    /// Disable drawing
+    #[arg(long)]
+    no_draw: bool,
+
     /// Disable looping
     #[arg(long)]
     no_loop: bool,
@@ -89,7 +97,7 @@ fn main() -> Result<()> {
     .init();
 
     // 创建键盘实例
-    let keyboard = Keyboard::new(false, false)?;
+    let keyboard = Keyboard::new(args.no_draw, args.no_trigger)?;
     
     // 绘制文字
     info!("开始绘制文字");
