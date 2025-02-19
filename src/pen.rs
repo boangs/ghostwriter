@@ -115,7 +115,6 @@ impl Pen {
                 let end = (bitmap[y].len() as i32 - 1, y as i32);
                 self.draw_line_screen(start, end)?;
                 start_point = None;
-                sleep(Duration::from_millis(10));
             }
         }
         
