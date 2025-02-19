@@ -241,59 +241,53 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
     let mut strokes = Vec::new();
     let mut current_stroke = Vec::new();
     
-    // 使用正确的 FreeType 轮廓遍历方法
-    let mut move_to = |x: f32, y: f32| {
-        if !current_stroke.is_empty() {
-            strokes.push(current_stroke.clone());
-            current_stroke.clear();
-        }
-        current_stroke.push((x as i32, y as i32));
-        Ok(())
-    };
-
-    let mut line_to = |x: f32, y: f32| {
-        current_stroke.push((x as i32, y as i32));
-        Ok(())
-    };
-
-    let mut conic_to = |cx: f32, cy: f32, x: f32, y: f32| {
-        let steps = 10;
-        let start = current_stroke.last().unwrap();
-        for i in 1..=steps {
-            let t = i as f32 / steps as f32;
-            let x = (1.0 - t).powi(2) * start.0 as f32 + 2.0 * (1.0 - t) * t * cx + t.powi(2) * x;
-            let y = (1.0 - t).powi(2) * start.1 as f32 + 2.0 * (1.0 - t) * t * cy + t.powi(2) * y;
-            current_stroke.push((x as i32, y as i32));
-        }
-        Ok(())
-    };
-
-    let mut cubic_to = |c1x: f32, c1y: f32, c2x: f32, c2y: f32, x: f32, y: f32| {
-        let steps = 10;
-        let start = current_stroke.last().unwrap();
-        for i in 1..=steps {
-            let t = i as f32 / steps as f32;
-            let mt = 1.0 - t;
-            let x = mt.powi(3) * start.0 as f32
-                + 3.0 * mt.powi(2) * t * c1x
-                + 3.0 * mt * t.powi(2) * c2x
-                + t.powi(3) * x;
-            let y = mt.powi(3) * start.1 as f32
-                + 3.0 * mt.powi(2) * t * c1y
-                + 3.0 * mt * t.powi(2) * c2y
-                + t.powi(3) * y;
-            current_stroke.push((x as i32, y as i32));
-        }
-        Ok(())
-    };
-
     // 使用 FreeType 的轮廓遍历函数
-    outline.foreach_with_args(
-        &mut move_to,
-        &mut line_to,
-        &mut conic_to,
-        &mut cubic_to,
-    )?;
+    outline.iter_segments(|segment| {
+        match segment {
+            freetype::outline::Segment::MoveTo(point) => {
+                if !current_stroke.is_empty() {
+                    strokes.push(current_stroke.clone());
+                    current_stroke.clear();
+                }
+                current_stroke.push((point.x as i32, point.y as i32));
+            },
+            freetype::outline::Segment::LineTo(point) => {
+                current_stroke.push((point.x as i32, point.y as i32));
+            },
+            freetype::outline::Segment::ConicTo(control, point) => {
+                let steps = 10;
+                let start = current_stroke.last().unwrap();
+                for i in 1..=steps {
+                    let t = i as f32 / steps as f32;
+                    let x = (1.0 - t).powi(2) * start.0 as f32 
+                        + 2.0 * (1.0 - t) * t * control.x as f32 
+                        + t.powi(2) * point.x as f32;
+                    let y = (1.0 - t).powi(2) * start.1 as f32 
+                        + 2.0 * (1.0 - t) * t * control.y as f32 
+                        + t.powi(2) * point.y as f32;
+                    current_stroke.push((x as i32, y as i32));
+                }
+            },
+            freetype::outline::Segment::CubicTo(control1, control2, point) => {
+                let steps = 10;
+                let start = current_stroke.last().unwrap();
+                for i in 1..=steps {
+                    let t = i as f32 / steps as f32;
+                    let mt = 1.0 - t;
+                    let x = mt.powi(3) * start.0 as f32
+                        + 3.0 * mt.powi(2) * t * control1.x as f32
+                        + 3.0 * mt * t.powi(2) * control2.x as f32
+                        + t.powi(3) * point.x as f32;
+                    let y = mt.powi(3) * start.1 as f32
+                        + 3.0 * mt.powi(2) * t * control1.y as f32
+                        + 3.0 * mt * t.powi(2) * control2.y as f32
+                        + t.powi(3) * point.y as f32;
+                    current_stroke.push((x as i32, y as i32));
+                }
+            }
+        }
+        true
+    })?;
     
     if !current_stroke.is_empty() {
         strokes.push(current_stroke);
