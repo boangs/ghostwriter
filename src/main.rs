@@ -84,17 +84,6 @@ struct Args {
     initial_text: String,
 }
 
-fn get_ai_response(args: &Args) -> Result<String> {
-    let mut options = HashMap::new();
-    options.insert("content".to_string(), args.initial_text.clone());
-    options.insert("api_key".to_string(), args.engine_api_key.clone());
-    options.insert("base_url".to_string(), args.engine_base_url.clone());
-    options.insert("model".to_string(), args.model.clone());
-    
-    let mut engine = OpenAI::new(&options);
-    engine.execute()
-}
-
 fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
@@ -108,7 +97,14 @@ fn main() -> Result<()> {
     let keyboard = Keyboard::new(args.no_draw, args.no_trigger)?;
     
     // 获取 AI 回复
-    let response = match get_ai_response(&args) {
+    let mut options = HashMap::new();
+    options.insert("content".to_string(), args.initial_text.clone());
+    options.insert("api_key".to_string(), args.engine_api_key.clone());
+    options.insert("base_url".to_string(), args.engine_base_url.clone());
+    options.insert("model".to_string(), args.model.clone());
+    
+    let mut engine = OpenAI::new(&options);
+    let response = match engine.execute() {
         Ok(text) => {
             info!("收到 AI 回复: {}", text);
             text
