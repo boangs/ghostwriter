@@ -3,8 +3,7 @@ use evdev::{Device, EventType, InputEvent};
 use log::debug;
 use std::thread::sleep;
 use std::time::Duration;
-use crate::util::svg_to_bitmap;
-use freetype::{Library, Face};
+use freetype::Library;
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
@@ -242,54 +241,58 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
     let mut strokes = Vec::new();
     let mut current_stroke = Vec::new();
     
-    outline.decompose(
-        &mut freetype::outline::Decomposer {
-            move_to: |p| {
-                if !current_stroke.is_empty() {
-                    strokes.push(current_stroke.clone());
-                    current_stroke.clear();
-                }
-                current_stroke.push((p.x as i32, p.y as i32));
-                Ok(())
-            },
-            line_to: |p| {
-                current_stroke.push((p.x as i32, p.y as i32));
-                Ok(())
-            },
-            conic_to: |c, p| {
-                // 二次贝塞尔曲线，转换为线段
-                let steps = 10;
-                for i in 1..=steps {
-                    let t = i as f32 / steps as f32;
-                    let x = (1.0 - t).powi(2) * current_stroke.last().unwrap().0 as f32
-                        + 2.0 * (1.0 - t) * t * c.x as f32
-                        + t.powi(2) * p.x as f32;
-                    let y = (1.0 - t).powi(2) * current_stroke.last().unwrap().1 as f32
-                        + 2.0 * (1.0 - t) * t * c.y as f32
-                        + t.powi(2) * p.y as f32;
-                    current_stroke.push((x as i32, y as i32));
-                }
-                Ok(())
-            },
-            cubic_to: |c1, c2, p| {
-                // 三次贝塞尔曲线，转换为线段
-                let steps = 10;
-                for i in 1..=steps {
-                    let t = i as f32 / steps as f32;
-                    let mt = 1.0 - t;
-                    let x = mt.powi(3) * current_stroke.last().unwrap().0 as f32
-                        + 3.0 * mt.powi(2) * t * c1.x as f32
-                        + 3.0 * mt * t.powi(2) * c2.x as f32
-                        + t.powi(3) * p.x as f32;
-                    let y = mt.powi(3) * current_stroke.last().unwrap().1 as f32
-                        + 3.0 * mt.powi(2) * t * c1.y as f32
-                        + 3.0 * mt * t.powi(2) * c2.y as f32
-                        + t.powi(3) * p.y as f32;
-                    current_stroke.push((x as i32, y as i32));
-                }
-                Ok(())
-            },
-        },
+    // 使用正确的 FreeType 轮廓遍历方法
+    let mut move_to = |x: f32, y: f32| {
+        if !current_stroke.is_empty() {
+            strokes.push(current_stroke.clone());
+            current_stroke.clear();
+        }
+        current_stroke.push((x as i32, y as i32));
+        Ok(())
+    };
+
+    let mut line_to = |x: f32, y: f32| {
+        current_stroke.push((x as i32, y as i32));
+        Ok(())
+    };
+
+    let mut conic_to = |cx: f32, cy: f32, x: f32, y: f32| {
+        let steps = 10;
+        let start = current_stroke.last().unwrap();
+        for i in 1..=steps {
+            let t = i as f32 / steps as f32;
+            let x = (1.0 - t).powi(2) * start.0 as f32 + 2.0 * (1.0 - t) * t * cx + t.powi(2) * x;
+            let y = (1.0 - t).powi(2) * start.1 as f32 + 2.0 * (1.0 - t) * t * cy + t.powi(2) * y;
+            current_stroke.push((x as i32, y as i32));
+        }
+        Ok(())
+    };
+
+    let mut cubic_to = |c1x: f32, c1y: f32, c2x: f32, c2y: f32, x: f32, y: f32| {
+        let steps = 10;
+        let start = current_stroke.last().unwrap();
+        for i in 1..=steps {
+            let t = i as f32 / steps as f32;
+            let mt = 1.0 - t;
+            let x = mt.powi(3) * start.0 as f32
+                + 3.0 * mt.powi(2) * t * c1x
+                + 3.0 * mt * t.powi(2) * c2x
+                + t.powi(3) * x;
+            let y = mt.powi(3) * start.1 as f32
+                + 3.0 * mt.powi(2) * t * c1y
+                + 3.0 * mt * t.powi(2) * c2y
+                + t.powi(3) * y;
+            current_stroke.push((x as i32, y as i32));
+        }
+        Ok(())
+    };
+
+    // 使用 FreeType 的轮廓遍历函数
+    outline.foreach_with_args(
+        &mut move_to,
+        &mut line_to,
+        &mut conic_to,
+        &mut cubic_to,
     )?;
     
     if !current_stroke.is_empty() {
