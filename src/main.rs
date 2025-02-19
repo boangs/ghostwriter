@@ -32,53 +32,6 @@ struct Asset;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Sets the engine to use (openai, anthropic);
-    /// Sometimes we can guess the engine from the model name
-    #[arg(long)]
-    engine: Option<String>,
-
-    /// Sets the base URL for the engine API;
-    /// Or use environment variable OPENAI_BASE_URL or ANTHROPIC_BASE_URL
-    #[arg(long)]
-    engine_base_url: Option<String>,
-
-    /// Sets the API key for the engine;
-    /// Or use environment variable OPENAI_API_KEY or ANTHROPIC_API_KEY
-    #[arg(long)]
-    engine_api_key: Option<String>,
-
-    /// Sets the model to use
-    #[arg(long, short, default_value = "claude-3-5-sonnet-latest")]
-    model: String,
-
-    /// Sets the prompt to use
-    #[arg(long, default_value = "general.json")]
-    prompt: String,
-
-    /// Do not actually submit to the model, for testing
-    #[arg(short, long)]
-    no_submit: bool,
-
-    /// Skip running draw_text or draw_svg
-    #[arg(long)]
-    no_draw: bool,
-
-    /// Disable keyboard progress
-    #[arg(long)]
-    no_draw_progress: bool,
-
-    /// Input PNG file for testing
-    #[arg(long)]
-    input_png: Option<String>,
-
-    /// Output file for testing
-    #[arg(long)]
-    output_file: Option<String>,
-
-    /// Output file for model parameters
-    #[arg(long)]
-    model_output_file: Option<String>,
-
     /// Save screenshot filename
     #[arg(long)]
     save_screenshot: Option<String>,
@@ -138,21 +91,9 @@ fn main() -> Result<()> {
     // 创建键盘实例
     let keyboard = Keyboard::new(false, false)?;
     
-    // 使用 initial_text 作为提示词获取 AI 回复
-    let response = match get_ai_response(&args.initial_text) {
-        Ok(text) => {
-            info!("收到 AI 回复: {}", text);
-            text
-        },
-        Err(e) => {
-            error!("获取 AI 回复失败: {}", e);
-            return Err(anyhow::anyhow!("AI 回复失败: {}", e));
-        }
-    };
-
-    // 绘制 AI 回复的文字
-    info!("开始绘制 AI 回复");
-    keyboard.write_text(&response)?;
+    // 绘制文字
+    info!("开始绘制文字");
+    keyboard.write_text(&args.initial_text)?;
     
     Ok(())
 }
@@ -212,45 +153,18 @@ fn load_config(filename: &str) -> String {
 }
 
 fn ghostwriter(args: &Args) -> Result<String> {
-    let keyboard = shared!(Keyboard::new(args.no_draw, args.no_draw_progress,));
-    let pen = shared!(Pen::new(args.no_draw));
-    let touch = shared!(Touch::new(args.no_draw));
+    let keyboard = shared!(Keyboard::new(false, false));
+    let pen = shared!(Pen::new(false));
+    let touch = shared!(Touch::new(false));
 
     let mut engine_options = OptionMap::new();
 
-    let model = args.model.clone();
+    let model = "gpt-3.5-turbo".to_string();
     engine_options.insert("model".to_string(), model.clone());
 
-    let engine_name = if let Some(engine) = args.engine.clone() {
-        engine.to_string()
-    } else {
-        if model.starts_with("gpt") {
-            "openai".to_string()
-        } else if model.starts_with("claude") {
-            "anthropic".to_string()
-        } else if model.starts_with("gemini") {
-            "google".to_string()
-        } else {
-            panic!("Unable to guess engine from model name {}", model)
-        }
-    };
+    let engine_name = "openai".to_string();
 
-    if args.engine_base_url.is_some() {
-        engine_options.insert(
-            "base_url".to_string(),
-            args.engine_base_url.clone().unwrap(),
-        );
-    }
-    if args.engine_api_key.is_some() {
-        engine_options.insert("api_key".to_string(), args.engine_api_key.clone().unwrap());
-    }
-
-    let mut engine: Box<dyn LLMEngine> = match engine_name.as_str() {
-        "openai" => Box::new(OpenAI::new(&engine_options)),
-        "anthropic" => Box::new(Anthropic::new(&engine_options)),
-        "google" => Box::new(Google::new(&engine_options)),
-        _ => panic!("Unknown engine {}", engine_name),
-    };
+    let mut engine: Box<dyn LLMEngine> = Box::new(OpenAI::new(&engine_options));
 
     let output_file = args.output_file.clone();
     let no_draw = args.no_draw;
