@@ -41,17 +41,32 @@ impl Keyboard {
         Ok(())
     }
 
-    fn write_character(&self, pen: &mut crate::pen::Pen, _c: char, x: i32, y: i32) -> Result<()> {
-        pen.pen_up()?;
-        pen.goto_xy((x, y))?;
-        pen.pen_down()?;
-        
-        pen.goto_xy((x + 40, y))?;
-        pen.goto_xy((x + 40, y + 40))?;
-        pen.goto_xy((x, y + 40))?;
-        pen.goto_xy((x, y))?;
-        
-        pen.pen_up()?;
+    fn write_character(&self, pen: &mut crate::pen::Pen, c: char, x: i32, y: i32) -> Result<()> {
+        // 获取字符的笔画信息
+        if let Ok(strokes) = pen.get_char_strokes(c) {
+            for stroke in strokes {
+                if stroke.len() < 2 {
+                    continue;
+                }
+                
+                // 移动到笔画起点
+                pen.pen_up()?;
+                let (sx, sy) = stroke[0];
+                pen.goto_xy((x + sx, y + sy))?;
+                pen.pen_down()?;
+                
+                // 绘制笔画的其余部分
+                for &(px, py) in stroke.iter().skip(1) {
+                    pen.goto_xy((x + px, y + py))?;
+                }
+                
+                // 笔画之间添加短暂停顿
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            
+            // 字符之间添加停顿
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
         Ok(())
     }
 
