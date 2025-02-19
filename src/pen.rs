@@ -270,16 +270,19 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
                 if i + 1 < end {
                     let next_point = points[i + 1];
                     let steps = 10;
-                    let prev_point = current_stroke.last().unwrap();
+                    
+                    // 获取前一个点的拷贝
+                    let prev_x = current_stroke.last().unwrap().0;
+                    let prev_y = current_stroke.last().unwrap().1;
                     
                     for step in 1..=steps {
                         let t = step as f32 / steps as f32;
                         let mt = 1.0 - t;
                         
-                        let x = mt.powi(2) * prev_point.0 as f32 
+                        let x = mt.powi(2) * prev_x as f32 
                             + 2.0 * mt * t * point.x as f32 
                             + t.powi(2) * next_point.x as f32;
-                        let y = mt.powi(2) * prev_point.1 as f32 
+                        let y = mt.powi(2) * prev_y as f32 
                             + 2.0 * mt * t * point.y as f32 
                             + t.powi(2) * next_point.y as f32;
                             
