@@ -3,7 +3,7 @@ use base64::prelude::*;
 use clap::Parser;
 use dotenv::dotenv;
 use env_logger;
-use log::{debug, info};
+use log::{debug, info, error};
 use rust_embed::Embed;
 use serde_json::Value as json;
 use std::sync::{Arc, Mutex};
@@ -114,14 +114,24 @@ fn main() -> Result<()> {
     )
     .init();
 
-    info!("开始测试基本绘制功能");
-    let mut pen = Pen::new(false);
-    pen.test_draw()?;
-    sleep(Duration::from_secs(1));
-
-    info!("测试绘制单个汉字：金");
+    // 创建键盘实例
     let mut keyboard = Keyboard::new(false, false)?;
-    keyboard.write_text("金")?;
+    
+    // 使用 initial_text 作为提示词获取 AI 回复
+    let response = match get_ai_response(&args.initial_text) {
+        Ok(text) => {
+            info!("收到 AI 回复: {}", text);
+            text
+        },
+        Err(e) => {
+            error!("获取 AI 回复失败: {}", e);
+            return Err(anyhow::anyhow!("AI 回复失败"));
+        }
+    };
+
+    // 绘制 AI 回复的文字
+    info!("开始绘制 AI 回复");
+    keyboard.write_text(&response)?;
     
     Ok(())
 }
