@@ -13,7 +13,7 @@ pub type OptionMap = HashMap<String, String>;
 
 #[derive(RustEmbed)]
 #[folder = "assets/"]
-struct Asset;
+pub struct Asset;
 
 pub fn svg_to_bitmap(svg_data: &str, width: u32, height: u32) -> Result<Vec<Vec<bool>>> {
     let mut opt = Options::default();
