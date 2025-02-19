@@ -241,53 +241,58 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
     let mut strokes = Vec::new();
     let mut current_stroke = Vec::new();
     
-    // 使用 FreeType 的轮廓遍历函数
-    outline.iter_segments(|segment| {
-        match segment {
-            freetype::outline::Segment::MoveTo(point) => {
-                if !current_stroke.is_empty() {
-                    strokes.push(current_stroke.clone());
-                    current_stroke.clear();
-                }
-                current_stroke.push((point.x as i32, point.y as i32));
-            },
-            freetype::outline::Segment::LineTo(point) => {
-                current_stroke.push((point.x as i32, point.y as i32));
-            },
-            freetype::outline::Segment::ConicTo(control, point) => {
-                let steps = 10;
-                let start = current_stroke.last().unwrap();
-                for i in 1..=steps {
-                    let t = i as f32 / steps as f32;
-                    let x = (1.0 - t).powi(2) * start.0 as f32 
-                        + 2.0 * (1.0 - t) * t * control.x as f32 
-                        + t.powi(2) * point.x as f32;
-                    let y = (1.0 - t).powi(2) * start.1 as f32 
-                        + 2.0 * (1.0 - t) * t * control.y as f32 
-                        + t.powi(2) * point.y as f32;
-                    current_stroke.push((x as i32, y as i32));
-                }
-            },
-            freetype::outline::Segment::CubicTo(control1, control2, point) => {
-                let steps = 10;
-                let start = current_stroke.last().unwrap();
-                for i in 1..=steps {
-                    let t = i as f32 / steps as f32;
-                    let mt = 1.0 - t;
-                    let x = mt.powi(3) * start.0 as f32
-                        + 3.0 * mt.powi(2) * t * control1.x as f32
-                        + 3.0 * mt * t.powi(2) * control2.x as f32
-                        + t.powi(3) * point.x as f32;
-                    let y = mt.powi(3) * start.1 as f32
-                        + 3.0 * mt.powi(2) * t * control1.y as f32
-                        + 3.0 * mt * t.powi(2) * control2.y as f32
-                        + t.powi(3) * point.y as f32;
-                    current_stroke.push((x as i32, y as i32));
-                }
+    // 使用 FreeType 的基础轮廓函数
+    let mut funcs = freetype::outline::OutlineFuncs {
+        move_to: Some(|x, y| {
+            if !current_stroke.is_empty() {
+                strokes.push(current_stroke.clone());
+                current_stroke.clear();
             }
-        }
-        true
-    })?;
+            current_stroke.push((x as i32, y as i32));
+            Ok(())
+        }),
+        line_to: Some(|x, y| {
+            current_stroke.push((x as i32, y as i32));
+            Ok(())
+        }),
+        conic_to: Some(|cx, cy, x, y| {
+            let steps = 10;
+            let start = current_stroke.last().unwrap();
+            for i in 1..=steps {
+                let t = i as f32 / steps as f32;
+                let x_t = (1.0 - t).powi(2) * start.0 as f32 
+                    + 2.0 * (1.0 - t) * t * cx as f32 
+                    + t.powi(2) * x as f32;
+                let y_t = (1.0 - t).powi(2) * start.1 as f32 
+                    + 2.0 * (1.0 - t) * t * cy as f32 
+                    + t.powi(2) * y as f32;
+                current_stroke.push((x_t as i32, y_t as i32));
+            }
+            Ok(())
+        }),
+        cubic_to: Some(|c1x, c1y, c2x, c2y, x, y| {
+            let steps = 10;
+            let start = current_stroke.last().unwrap();
+            for i in 1..=steps {
+                let t = i as f32 / steps as f32;
+                let mt = 1.0 - t;
+                let x_t = mt.powi(3) * start.0 as f32
+                    + 3.0 * mt.powi(2) * t * c1x as f32
+                    + 3.0 * mt * t.powi(2) * c2x as f32
+                    + t.powi(3) * x as f32;
+                let y_t = mt.powi(3) * start.1 as f32
+                    + 3.0 * mt.powi(2) * t * c1y as f32
+                    + 3.0 * mt * t.powi(2) * c2y as f32
+                    + t.powi(3) * y as f32;
+                current_stroke.push((x_t as i32, y_t as i32));
+            }
+            Ok(())
+        }),
+        shift: 0,
+        delta: 0,
+    };
+    
+    outline.decompose(&mut funcs)?;
     
     if !current_stroke.is_empty() {
         strokes.push(current_stroke);
