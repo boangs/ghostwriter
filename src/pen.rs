@@ -210,7 +210,7 @@ impl Pen {
         Ok(())
     }
 
-    pub fn get_char_strokes(&self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+    pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
         let library = Library::init()?;
         
         // 加载我们的字体
@@ -231,6 +231,7 @@ impl Pen {
         let contours = outline.contours();
         
         if points.is_empty() || contours.is_empty() {
+            debug!("字符 '{}' 没有笔画", c);
             return Ok(vec![]);
         }
         
@@ -287,6 +288,7 @@ impl Pen {
         debug!("字符 '{}' 的笔画数: {}", c, strokes.len());
         for (i, stroke) in strokes.iter().enumerate() {
             debug!("笔画 {} 的点数: {}", i, stroke.len());
+            debug!("笔画 {} 的起点: {:?}, 终点: {:?}", i, stroke.first(), stroke.last());
         }
         
         Ok(strokes)
