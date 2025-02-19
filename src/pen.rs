@@ -92,37 +92,6 @@ impl Pen {
         Ok(())
     }
 
-    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
-        debug!("开始绘制位图");
-        let mut start_point: Option<(i32, i32)> = None;
-        
-        for y in 0..bitmap.len() {
-            for x in 0..bitmap[y].len() {
-                if bitmap[y][x] {
-                    if start_point.is_none() {
-                        start_point = Some((x as i32, y as i32));
-                    }
-                } else if let Some(start) = start_point {
-                    // 找到一个连续线段的结束，画这条线
-                    let end = (x as i32 - 1, y as i32);
-                    self.draw_line_screen(start, end)?;
-                    start_point = None;
-                    sleep(Duration::from_millis(10));
-                }
-            }
-            // 如果这一行结束时还有未画完的线段
-            if let Some(start) = start_point {
-                let end = (bitmap[y].len() as i32 - 1, y as i32);
-                self.draw_line_screen(start, end)?;
-                start_point = None;
-                sleep(Duration::from_millis(10));
-            }
-        }
-        
-        debug!("位图绘制完成");
-        Ok(())
-    }
-
     // fn draw_dot(device: &mut Device, (x, y): (i32, i32)) -> Result<()> {
     //     // trace!("Drawing at ({}, {})", x, y);
     //     goto_xy(device, (x, y))?;
