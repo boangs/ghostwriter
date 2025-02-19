@@ -1,9 +1,9 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::{debug, info, error};
+use freetype::Library;
+use log::{debug, error, info};
 use std::thread::sleep;
 use std::time::Duration;
-use freetype::Library;
 use crate::util::Asset;
 
 const INPUT_WIDTH: i32 = 15725;
