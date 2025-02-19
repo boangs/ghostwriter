@@ -113,7 +113,7 @@ fn main() -> Result<()> {
     .init();
 
     info!("初始文本: {}", args.initial_text);
-    let mut pen = Pen::new(false);
+    let mut keyboard = Keyboard::new(false, false)?;
     
     // 调用 AI 引擎处理
     info!("开始调用 AI 引擎...");
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
     
     // 绘制 AI 响应
     info!("AI 响应: {}", response);
-    pen.write_text(&response)?;
+    keyboard.write_text(&response)?;
     
     Ok(())
 }
