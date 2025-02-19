@@ -219,9 +219,9 @@ impl Pen {
     pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
         let library = Library::init()?;
         
-        // 加载我们的字体
+        // 加载我们的字体，调整字体大小
         let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
-        face.set_char_size(0, 16*64, 96, 96)?;
+        face.set_char_size(0, 32*64, 96, 96)?;  // 将字体大小从 16*64 改为 32*64
         
         // 加载字符
         face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
