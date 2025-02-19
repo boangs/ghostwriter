@@ -24,16 +24,16 @@ impl Pen {
 
     pub fn write_text(&mut self, text: &str) -> Result<()> {
         debug!("开始书写文本: {}", text);
-        let start_x = 80;
-        let start_y = 50;
-        let char_width = 35;
-        let line_height = 40;
+        let start_x = 200;    // 起始位置右移一些
+        let start_y = 200;    // 起始位置下移一些
+        let char_width = 100;  // 增加字符间距
+        let line_height = 150; // 增加行间距
         let mut current_x = start_x;
         let mut current_y = start_y;
 
         for c in text.chars() {
             // 如果到达行尾，换行
-            if current_x > 1050 {
+            if current_x > 700 {  // 减小行宽，避免超出屏幕
                 current_x = start_x;
                 current_y += line_height;
             }
