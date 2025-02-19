@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
+use std::env;
 
 use ghostwriter::{
     keyboard::Keyboard,
@@ -107,8 +108,19 @@ struct Args {
 }
 
 fn get_ai_response(prompt: &str) -> Result<String> {
+    // 检查必要的环境变量
+    let api_key = env::var("OPENAI_API_KEY")
+        .map_err(|_| anyhow::anyhow!("未设置 OPENAI_API_KEY 环境变量"))?;
+    let base_url = env::var("OPENAI_API_BASE")
+        .unwrap_or_else(|_| "https://api.openai.com".to_string());
+    let model = env::var("OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-3.5-turbo".to_string());
+        
     let mut options = HashMap::new();
     options.insert("content".to_string(), prompt.to_string());
+    options.insert("api_key".to_string(), api_key);
+    options.insert("base_url".to_string(), base_url);
+    options.insert("model".to_string(), model);
     
     let mut engine = OpenAI::new(&options);
     engine.execute()
@@ -134,7 +146,7 @@ fn main() -> Result<()> {
         },
         Err(e) => {
             error!("获取 AI 回复失败: {}", e);
-            return Err(anyhow::anyhow!("AI 回复失败"));
+            return Err(anyhow::anyhow!("AI 回复失败: {}", e));
         }
     };
 
