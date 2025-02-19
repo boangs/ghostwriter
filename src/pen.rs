@@ -16,12 +16,9 @@ pub struct Pen {
 
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
-        let device = if no_draw {
-            None
-        } else {
-            Some(Device::open("/dev/input/event2").unwrap())
-        };
-        Self { device }
+        Self {
+            device: if no_draw { None } else { Some(Device::open("/dev/input/event2").unwrap()) },
+        }
     }
 
     pub fn write_text(&mut self, text: &str) -> Result<()> {
@@ -41,7 +38,7 @@ impl Pen {
             }
 
             // 获取字符的笔画信息
-            if let Ok(strokes) = get_char_strokes(c) {
+            if let Ok(strokes) = self.get_char_strokes(c) {
                 // 绘制每个笔画
                 for stroke in strokes {
                     if stroke.len() < 2 {
@@ -212,6 +209,88 @@ impl Pen {
         
         Ok(())
     }
+
+    pub fn get_char_strokes(&self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+        let library = Library::init()?;
+        
+        // 加载我们的字体
+        let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
+        face.set_char_size(0, 16*64, 96, 96)?;
+        
+        // 加载字符
+        face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+        let glyph = face.glyph();
+        let outline = glyph.outline().ok_or(anyhow::anyhow!("No outline found"))?;
+        
+        let mut strokes = Vec::new();
+        let mut current_stroke = Vec::new();
+        
+        // 获取轮廓点
+        let points = outline.points();
+        let tags = outline.tags();
+        let contours = outline.contours();
+        
+        if points.is_empty() || contours.is_empty() {
+            return Ok(vec![]);
+        }
+        
+        let mut start = 0;
+        
+        // 处理每个轮廓
+        for contour_end in contours.iter() {
+            let end = *contour_end as usize + 1;
+            current_stroke.clear();
+            
+            // 处理当前轮廓的点
+            for i in start..end {
+                let point = points[i];
+                let tag = tags[i];
+                
+                // 如果是轮廓起点或者控制点
+                if tag & 0x1 != 0 {
+                    current_stroke.push((point.x as i32, point.y as i32));
+                } else {
+                    // 处理贝塞尔曲线点
+                    if i + 1 < end {
+                        let next_point = points[i + 1];
+                        let steps = 10;
+                        
+                        // 获取前一个点的拷贝
+                        let prev_x = current_stroke.last().unwrap().0;
+                        let prev_y = current_stroke.last().unwrap().1;
+                        
+                        for step in 1..=steps {
+                            let t = step as f32 / steps as f32;
+                            let mt = 1.0 - t;
+                            
+                            let x = mt.powi(2) * prev_x as f32 
+                                + 2.0 * mt * t * point.x as f32 
+                                + t.powi(2) * next_point.x as f32;
+                            let y = mt.powi(2) * prev_y as f32 
+                                + 2.0 * mt * t * point.y as f32 
+                                + t.powi(2) * next_point.y as f32;
+                                
+                            current_stroke.push((x as i32, y as i32));
+                        }
+                    }
+                }
+            }
+            
+            if !current_stroke.is_empty() {
+                strokes.push(current_stroke.clone());
+            }
+            
+            start = end;
+        }
+        
+        // 添加调试日志
+        debug!("字符 '{}' 的笔画数: {}", c, strokes.len());
+        for (i, stroke) in strokes.iter().enumerate() {
+            debug!("笔画 {} 的点数: {}", i, stroke.len());
+        }
+        
+        Ok(strokes)
+    }
 }
 
 fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
@@ -224,80 +303,4 @@ fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
     let y_input = (y_normalized * INPUT_HEIGHT as f32) as i32;
     
     (x_input, y_input)
-}
-
-pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
-    let library = Library::init()?;
-    
-    // 加载我们的字体
-    let face = library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0)?;
-    face.set_char_size(0, 16*64, 96, 96)?;
-    
-    // 加载字符
-    face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
-    let glyph = face.glyph();
-    let outline = glyph.outline().ok_or(anyhow::anyhow!("No outline found"))?;
-    
-    let mut strokes = Vec::new();
-    let mut current_stroke = Vec::new();
-    
-    // 获取轮廓点
-    let points = outline.points();
-    let tags = outline.tags();
-    let contours = outline.contours();
-    
-    if points.is_empty() || contours.is_empty() {
-        return Ok(vec![]);
-    }
-    
-    let mut start = 0;
-    
-    // 处理每个轮廓
-    for contour_end in contours.iter() {
-        let end = *contour_end as usize + 1;
-        current_stroke.clear();
-        
-        // 处理当前轮廓的点
-        for i in start..end {
-            let point = points[i];
-            let tag = tags[i];
-            
-            // 如果是轮廓起点或者控制点
-            if tag & 0x1 != 0 {
-                current_stroke.push((point.x as i32, point.y as i32));
-            } else {
-                // 处理贝塞尔曲线点
-                if i + 1 < end {
-                    let next_point = points[i + 1];
-                    let steps = 10;
-                    
-                    // 获取前一个点的拷贝
-                    let prev_x = current_stroke.last().unwrap().0;
-                    let prev_y = current_stroke.last().unwrap().1;
-                    
-                    for step in 1..=steps {
-                        let t = step as f32 / steps as f32;
-                        let mt = 1.0 - t;
-                        
-                        let x = mt.powi(2) * prev_x as f32 
-                            + 2.0 * mt * t * point.x as f32 
-                            + t.powi(2) * next_point.x as f32;
-                        let y = mt.powi(2) * prev_y as f32 
-                            + 2.0 * mt * t * point.y as f32 
-                            + t.powi(2) * next_point.y as f32;
-                            
-                        current_stroke.push((x as i32, y as i32));
-                    }
-                }
-            }
-        }
-        
-        if !current_stroke.is_empty() {
-            strokes.push(current_stroke.clone());
-        }
-        
-        start = end;
-    }
-    
-    Ok(strokes)
 }
