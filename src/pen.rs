@@ -4,6 +4,7 @@ use log::{debug, info, error};
 use std::thread::sleep;
 use std::time::Duration;
 use freetype::Library;
+use util::Asset;
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
@@ -231,26 +232,27 @@ impl Pen {
             }
         };
         
-        // 加载字体文件
-        info!("尝试加载字体文件: assets/LXGWWenKaiScreen-Regular.ttf");
-        let face = match library.new_face("assets/LXGWWenKaiScreen-Regular.ttf", 0) {
+        // 从嵌入的资源中加载字体
+        let font_data = match Asset::get("LXGWWenKaiScreen-Regular.ttf") {
+            Some(data) => {
+                info!("从嵌入资源加载字体数据成功");
+                data.data.to_vec()
+            },
+            None => {
+                error!("无法从嵌入资源加载字体");
+                return Err(anyhow::anyhow!("无法加载字体文件"));
+            }
+        };
+        
+        // 从内存加载字体
+        let face = match library.new_face_from_vec(font_data, 0) {
             Ok(face) => {
                 info!("字体加载成功");
                 face
             },
             Err(e) => {
                 error!("字体加载失败: {}", e);
-                // 尝试其他可能的路径
-                match library.new_face("/usr/share/fonts/LXGWWenKaiScreen-Regular.ttf", 0) {
-                    Ok(face) => {
-                        info!("从系统路径加载字体成功");
-                        face
-                    },
-                    Err(e2) => {
-                        error!("从系统路径加载字体也失败: {}", e2);
-                        return Err(anyhow::anyhow!("字体加载失败"));
-                    }
-                }
+                return Err(anyhow::anyhow!("字体加载失败"));
             }
         };
         
