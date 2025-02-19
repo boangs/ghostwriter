@@ -129,26 +129,26 @@ impl Pen {
 
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
+            debug!("笔落下");
             device.send_events(&[
-                InputEvent::new(EventType::KEY, 320, 1), // BTN_TOOL_PEN
-                InputEvent::new(EventType::KEY, 330, 1), // BTN_TOUCH
-                InputEvent::new(EventType::ABSOLUTE, 24, 2400), // ABS_PRESSURE (max pressure)
-                InputEvent::new(EventType::ABSOLUTE, 25, 0), // ABS_DISTANCE
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
+                InputEvent::new(EventType::ABSOLUTE, 24, 4096),
+                InputEvent::new(EventType::KEY, 330, 1),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
             ])?;
+            sleep(Duration::from_millis(10));
         }
         Ok(())
     }
 
     pub fn pen_up(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
+            debug!("笔抬起");
             device.send_events(&[
-                InputEvent::new(EventType::ABSOLUTE, 24, 0), // ABS_PRESSURE
-                InputEvent::new(EventType::ABSOLUTE, 25, 100), // ABS_DISTANCE
-                InputEvent::new(EventType::KEY, 330, 0),     // BTN_TOUCH
-                InputEvent::new(EventType::KEY, 320, 0),     // BTN_TOOL_PEN
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
+                InputEvent::new(EventType::ABSOLUTE, 24, 0),
+                InputEvent::new(EventType::KEY, 330, 0),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
             ])?;
+            sleep(Duration::from_millis(10));
         }
         Ok(())
     }
@@ -159,11 +159,17 @@ impl Pen {
 
     pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
         if let Some(device) = &mut self.device {
+            debug!("笔移动到: ({}, {})", x, y);
+            // 确保坐标在有效范围内
+            let x = x.clamp(0, 15725) as i32;
+            let y = y.clamp(0, 20967) as i32;
+            
             device.send_events(&[
-                InputEvent::new(EventType::ABSOLUTE, 0, x),        // ABS_X
-                InputEvent::new(EventType::ABSOLUTE, 1, y),        // ABS_Y
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
+                InputEvent::new(EventType::ABSOLUTE, 0, x),
+                InputEvent::new(EventType::ABSOLUTE, 1, y),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
             ])?;
+            sleep(Duration::from_millis(5));
         }
         Ok(())
     }
@@ -292,6 +298,35 @@ impl Pen {
         }
         
         Ok(strokes)
+    }
+
+    // 添加一个测试函数
+    pub fn test_draw(&mut self) -> Result<()> {
+        debug!("开始测试绘制");
+        
+        // 画一个简单的正方形
+        let points = vec![
+            (1000, 1000),
+            (2000, 1000),
+            (2000, 2000),
+            (1000, 2000),
+            (1000, 1000),
+        ];
+
+        self.pen_up()?;
+        for (i, &(x, y)) in points.iter().enumerate() {
+            if i == 0 {
+                self.goto_xy((x, y))?;
+                self.pen_down()?;
+            } else {
+                self.goto_xy((x, y))?;
+            }
+            sleep(Duration::from_millis(100));
+        }
+        self.pen_up()?;
+
+        debug!("测试绘制完成");
+        Ok(())
     }
 }
 

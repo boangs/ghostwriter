@@ -7,6 +7,7 @@ use log::{debug, info};
 use rust_embed::Embed;
 use serde_json::Value as json;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, sleep};
 
 use ghostwriter::{
     keyboard::Keyboard,
@@ -111,6 +112,11 @@ fn main() -> Result<()> {
         env_logger::Env::default().default_filter_or(args.log_level.as_str()),
     )
     .init();
+
+    info!("开始测试基本绘制功能");
+    let mut pen = Pen::new(false);
+    pen.test_draw()?;
+    sleep(Duration::from_secs(1));
 
     info!("初始文本: {}", args.initial_text);
     let mut keyboard = Keyboard::new(false, false)?;
