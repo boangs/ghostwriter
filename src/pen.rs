@@ -241,61 +241,62 @@ pub fn get_char_strokes(c: char) -> Result<Vec<Vec<(i32, i32)>>> {
     let mut strokes = Vec::new();
     let mut current_stroke = Vec::new();
     
-    // 使用 FreeType 的基础轮廓函数
-    let mut funcs = freetype::outline::OutlineFuncs {
-        move_to: Some(|x, y| {
-            if !current_stroke.is_empty() {
-                strokes.push(current_stroke.clone());
-                current_stroke.clear();
-            }
-            current_stroke.push((x as i32, y as i32));
-            Ok(())
-        }),
-        line_to: Some(|x, y| {
-            current_stroke.push((x as i32, y as i32));
-            Ok(())
-        }),
-        conic_to: Some(|cx, cy, x, y| {
-            let steps = 10;
-            let start = current_stroke.last().unwrap();
-            for i in 1..=steps {
-                let t = i as f32 / steps as f32;
-                let x_t = (1.0 - t).powi(2) * start.0 as f32 
-                    + 2.0 * (1.0 - t) * t * cx as f32 
-                    + t.powi(2) * x as f32;
-                let y_t = (1.0 - t).powi(2) * start.1 as f32 
-                    + 2.0 * (1.0 - t) * t * cy as f32 
-                    + t.powi(2) * y as f32;
-                current_stroke.push((x_t as i32, y_t as i32));
-            }
-            Ok(())
-        }),
-        cubic_to: Some(|c1x, c1y, c2x, c2y, x, y| {
-            let steps = 10;
-            let start = current_stroke.last().unwrap();
-            for i in 1..=steps {
-                let t = i as f32 / steps as f32;
-                let mt = 1.0 - t;
-                let x_t = mt.powi(3) * start.0 as f32
-                    + 3.0 * mt.powi(2) * t * c1x as f32
-                    + 3.0 * mt * t.powi(2) * c2x as f32
-                    + t.powi(3) * x as f32;
-                let y_t = mt.powi(3) * start.1 as f32
-                    + 3.0 * mt.powi(2) * t * c1y as f32
-                    + 3.0 * mt * t.powi(2) * c2y as f32
-                    + t.powi(3) * y as f32;
-                current_stroke.push((x_t as i32, y_t as i32));
-            }
-            Ok(())
-        }),
-        shift: 0,
-        delta: 0,
-    };
+    // 获取轮廓点
+    let n_points = outline.n_points as usize;
+    let n_contours = outline.n_contours as usize;
     
-    outline.decompose(&mut funcs)?;
+    if n_points == 0 || n_contours == 0 {
+        return Ok(vec![]);
+    }
     
-    if !current_stroke.is_empty() {
-        strokes.push(current_stroke);
+    let points = outline.points();
+    let tags = outline.tags();
+    let contours = outline.contours();
+    
+    let mut start = 0;
+    
+    // 处理每个轮廓
+    for contour_end in contours.iter() {
+        let end = *contour_end as usize + 1;
+        current_stroke.clear();
+        
+        // 处理当前轮廓的点
+        for i in start..end {
+            let point = points[i];
+            let tag = tags[i];
+            
+            // 如果是轮廓起点或者控制点
+            if tag & 0x1 != 0 {
+                current_stroke.push((point.x as i32, point.y as i32));
+            } else {
+                // 处理贝塞尔曲线点
+                if i + 1 < end {
+                    let next_point = points[i + 1];
+                    let steps = 10;
+                    let prev_point = current_stroke.last().unwrap();
+                    
+                    for step in 1..=steps {
+                        let t = step as f32 / steps as f32;
+                        let mt = 1.0 - t;
+                        
+                        let x = mt.powi(2) * prev_point.0 as f32 
+                            + 2.0 * mt * t * point.x as f32 
+                            + t.powi(2) * next_point.x as f32;
+                        let y = mt.powi(2) * prev_point.1 as f32 
+                            + 2.0 * mt * t * point.y as f32 
+                            + t.powi(2) * next_point.y as f32;
+                            
+                        current_stroke.push((x as i32, y as i32));
+                    }
+                }
+            }
+        }
+        
+        if !current_stroke.is_empty() {
+            strokes.push(current_stroke.clone());
+        }
+        
+        start = end;
     }
     
     Ok(strokes)
