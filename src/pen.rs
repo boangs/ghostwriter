@@ -123,30 +123,12 @@ impl Pen {
         Ok(())
     }
 
-    // fn draw_dot(device: &mut Device, (x, y): (i32, i32)) -> Result<()> {
-    //     // trace!("Drawing at ({}, {})", x, y);
-    //     goto_xy(device, (x, y))?;
-    //     pen_down(device)?;
-    //
-    //     // Wiggle a little bit
-    //     for n in 0..2 {
-    //         goto_xy(device, (x + n, y + n))?;
-    //     }
-    //
-    //     pen_up(device)?;
-    //
-    //     // sleep for 5ms
-    //     thread::sleep(time::Duration::from_millis(1));
-    //
-    //     Ok(())
-    // }
-
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
             device.send_events(&[
                 InputEvent::new(EventType::KEY, 320, 1), // BTN_TOOL_PEN
                 InputEvent::new(EventType::KEY, 330, 1), // BTN_TOUCH
-                InputEvent::new(EventType::ABSOLUTE, 24, 3600), // ABS_PRESSURE (max pressure)
+                InputEvent::new(EventType::ABSOLUTE, 24, 2400), // ABS_PRESSURE (max pressure)
                 InputEvent::new(EventType::ABSOLUTE, 25, 0), // ABS_DISTANCE
                 InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ])?;
