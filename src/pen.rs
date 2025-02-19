@@ -245,7 +245,7 @@ impl Pen {
         };
         
         // 从内存加载字体
-        let face = match library.new_face_from_vec(font_data, 0) {
+        let face = match library.new_memory_face(font_data, 0) {
             Ok(face) => {
                 info!("字体加载成功");
                 face
