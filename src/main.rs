@@ -9,6 +9,7 @@ use serde_json::Value as json;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use std::collections::HashMap;
 
 use ghostwriter::{
     keyboard::Keyboard,
@@ -106,7 +107,10 @@ struct Args {
 }
 
 fn get_ai_response(prompt: &str) -> Result<String> {
-    let mut engine = OpenAI::new(prompt.to_string());
+    let mut options = HashMap::new();
+    options.insert("content".to_string(), prompt.to_string());
+    
+    let mut engine = OpenAI::new(&options);
     engine.execute()
 }
 
@@ -120,7 +124,7 @@ fn main() -> Result<()> {
     .init();
 
     // 创建键盘实例
-    let mut keyboard = Keyboard::new(false, false)?;
+    let keyboard = Keyboard::new(false, false)?;
     
     // 使用 initial_text 作为提示词获取 AI 回复
     let response = match get_ai_response(&args.initial_text) {
