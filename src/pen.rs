@@ -92,6 +92,54 @@ impl Pen {
         Ok(())
     }
 
+    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
+        debug!("开始绘制位图");
+        let mut start_point: Option<(i32, i32)> = None;
+        
+        for y in 0..bitmap.len() {
+            for x in 0..bitmap[y].len() {
+                if bitmap[y][x] {
+                    if start_point.is_none() {
+                        start_point = Some((x as i32, y as i32));
+                    }
+                } else if let Some(start) = start_point {
+                    // 找到一个连续线段的结束，画这条线
+                    let end = (x as i32 - 1, y as i32);
+                    self.draw_line_screen(start, end)?;
+                    start_point = None;
+                    sleep(Duration::from_millis(10));
+                }
+            }
+            // 如果这一行结束时还有未画完的线段
+            if let Some(start) = start_point {
+                let end = (bitmap[y].len() as i32 - 1, y as i32);
+                self.draw_line_screen(start, end)?;
+                start_point = None;
+                sleep(Duration::from_millis(10));
+            }
+        }
+        
+        debug!("位图绘制完成");
+        Ok(())
+    }
+
+    // fn draw_dot(device: &mut Device, (x, y): (i32, i32)) -> Result<()> {
+    //     // trace!("Drawing at ({}, {})", x, y);
+    //     goto_xy(device, (x, y))?;
+    //     pen_down(device)?;
+    //
+    //     // Wiggle a little bit
+    //     for n in 0..2 {
+    //         goto_xy(device, (x + n, y + n))?;
+    //     }
+    //
+    //     pen_up(device)?;
+    //
+    //     // sleep for 5ms
+    //     thread::sleep(time::Duration::from_millis(1));
+    //
+    //     Ok(())
+    // }
 
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
@@ -144,15 +192,35 @@ impl Pen {
     }
 
     fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
-        // 遍历位图中的每个像素
+        let mut last_point: Option<(i32, i32)> = None;
+        
+        // 先找到字的轮廓点
+        let mut points = Vec::new();
         for y in 0..bitmap.len() {
             for x in 0..bitmap[y].len() {
                 if bitmap[y][x] {
-                    // 对于每个黑色像素，直接画点
-                    self.draw_point((start_x + x as i32, start_y + y as i32))?;
+                    points.push((start_x + x as i32, start_y + y as i32));
                 }
             }
         }
+        
+        // 按照笔画顺序连接点
+        for &point in &points {
+            if let Some(last) = last_point {
+                // 如果两点之间距离不太远，就画一条线连接它们
+                let dx = point.0 - last.0;
+                let dy = point.1 - last.1;
+                if dx * dx + dy * dy <= 25 { // 距离阈值
+                    self.pen_up()?;
+                    self.goto_xy_screen(last)?;
+                    self.pen_down()?;
+                    self.goto_xy_screen(point)?;
+                    sleep(Duration::from_millis(5));
+                }
+            }
+            last_point = Some(point);
+        }
+        
         Ok(())
     }
 }
