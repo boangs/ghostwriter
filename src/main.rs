@@ -32,6 +32,22 @@ struct Asset;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// LLM engine to use
+    #[arg(long)]
+    engine: String,
+
+    /// LLM engine base URL
+    #[arg(long)]
+    engine_base_url: String,
+
+    /// LLM engine API key
+    #[arg(long)]
+    engine_api_key: String,
+
+    /// LLM model to use
+    #[arg(long)]
+    model: String,
+
     /// Save screenshot filename
     #[arg(long)]
     save_screenshot: Option<String>,
@@ -68,20 +84,12 @@ struct Args {
     initial_text: String,
 }
 
-fn get_ai_response(prompt: &str) -> Result<String> {
-    // 检查必要的环境变量
-    let api_key = env::var("OPENAI_API_KEY")
-        .map_err(|_| anyhow::anyhow!("未设置 OPENAI_API_KEY 环境变量"))?;
-    let base_url = env::var("OPENAI_API_BASE")
-        .unwrap_or_else(|_| "https://api.openai.com".to_string());
-    let model = env::var("OPENAI_MODEL")
-        .unwrap_or_else(|_| "gpt-3.5-turbo".to_string());
-        
+fn get_ai_response(args: &Args) -> Result<String> {
     let mut options = HashMap::new();
-    options.insert("content".to_string(), prompt.to_string());
-    options.insert("api_key".to_string(), api_key);
-    options.insert("base_url".to_string(), base_url);
-    options.insert("model".to_string(), model);
+    options.insert("content".to_string(), args.initial_text.clone());
+    options.insert("api_key".to_string(), args.engine_api_key.clone());
+    options.insert("base_url".to_string(), args.engine_base_url.clone());
+    options.insert("model".to_string(), args.model.clone());
     
     let mut engine = OpenAI::new(&options);
     engine.execute()
@@ -99,9 +107,21 @@ fn main() -> Result<()> {
     // 创建键盘实例
     let keyboard = Keyboard::new(args.no_draw, args.no_trigger)?;
     
-    // 绘制文字
-    info!("开始绘制文字");
-    keyboard.write_text(&args.initial_text)?;
+    // 获取 AI 回复
+    let response = match get_ai_response(&args) {
+        Ok(text) => {
+            info!("收到 AI 回复: {}", text);
+            text
+        },
+        Err(e) => {
+            error!("获取 AI 回复失败: {}", e);
+            return Err(anyhow::anyhow!("AI 回复失败: {}", e));
+        }
+    };
+
+    // 绘制 AI 回复的文字
+    info!("开始绘制 AI 回复");
+    keyboard.write_text(&response)?;
     
     Ok(())
 }
