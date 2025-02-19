@@ -4,7 +4,7 @@ use log::{debug, info, error};
 use std::thread::sleep;
 use std::time::Duration;
 use freetype::Library;
-use util::Asset;
+use crate::util::Asset;
 
 const INPUT_WIDTH: i32 = 15725;
 const INPUT_HEIGHT: i32 = 20967;
