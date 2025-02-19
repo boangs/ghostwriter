@@ -7,8 +7,8 @@ use log::{debug, info};
 use rust_embed::Embed;
 use serde_json::Value as json;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, sleep};
 use std::thread::sleep;
+use std::time::Duration;
 
 use ghostwriter::{
     keyboard::Keyboard,
