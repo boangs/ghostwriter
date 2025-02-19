@@ -92,23 +92,6 @@ impl Pen {
         Ok(())
     }
 
-    // fn draw_dot(device: &mut Device, (x, y): (i32, i32)) -> Result<()> {
-    //     // trace!("Drawing at ({}, {})", x, y);
-    //     goto_xy(device, (x, y))?;
-    //     pen_down(device)?;
-    //
-    //     // Wiggle a little bit
-    //     for n in 0..2 {
-    //         goto_xy(device, (x + n, y + n))?;
-    //     }
-    //
-    //     pen_up(device)?;
-    //
-    //     // sleep for 5ms
-    //     thread::sleep(time::Duration::from_millis(1));
-    //
-    //     Ok(())
-    // }
 
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
@@ -161,33 +144,15 @@ impl Pen {
     }
 
     fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
-        self.pen_up()?;
-        
         // 遍历位图中的每个像素
         for y in 0..bitmap.len() {
-            let mut start_point: Option<(i32, i32)> = None;
-            
             for x in 0..bitmap[y].len() {
                 if bitmap[y][x] {
-                    if start_point.is_none() {
-                        // 找到这一行的第一个黑色像素
-                        start_point = Some((start_x + x as i32, start_y + y as i32));
-                    }
-                } else if let Some(start) = start_point {
-                    // 找到一个白色像素，结束当前线段
-                    let end = (start_x + x as i32 - 1, start_y + y as i32);
-                    self.draw_line_screen(start, end)?;
-                    start_point = None;
+                    // 对于每个黑色像素，直接画点
+                    self.draw_point((start_x + x as i32, start_y + y as i32))?;
                 }
             }
-            
-            // 处理这一行最后的黑色像素
-            if let Some(start) = start_point {
-                let end = (start_x + bitmap[y].len() as i32 - 1, start_y + y as i32);
-                self.draw_line_screen(start, end)?;
-            }
         }
-        
         Ok(())
     }
 }
