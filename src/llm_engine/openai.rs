@@ -1,7 +1,7 @@
 use super::LLMEngine;
 use crate::util::{option_or_env, option_or_env_fallback, OptionMap};
 use anyhow::Result;
-use log::{debug, info};
+use log::info;
 use serde_json::json;
 use serde_json::Value as json;
 use ureq;

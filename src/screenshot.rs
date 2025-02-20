@@ -3,7 +3,6 @@ use image::GrayImage;
 use log::info;
 use std::fs::File;
 use std::io::Write;
-use std::io::{Read, Seek};
 use std::process;
 
 use base64::{engine::general_purpose, Engine as _};
