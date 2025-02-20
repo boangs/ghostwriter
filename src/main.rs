@@ -114,19 +114,35 @@ fn main() -> Result<()> {
     .init();
 
     // 创建键盘实例
-    let keyboard = Keyboard::new(args.no_draw, args.no_trigger)?;
+    let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress)?;
+    
+    // 读取提示文件
+    let prompt = std::fs::read_to_string(&args.prompt)?;
     
     // 获取 AI 回复
     let mut options = HashMap::new();
-    options.insert("content".to_string(), args.initial_text.clone());
-    options.insert("api_key".to_string(), args.engine_api_key.clone());
-    options.insert("base_url".to_string(), args.engine_base_url.clone());
+    if let Some(engine) = &args.engine {
+        options.insert("engine".to_string(), engine.clone());
+    }
+    if let Some(base_url) = &args.engine_base_url {
+        options.insert("base_url".to_string(), base_url.clone());
+    }
+    if let Some(api_key) = &args.engine_api_key {
+        options.insert("api_key".to_string(), api_key.clone());
+    }
     options.insert("model".to_string(), args.model.clone());
     
     let mut engine = OpenAI::new(&options);
     
-    // 添加文本内容
-    engine.add_text_content(&args.initial_text);
+    // 添加提示内容
+    engine.add_text_content(&prompt);
+    
+    // 如果有输入图片，添加图片内容
+    if let Some(png_file) = &args.input_png {
+        let image_data = std::fs::read(png_file)?;
+        let base64_image = base64::encode(&image_data);
+        engine.add_image_content(&base64_image);
+    }
     
     // 注册回调函数来处理 AI 的回复
     let response = Arc::new(Mutex::new(String::new()));
@@ -148,24 +164,33 @@ fn main() -> Result<()> {
                 "required": ["text"]
             }
         }),
-        Box::new(move |args| {
+        Box::new(move |args: JsonValue| {
             let text = args["text"].as_str().unwrap_or_default();
             *response_clone.lock().unwrap() = text.to_string();
         })
     );
 
     // 执行并获取回复
-    if let Err(e) = engine.execute() {
-        error!("获取 AI 回复失败: {}", e);
-        return Err(anyhow::anyhow!("AI 回复失败: {}", e));
+    if !args.no_submit {
+        if let Err(e) = engine.execute() {
+            error!("获取 AI 回复失败: {}", e);
+            return Err(anyhow::anyhow!("AI 回复失败: {}", e));
+        }
     }
 
     let response_text = response.lock().unwrap().clone();
     info!("收到 AI 回复: {}", response_text);
 
+    // 如果需要保存模型输出
+    if let Some(output_file) = &args.model_output_file {
+        std::fs::write(output_file, &response_text)?;
+    }
+
     // 绘制 AI 回复的文字
-    info!("开始绘制 AI 回复");
-    keyboard.write_text(&response_text)?;
+    if !args.no_draw {
+        info!("开始绘制 AI 回复");
+        keyboard.write_text(&response_text)?;
+    }
     
     Ok(())
 }
