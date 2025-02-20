@@ -38,7 +38,7 @@ impl FontRenderer {
         let contours = outline.contours();
         
         let mut point_index = 0;
-        for end_index in contours {
+        for &end_index in contours.iter() {
             while point_index <= end_index as usize {
                 let point = points[point_index];
                 current_stroke.push(point);
