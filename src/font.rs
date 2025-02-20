@@ -31,12 +31,12 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let outline = self.face.glyph().outline().unwrap();
         
-        // 获取轮廓点，应用缩放
-        let scale_factor = 0.05;  // 缩放因子
+        // 获取轮廓点，应用缩放并翻转 Y 坐标
+        let scale_factor = 0.01;  // 缩放因子
         let points: Vec<_> = outline.points().iter()
             .map(|p| (
                 (p.x as f32 * scale_factor) as i32,
-                (p.y as f32 * scale_factor) as i32
+                (-p.y as f32 * scale_factor) as i32  // 注意这里加了负号
             ))
             .collect();
             
