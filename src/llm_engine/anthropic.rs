@@ -83,7 +83,7 @@ impl LLMEngine for Anthropic {
         self.content.clear();
     }
 
-    fn execute(&mut self) -> Result<String> {
+    fn execute(&mut self) -> Result<()> {
         let body = json!({
             "model": self.model,
             "max_tokens": 5000,
@@ -130,7 +130,7 @@ impl LLMEngine for Anthropic {
             if let Some(tool) = tool {
                 if let Some(callback) = &mut tool.callback {
                     callback(function_input.clone());
-                    Ok(function_input.as_str().unwrap().to_string())
+                    Ok(())
                 } else {
                     Err(anyhow::anyhow!(
                         "No callback registered for tool {}",
