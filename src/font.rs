@@ -8,10 +8,12 @@ pub struct FontRenderer {
 
 impl FontRenderer {
     pub fn new() -> Result<Self> {
-        // 加载字体
-        let font_data = Asset::get("LXGWWenKaiScreen-Regular.ttf")
+        // 加载字体并转换为 'static 生命周期的数据
+        let font_data: Vec<u8> = Asset::get("LXGWWenKaiScreen-Regular.ttf")
             .expect("Failed to load font")
-            .data;
+            .data
+            .to_vec();  // 转换为拥有的数据
+            
         let font = Font::try_from_bytes(&font_data)
             .expect("Failed to parse font");
             
