@@ -155,20 +155,66 @@ impl Pen {
         Ok(())
     }
 
-    fn draw_char_bitmap(&mut self, bitmap: &Vec<Vec<bool>>, start_x: i32, start_y: i32) -> Result<()> {
-        let mut last_point: Option<(i32, i32)> = None;
+    pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+        info!("开始获取字符 '{}' 的笔画", c);
         
-        // 先找到字的轮廓点
-        let mut points = Vec::new();
-        for y in 0..bitmap.len() {
-            for x in 0..bitmap[y].len() {
-                if bitmap[y][x] {
-                    // 对于每个黑色像素，直接画点
-                    self.draw_point((start_x + x as i32, start_y + y as i32))?;
-                }
+        let library = match Library::init() {
+            Ok(lib) => {
+                info!("FreeType 库初始化成功");
+                lib
+            },
+            Err(e) => {
+                error!("FreeType 库初始化失败: {}", e);
+                return Err(anyhow::anyhow!("FreeType 初始化失败"));
             }
+        };
+        
+        if let Some(font_data) = Asset::get("LXGWWenKaiScreen-Regular.ttf") {
+            let face = library.new_memory_face(font_data.data.to_vec(), 0)?;
+            
+            // 设置更大的字体大小 (72 points * 64)
+            face.set_char_size(0, 72 * 64, 96, 96)?;
+            
+            // 加载字符并获取轮廓
+            face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+            let glyph = face.glyph();
+            
+            let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
+            
+            // 获取轮廓点并进行缩放
+            let points = outline.points();
+            let tags = outline.tags();
+            let contours = outline.contours();
+            
+            let mut strokes = Vec::new();
+            let mut start = 0;
+            
+            for end in contours {
+                let mut current_stroke = Vec::new();
+                
+                for i in start..=end as usize {
+                    let point = points[i];
+                    let tag = tags[i];
+                    
+                    if tag & 0x1 != 0 {
+                        // 缩放坐标点，使其适应屏幕大小
+                        let x = (point.x as f32 * 0.5) as i32;
+                        let y = (point.y as f32 * 0.5) as i32;
+                        current_stroke.push((x, y));
+                    }
+                }
+                
+                if !current_stroke.is_empty() {
+                    strokes.push(current_stroke);
+                }
+                
+                start = end as usize + 1;
+            }
+            
+            Ok(strokes)
+        } else {
+            Err(anyhow::anyhow!("找不到字体文件"))
         }
-        Ok(())
     }
 }
 
