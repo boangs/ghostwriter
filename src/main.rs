@@ -321,7 +321,7 @@ fn ghostwriter(args: &Args) -> Result<String> {
     );
 
     // 添加初始文本到引擎
-    engine.add_text_content(&args.initial_text);
+    engine.add_text_content(&args.prompt);
 
     info!("Executing the engine (call out to {}", engine_name);
     engine.execute()?;
