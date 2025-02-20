@@ -37,7 +37,7 @@ impl Keyboard {
             debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
             
             // 获取字符的笔画
-            let strokes = self.font_renderer.get_char_strokes(c, font_size);
+            let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
             
             // 绘制每个笔画
             for stroke in strokes {
@@ -51,26 +51,11 @@ impl Keyboard {
                 pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
                 pen.pen_down()?;
                 
-                // 连续绘制整个笔画，使用线性插值来平滑移动
-                for i in 1..stroke.len() {
-                    let (x1, y1) = stroke[i-1];
-                    let (x2, y2) = stroke[i];
-                    
-                    // 在两点之间插入更多的点，使移动更平滑
-                    let steps = 5;
-                    for step in 0..=steps {
-                        let t = step as f32 / steps as f32;
-                        let x = x1 as f32 + (x2 - x1) as f32 * t;
-                        let y = y1 as f32 + (y2 - y1) as f32 * t;
-                        
-                        pen.goto_xy((x as i32 + current_x as i32, 
-                                    y as i32 + current_y as i32))?;
-                        sleep(Duration::from_millis(2));
-                    }
+                // 连续绘制整个笔画
+                for &(x, y) in stroke.iter().skip(1) {
+                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                    sleep(Duration::from_millis(5));
                 }
-                
-                pen.pen_up()?;
-                sleep(Duration::from_millis(0));  // 笔画之间的停顿
             }
             
             current_x += char_width;

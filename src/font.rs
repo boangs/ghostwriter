@@ -1,131 +1,87 @@
-use rusttype::{point, Font, Scale, Point, Vector};
+use freetype::{Library, Face, Vector};
 use anyhow::Result;
 use crate::util::Asset;
-use ab_glyph_rasterizer::Rasterizer;
-use std::collections::VecDeque;
 
 pub struct FontRenderer {
-    font_data: Vec<u8>,          // 存储字体数据
-    font: Font<'static>,
+    face: Face,
 }
 
 impl FontRenderer {
     pub fn new() -> Result<Self> {
-        // 加载字体数据
+        let lib = Library::init()?;
         let font_data = Asset::get("LXGWWenKaiScreen-Regular.ttf")
             .expect("Failed to load font")
-            .data
-            .to_vec();
-            
-        // 使用 Box::leak 将数据转换为 'static 生命周期
-        let font_bytes = Box::leak(font_data.clone().into_boxed_slice());
-        let font = Font::try_from_bytes(font_bytes)
-            .expect("Failed to parse font");
-            
-        Ok(FontRenderer { 
-            font_data: font_data,  // 保存数据所有权
-            font 
-        })
-    }
-
-    pub fn get_char_strokes(&self, c: char, size: f32) -> Vec<Vec<(i32, i32)>> {
-        let scale = Scale::uniform(size);
-        let glyph = self.font.glyph(c).scaled(scale);
-        let glyph = glyph.positioned(point(0.0, 0.0));
-
-        if let Some(bbox) = glyph.pixel_bounding_box() {
-            let mut strokes = Vec::new();
-            let mut points = Vec::new();
-            
-            // 获取字形的像素点
-            glyph.draw(|x, y, v| {
-                if v > 0.5 {
-                    points.push((x as i32 + bbox.min.x, y as i32 + bbox.min.y));
-                }
-            });
-
-            // 使用连通区域算法将点转换为笔画
-            let mut visited = std::collections::HashSet::new();
-            for &start_point in &points {
-                if visited.contains(&start_point) {
-                    continue;
-                }
-
-                let mut stroke = Vec::new();
-                let mut queue = VecDeque::new();
-                queue.push_back(start_point);
-                visited.insert(start_point);
-
-                while let Some(point) = queue.pop_front() {
-                    stroke.push(point);
-
-                    // 检查8个方向的相邻点
-                    for dx in -1..=1 {
-                        for dy in -1..=1 {
-                            if dx == 0 && dy == 0 {
-                                continue;
-                            }
-                            
-                            let next = (point.0 + dx, point.1 + dy);
-                            if points.contains(&next) && !visited.contains(&next) {
-                                queue.push_back(next);
-                                visited.insert(next);
-                            }
-                        }
-                    }
-                }
-
-                if stroke.len() > 1 {
-                    // 对笔画点进行排序，使其更连续
-                    optimize_stroke_path(&mut stroke);
-                    strokes.push(stroke);
-                }
-            }
-
-            strokes
-        } else {
-            Vec::new()
-        }
-    }
-}
-
-// 优化笔画路径，使点的连接更平滑
-fn optimize_stroke_path(stroke: &mut Vec<(i32, i32)>) {
-    if stroke.len() <= 2 {
-        return;
-    }
-
-    let mut optimized = Vec::with_capacity(stroke.len());
-    optimized.push(stroke[0]);
-    
-    let mut current = stroke[0];
-    while optimized.len() < stroke.len() {
-        let mut best_next = None;
-        let mut min_dist = std::i32::MAX;
+            .data;
+        let face = lib.new_memory_face(font_data, 0)?;
+        face.set_pixel_sizes(0, 100)?; // 设置字体大小
         
-        for &point in stroke.iter() {
-            if optimized.contains(&point) {
-                continue;
+        Ok(FontRenderer { face })
+    }
+
+    pub fn get_char_strokes(&self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+        self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+        
+        let mut strokes = Vec::new();
+        let outline = self.face.glyph().outline().unwrap();
+        
+        let mut current_stroke = Vec::new();
+        let mut move_to = |x: f32, y: f32| {
+            if !current_stroke.is_empty() {
+                strokes.push(current_stroke.clone());
+                current_stroke.clear();
             }
+            current_stroke.push((x as i32, y as i32));
+            Ok(())
+        };
+        
+        let mut line_to = |x: f32, y: f32| {
+            current_stroke.push((x as i32, y as i32));
+            Ok(())
+        };
+        
+        let mut conic_to = |x1: f32, y1: f32, x: f32, y: f32| {
+            // 二次贝塞尔曲线
+            let steps = 10;
+            let x0 = current_stroke.last().unwrap().0 as f32;
+            let y0 = current_stroke.last().unwrap().1 as f32;
             
-            let dist = manhattan_distance(current, point);
-            if dist < min_dist {
-                min_dist = dist;
-                best_next = Some(point);
+            for i in 1..=steps {
+                let t = i as f32 / steps as f32;
+                let px = (1.0 - t).powi(2) * x0 + 2.0 * (1.0 - t) * t * x1 + t.powi(2) * x;
+                let py = (1.0 - t).powi(2) * y0 + 2.0 * (1.0 - t) * t * y1 + t.powi(2) * y;
+                current_stroke.push((px as i32, py as i32));
             }
+            Ok(())
+        };
+        
+        let mut cubic_to = |x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32| {
+            // 三次贝塞尔曲线
+            let steps = 10;
+            let x0 = current_stroke.last().unwrap().0 as f32;
+            let y0 = current_stroke.last().unwrap().1 as f32;
+            
+            for i in 1..=steps {
+                let t = i as f32 / steps as f32;
+                let px = (1.0 - t).powi(3) * x0 + 3.0 * t * (1.0 - t).powi(2) * x1 
+                    + 3.0 * t.powi(2) * (1.0 - t) * x2 + t.powi(3) * x;
+                let py = (1.0 - t).powi(3) * y0 + 3.0 * t * (1.0 - t).powi(2) * y1 
+                    + 3.0 * t.powi(2) * (1.0 - t) * y2 + t.powi(3) * y;
+                current_stroke.push((px as i32, py as i32));
+            }
+            Ok(())
+        };
+        
+        outline.decompose(
+            &mut move_to,
+            &mut line_to,
+            &mut conic_to,
+            &mut cubic_to,
+        )?;
+        
+        if !current_stroke.is_empty() {
+            strokes.push(current_stroke);
         }
         
-        if let Some(next) = best_next {
-            optimized.push(next);
-            current = next;
-        } else {
-            break;
-        }
+        Ok(strokes)
     }
-    
-    *stroke = optimized;
-}
-
-fn manhattan_distance(p1: (i32, i32), p2: (i32, i32)) -> i32 {
-    (p1.0 - p2.0).abs() + (p1.1 - p2.1).abs()
 } 
