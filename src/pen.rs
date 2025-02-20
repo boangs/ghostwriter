@@ -23,7 +23,7 @@ impl Pen {
     }
 
     pub fn pen_up(&mut self) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             let events = vec![
                 InputEvent::new(EventType::ABSOLUTE, 0x18, 0),
                 InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
@@ -36,7 +36,7 @@ impl Pen {
     }
 
     pub fn pen_down(&mut self) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             let events = vec![
                 InputEvent::new(EventType::ABSOLUTE, 0x18, 1),
                 InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
@@ -49,7 +49,7 @@ impl Pen {
     }
 
     pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
-        if let Some(device) = &self.device {
+        if let Some(ref mut device) = self.device {
             let events = vec![
                 InputEvent::new(EventType::ABSOLUTE, 0x00, x as i32),
                 InputEvent::new(EventType::ABSOLUTE, 0x01, y as i32),
