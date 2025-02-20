@@ -57,9 +57,14 @@ impl Keyboard {
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 100 {
+            if current_x > REMARKABLE_WIDTH - 100 || current_y > REMARKABLE_HEIGHT - 100 {
                 current_y += line_height;
                 current_x = start_x;
+                
+                // 如果超出底部边界，重新从顶部开始
+                if current_y > REMARKABLE_HEIGHT - 100 {
+                    current_y = start_y;
+                }
             }
             
             sleep(Duration::from_millis(100));
