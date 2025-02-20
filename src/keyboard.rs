@@ -3,6 +3,7 @@ use log::debug;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
