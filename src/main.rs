@@ -117,7 +117,9 @@ fn main() -> Result<()> {
     let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress)?;
     
     // 读取提示文件
-    let prompt = std::fs::read_to_string(&args.prompt)?;
+    let prompt_path = format!("prompts/{}", args.prompt);  // 添加 prompts/ 路径前缀
+    let prompt = std::fs::read_to_string(prompt_path)
+        .map_err(|e| anyhow::anyhow!("无法读取提示文件 {}: {}", args.prompt, e))?;
     
     // 获取 AI 回复
     let mut options = HashMap::new();
