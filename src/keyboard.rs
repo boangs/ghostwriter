@@ -54,7 +54,7 @@ impl Keyboard {
                 // 连续绘制整个笔画
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(5));
+                    sleep(Duration::from_millis(0));
                 }
             }
             
