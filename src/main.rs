@@ -11,7 +11,6 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::env;
-use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use ghostwriter::{
     keyboard::Keyboard,
