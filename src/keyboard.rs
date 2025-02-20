@@ -19,21 +19,17 @@ impl Keyboard {
         debug!("模拟笔书写文本: {}", text);
         let mut pen = self.pen.lock().unwrap();
         
-        // 基础设置
-        let start_x = 100;
-        let start_y = 100;
-        let char_width = 50;  // 每个字符的宽度
-        let line_height = 60; // 行高
+        // 使用屏幕坐标系 (1404 x 1872)
+        let start_x = 200;     // 起始位置
+        let start_y = 200;
+        let char_width = 100;  // 字符宽度
+        let line_height = 150; // 行高
+        let scale_factor = 1.0; // 字体缩放
+        
         let mut current_x = start_x;
         let mut current_y = start_y;
 
         for c in text.chars() {
-            // 如果到达行尾，换行
-            if current_x > 700 {
-                current_x = start_x;
-                current_y += line_height;
-            }
-
             debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
             
             // 获取字符的笔画信息并绘制
@@ -46,29 +42,37 @@ impl Keyboard {
                     // 移动到笔画起点
                     pen.pen_up()?;
                     let (sx, sy) = stroke[0];
-                    pen.goto_xy((current_x + sx, current_y + sy))?;
+                    let scaled_x = (sx as f32 * scale_factor) as i32 + current_x;
+                    let scaled_y = (sy as f32 * scale_factor) as i32 + current_y;
+                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", sx, sy, scaled_x, scaled_y);
+                    pen.goto_xy((scaled_x, scaled_y))?;
                     pen.pen_down()?;
                     
                     // 绘制笔画的其余部分
                     for &(px, py) in stroke.iter().skip(1) {
-                        pen.goto_xy((current_x + px, current_y + py))?;
+                        let scaled_x = (px as f32 * scale_factor) as i32 + current_x;
+                        let scaled_y = (py as f32 * scale_factor) as i32 + current_y;
+                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", px, py, scaled_x, scaled_y);
+                        pen.goto_xy((scaled_x, scaled_y))?;
                     }
                     
-                    // 笔画之间添加短暂停顿
+                    pen.pen_up()?;
                     sleep(Duration::from_millis(50));
                 }
             }
             
             // 移动到下一个字符位置
             current_x += char_width;
+            if current_x > REMARKABLE_WIDTH - 200 {  // 留出右边距
+                current_y += line_height;
+                current_x = start_x;
+                debug!("换行: 从 x={} 到 start_x={}", current_x, start_x);
+            }
             
-            // 字符之间添加停顿
             sleep(Duration::from_millis(100));
         }
-
-        // 完成所有绘制后，确保笔是抬起的状态
-        pen.pen_up()?;
         
+        pen.pen_up()?;
         Ok(())
     }
 
