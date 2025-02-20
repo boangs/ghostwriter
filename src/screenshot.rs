@@ -4,6 +4,7 @@ use log::info;
 use std::fs::File;
 use std::io::Write;
 use std::process;
+use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
