@@ -4,15 +4,18 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use crate::font::FontRenderer;
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
+    font_renderer: FontRenderer,
 }
 
 impl Keyboard {
     pub fn new(no_draw: bool, _no_draw_progress: bool) -> Result<Self> {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
+            font_renderer: FontRenderer::new()?,
         })
     }
 
@@ -23,9 +26,9 @@ impl Keyboard {
         // 调整起始位置和字符大小
         let start_x: u32 = 100;      // 左边距
         let start_y: u32 = 200;      // 上边距
-        let char_width: u32 = 30;    // 字符宽度
-        let line_height: u32 = 20;  // 行高
-        let scale_factor = 0.02;      // 缩小字体缩放因子
+        let char_width: u32 = 80;    // 字符宽度
+        let line_height: u32 = 100;  // 行高
+        let font_size = 50.0;        // 字体大小
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -33,44 +36,30 @@ impl Keyboard {
         for c in text.chars() {
             debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
             
-            if let Ok(strokes) = pen.get_char_strokes(c) {
-                for stroke in strokes {
-                    if stroke.len() < 2 {
-                        continue;
-                    }
-                    
-                    pen.pen_up()?;
-                    let (sx, sy) = stroke[0];
-                    // 翻转 y 坐标并应用缩放
-                    let scaled_x = (sx as f32 * scale_factor) as i32 + current_x as i32;
-                    let scaled_y = (-sy as f32 * scale_factor) as i32 + current_y as i32;
-                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", sx, sy, scaled_x, scaled_y);
-                    pen.goto_xy((scaled_x, scaled_y))?;
-                    pen.pen_down()?;
-                    
-                    for &(px, py) in stroke.iter().skip(1) {
-                        let scaled_x = (px as f32 * scale_factor) as i32 + current_x as i32;
-                        let scaled_y = (-py as f32 * scale_factor) as i32 + current_y as i32;
-                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", px, py, scaled_x, scaled_y);
-                        pen.goto_xy((scaled_x, scaled_y))?;
-                    }
-                    
-                    pen.pen_up()?;
-                    sleep(Duration::from_millis(50));
-                }
+            // 获取字符的位图点
+            let points = self.font_renderer.get_char_bitmap(c, font_size);
+            
+            // 绘制每个点
+            for (x, y) in points {
+                let screen_x = x as i32 + current_x as i32;
+                let screen_y = y as i32 + current_y as i32;
+                
+                pen.pen_down()?;
+                pen.goto_xy((screen_x, screen_y))?;
+                pen.pen_up()?;
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 500 {
+            if current_x > REMARKABLE_WIDTH - 100 {
                 current_y += line_height;
                 current_x = start_x;
                 
-                if current_y > REMARKABLE_HEIGHT - 500 {
+                if current_y > REMARKABLE_HEIGHT - 100 {
                     current_y = start_y;
                 }
             }
             
-            sleep(Duration::from_millis(10));
+            sleep(Duration::from_millis(50));
         }
         
         pen.pen_up()?;
