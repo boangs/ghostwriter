@@ -36,17 +36,26 @@ impl Keyboard {
         for c in text.chars() {
             debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
             
-            // 获取字符的位图点
-            let points = self.font_renderer.get_char_bitmap(c, font_size);
+            // 获取字符的笔画
+            let strokes = self.font_renderer.get_char_strokes(c, font_size);
             
-            // 绘制每个点
-            for (x, y) in points {
-                let screen_x = x as i32 + current_x as i32;
-                let screen_y = y as i32 + current_y as i32;
+            // 绘制每个笔画
+            for stroke in strokes {
+                if stroke.len() < 2 {
+                    continue;
+                }
                 
-                pen.pen_down()?;
-                pen.goto_xy((screen_x, screen_y))?;
+                // 移动到笔画起点
                 pen.pen_up()?;
+                let (x, y) = stroke[0];
+                pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                pen.pen_down()?;
+                
+                // 连续绘制笔画
+                for &(x, y) in stroke.iter().skip(1) {
+                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                    sleep(Duration::from_millis(10)); // 控制绘制速度
+                }
             }
             
             current_x += char_width;

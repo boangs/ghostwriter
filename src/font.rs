@@ -26,31 +26,51 @@ impl FontRenderer {
         })
     }
 
-    pub fn get_char_bitmap(&self, c: char, size: f32) -> Vec<(i32, i32)> {
-        // 设置字体大小
+    pub fn get_char_strokes(&self, c: char, size: f32) -> Vec<Vec<(i32, i32)>> {
         let scale = Scale::uniform(size);
-
-        // 获取字形
         let glyph = self.font.glyph(c).scaled(scale);
         let glyph = glyph.positioned(point(0.0, 0.0));
 
-        // 获取位图
         if let Some(bitmap) = glyph.pixel_bounding_box() {
-            let mut points = Vec::new();
-            
-            // 遍历位图的每个像素
+            let mut strokes = Vec::new();
+            let mut current_stroke = Vec::new();
+            let mut last_point = None;
+
             glyph.draw(|x, y, v| {
                 if v > 0.5 {
-                    points.push((
+                    let point = (
                         x as i32 + bitmap.min.x,
                         y as i32 + bitmap.min.y
-                    ));
+                    );
+
+                    // 如果与上一个点不连续，开始新的笔画
+                    if let Some(last) = last_point {
+                        if !is_connected(last, point) {
+                            if !current_stroke.is_empty() {
+                                strokes.push(current_stroke.clone());
+                                current_stroke.clear();
+                            }
+                        }
+                    }
+
+                    current_stroke.push(point);
+                    last_point = Some(point);
                 }
             });
-            
-            points
+
+            if !current_stroke.is_empty() {
+                strokes.push(current_stroke);
+            }
+
+            strokes
         } else {
             Vec::new()
         }
     }
+}
+
+fn is_connected(p1: (i32, i32), p2: (i32, i32)) -> bool {
+    let dx = (p1.0 - p2.0).abs();
+    let dy = (p1.1 - p2.1).abs();
+    dx <= 1 && dy <= 1
 } 
