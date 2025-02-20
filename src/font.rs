@@ -22,15 +22,22 @@ impl FontRenderer {
     }
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
+        // 设置字体大小
         self.face.set_pixel_sizes(0, size as u32)?;
-        self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+        
+        // 加载字符，使用 LOAD_DEFAULT 而不是 NO_SCALE
+        self.face.load_char(c as usize, freetype::face::LoadFlag::DEFAULT)?;
         
         let mut strokes = Vec::new();
         let outline = self.face.glyph().outline().unwrap();
         
-        // 获取轮廓点
+        // 获取轮廓点，应用缩放
+        let scale_factor = 0.05;  // 缩放因子
         let points: Vec<_> = outline.points().iter()
-            .map(|p| (p.x as i32, p.y as i32))
+            .map(|p| (
+                (p.x as f32 * scale_factor) as i32,
+                (p.y as f32 * scale_factor) as i32
+            ))
             .collect();
             
         // 根据轮廓标记分割笔画
@@ -72,7 +79,7 @@ fn smooth_stroke(stroke: Vec<(i32, i32)>) -> Vec<(i32, i32)> {
     }
     
     let mut result = Vec::new();
-    let steps = 10;
+    let steps = 5;  // 减少插值点数量
     
     for i in 0..stroke.len() - 1 {
         let p0 = stroke[i];
