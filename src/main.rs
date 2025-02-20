@@ -31,21 +31,21 @@ struct Asset;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+pub struct Args {
     /// LLM engine to use
     #[arg(long)]
     engine: String,
 
     /// LLM engine base URL
-    #[arg(long)]
+    #[arg(long, env = "ENGINE_BASE_URL")]
     engine_base_url: String,
 
     /// LLM engine API key
-    #[arg(long)]
+    #[arg(long, env = "ENGINE_API_KEY")]
     engine_api_key: String,
 
     /// LLM model to use
-    #[arg(long)]
+    #[arg(long, default_value = "gpt-4")]
     model: String,
 
     /// Save screenshot filename
@@ -147,11 +147,7 @@ fn main() -> Result<()> {
     info!("开始绘制 AI 回复");
     keyboard.write_text(&response_text)?;
     
-    if args.no_loop {
-        Ok(response_text)
-    } else {
-        Ok(response_text)
-    }
+    Ok(())
 }
 
 macro_rules! shared {
@@ -289,5 +285,12 @@ fn ghostwriter(args: &Args) -> Result<String> {
         Ok(response)
     } else {
         Ok(response)
+    }
+}
+
+fn process_response(response: Result<(), anyhow::Error>) -> Result<()> {
+    match response {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
     }
 }
