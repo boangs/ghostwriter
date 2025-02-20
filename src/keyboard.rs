@@ -23,9 +23,9 @@ impl Keyboard {
         // 调整起始位置和字符大小
         let start_x: u32 = 100;      // 左边距
         let start_y: u32 = 200;      // 上边距
-        let char_width: u32 = 80;    // 字符宽度
-        let line_height: u32 = 100;  // 行高
-        let scale_factor = 0.05;      // 缩小字体缩放因子
+        let char_width: u32 = 30;    // 字符宽度
+        let line_height: u32 = 50;  // 行高
+        let scale_factor = 0.02;      // 缩小字体缩放因子
         
         let mut current_x = start_x;
         let mut current_y = start_y;
