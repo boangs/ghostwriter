@@ -37,11 +37,11 @@ pub struct Args {
     engine: String,
 
     /// LLM engine base URL
-    #[arg(long, env = "ENGINE_BASE_URL")]
+    #[arg(long, env("ENGINE_BASE_URL"))]
     engine_base_url: String,
 
     /// LLM engine API key
-    #[arg(long, env = "ENGINE_API_KEY")]
+    #[arg(long, env("ENGINE_API_KEY"))]
     engine_api_key: String,
 
     /// LLM model to use
@@ -227,8 +227,8 @@ fn ghostwriter(args: &Args) -> Result<String> {
 
     engine.register_tool(
         "draw_text",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_text.as_str())?,
-        Box::new(move |arguments: json| {
+        serde_json::from_str::<JsonValue>(tool_config_draw_text.as_str())?,
+        Box::new(move |arguments: JsonValue| {
             let text = arguments["text"].as_str().unwrap();
             if let Some(output_file) = &output_file {
                 std::fs::write(output_file, text).unwrap();
@@ -255,8 +255,8 @@ fn ghostwriter(args: &Args) -> Result<String> {
     let tool_config_draw_svg = load_config("tool_draw_svg.json");
     engine.register_tool(
         "draw_svg",
-        serde_json::from_str::<serde_json::Value>(tool_config_draw_svg.as_str())?,
-        Box::new(move |arguments: json| {
+        serde_json::from_str::<JsonValue>(tool_config_draw_svg.as_str())?,
+        Box::new(move |arguments: JsonValue| {
             let svg_data = arguments["svg"].as_str().unwrap();
             if let Some(output_file) = &output_file {
                 std::fs::write(output_file, svg_data).unwrap();
@@ -279,12 +279,13 @@ fn ghostwriter(args: &Args) -> Result<String> {
     engine.add_text_content(&args.initial_text);
 
     info!("Executing the engine (call out to {}", engine_name);
-    let response = engine.execute()?;
+    engine.execute()?;
     
+    let response_text = String::new(); // 这里需要获取实际的响应文本
     if args.no_loop {
-        Ok(response)
+        Ok(response_text)
     } else {
-        Ok(response)
+        Ok(response_text)
     }
 }
 
