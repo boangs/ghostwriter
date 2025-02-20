@@ -24,7 +24,7 @@ impl Keyboard {
         let start_x: u32 = 100;      // 左边距
         let start_y: u32 = 200;      // 上边距
         let char_width: u32 = 30;    // 字符宽度
-        let line_height: u32 = 50;  // 行高
+        let line_height: u32 = 20;  // 行高
         let scale_factor = 0.02;      // 缩小字体缩放因子
         
         let mut current_x = start_x;
@@ -61,16 +61,16 @@ impl Keyboard {
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 100 {
+            if current_x > REMARKABLE_WIDTH - 500 {
                 current_y += line_height;
                 current_x = start_x;
                 
-                if current_y > REMARKABLE_HEIGHT - 100 {
+                if current_y > REMARKABLE_HEIGHT - 500 {
                     current_y = start_y;
                 }
             }
             
-            sleep(Duration::from_millis(100));
+            sleep(Duration::from_millis(10));
         }
         
         pen.pen_up()?;
