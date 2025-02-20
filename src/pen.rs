@@ -43,13 +43,19 @@ impl Pen {
             
             // 写入字符
             for stroke in strokes {
-                // 移动笔画到当前位置
-                let adjusted_stroke: Vec<(i32, i32)> = stroke
-                    .iter()
-                    .map(|(x, y)| (x + current_x, y + current_y))
-                    .collect();
-                
-                self.write_stroke(&adjusted_stroke)?;
+                // 移动到笔画起点
+                self.pen_up()?;
+                if let Some(&first_point) = stroke.first() {
+                    let (x, y) = first_point;
+                    self.goto_xy((x + current_x, y + current_y))?;
+                    self.pen_down()?;
+                    
+                    // 绘制笔画的其余部分
+                    for &(x, y) in stroke.iter().skip(1) {
+                        self.goto_xy((x + current_x, y + current_y))?;
+                    }
+                }
+                self.pen_up()?;
             }
             
             // 移动到下一个字符位置
