@@ -39,44 +39,42 @@ impl Pen {
         let mut current_y = start_y;
 
         for c in text.chars() {
+            debug!("绘制字符 '{}' 在位置 ({}, {})", c, current_x, current_y);
+            
             // 获取字符的笔画
             let strokes = self.get_char_strokes(c)?;
+            debug!("获取到 {} 个笔画", strokes.len());
             
-            // 检查是否需要换行
-            if current_x + char_width > max_x {
-                current_y += line_height;
-                current_x = start_x;
-            }
-            
-            // 写入字符
-            for stroke in strokes {
-                // 移动到笔画起点
+            for (stroke_idx, stroke) in strokes.iter().enumerate() {
+                debug!("绘制第 {} 个笔画，包含 {} 个点", stroke_idx + 1, stroke.len());
+                
                 self.pen_up()?;
                 if let Some(&first_point) = stroke.first() {
                     let (x, y) = first_point;
-                    // 应用缩放和偏移
                     let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
                     let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
+                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", x, y, scaled_x, scaled_y);
                     self.goto_xy((scaled_x, scaled_y))?;
                     self.pen_down()?;
                     
-                    // 绘制笔画的其余部分
                     for &(x, y) in stroke.iter().skip(1) {
                         let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
                         let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
+                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", x, y, scaled_x, scaled_y);
                         self.goto_xy((scaled_x, scaled_y))?;
                     }
                 }
                 self.pen_up()?;
-                
-                // 笔画之间添加短暂停顿
                 sleep(Duration::from_millis(50));
             }
             
-            // 移动到下一个字符位置
             current_x += char_width;
+            if current_x + char_width > max_x {
+                debug!("换行: 从 x={} 到 start_x={}", current_x, start_x);
+                current_y += line_height;
+                current_x = start_x;
+            }
             
-            // 字符之间添加停顿
             sleep(Duration::from_millis(100));
         }
         
