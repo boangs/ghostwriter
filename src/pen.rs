@@ -189,10 +189,10 @@ impl Pen {
             let mut strokes = Vec::new();
             let mut start = 0;
             
-            for &end in contours {
+            for end in contours {
                 let mut current_stroke = Vec::new();
                 
-                for i in start..=(*end as usize) {
+                for i in start..=(end as usize) {
                     let point = points[i];
                     let tag = tags[i];
                     
@@ -208,7 +208,7 @@ impl Pen {
                     strokes.push(current_stroke);
                 }
                 
-                start = *end as usize + 1;
+                start = end as usize + 1;
             }
             
             Ok(strokes)
