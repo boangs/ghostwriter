@@ -32,10 +32,12 @@ impl FontRenderer {
         let glyph = glyph.positioned(point(0.0, 0.0));
 
         if let Some(bitmap) = glyph.pixel_bounding_box() {
+            // 将相邻的点组合成笔画
             let mut strokes = Vec::new();
             let mut current_stroke = Vec::new();
             let mut last_point = None;
 
+            // 遍历位图中的点
             glyph.draw(|x, y, v| {
                 if v > 0.5 {
                     let point = (
@@ -43,9 +45,9 @@ impl FontRenderer {
                         y as i32 + bitmap.min.y
                     );
 
-                    // 如果与上一个点不连续，开始新的笔画
+                    // 如果与上一个点距离太远，就开始新的笔画
                     if let Some(last) = last_point {
-                        if !is_connected(last, point) {
+                        if manhattan_distance(last, point) > 1 {
                             if !current_stroke.is_empty() {
                                 strokes.push(current_stroke.clone());
                                 current_stroke.clear();
@@ -69,8 +71,6 @@ impl FontRenderer {
     }
 }
 
-fn is_connected(p1: (i32, i32), p2: (i32, i32)) -> bool {
-    let dx = (p1.0 - p2.0).abs();
-    let dy = (p1.1 - p2.1).abs();
-    dx <= 1 && dy <= 1
+fn manhattan_distance(p1: (i32, i32), p2: (i32, i32)) -> i32 {
+    (p1.0 - p2.0).abs() + (p1.1 - p2.1).abs()
 } 
