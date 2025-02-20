@@ -23,6 +23,7 @@ log = "0.4.22"
 libc = "0.2"
 freetype-rs = "0.32"
 rusttype = "0.9"
+ab_glyph_rasterizer = "0.1"
 [lib]
 name = "ghostwriter"
 path = "src/lib.rs"

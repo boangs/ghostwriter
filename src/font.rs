@@ -1,6 +1,8 @@
 use rusttype::{point, Font, Scale, Point, Vector};
 use anyhow::Result;
 use crate::util::Asset;
+use ab_glyph_rasterizer::Rasterizer;
+use std::collections::VecDeque;
 
 pub struct FontRenderer {
     font_data: Vec<u8>,          // 存储字体数据
@@ -29,62 +31,99 @@ impl FontRenderer {
     pub fn get_char_strokes(&self, c: char, size: f32) -> Vec<Vec<(i32, i32)>> {
         let scale = Scale::uniform(size);
         let glyph = self.font.glyph(c).scaled(scale);
-        
-        // 获取字形轮廓
-        if let Some(outline) = glyph.exact_outline() {
+        let glyph = glyph.positioned(point(0.0, 0.0));
+
+        if let Some(bbox) = glyph.pixel_bounding_box() {
             let mut strokes = Vec::new();
-            let mut current_stroke = Vec::new();
+            let mut points = Vec::new();
             
-            // 遍历轮廓的控制点
-            for curve in outline.curves() {
-                match curve {
-                    rusttype::Curve::Line(p) => {
-                        // 直线段
-                        let point = (p.x as i32, p.y as i32);
-                        current_stroke.push(point);
-                    },
-                    rusttype::Curve::Quadratic(c, p) => {
-                        // 二次贝塞尔曲线，将其分解为多个点
-                        let steps = 10;  // 曲线细分程度
-                        for i in 0..=steps {
-                            let t = i as f32 / steps as f32;
-                            let x = (1.0 - t).powi(2) * current_stroke.last().unwrap().0 as f32
-                                + 2.0 * (1.0 - t) * t * c.x
-                                + t.powi(2) * p.x;
-                            let y = (1.0 - t).powi(2) * current_stroke.last().unwrap().1 as f32
-                                + 2.0 * (1.0 - t) * t * c.y
-                                + t.powi(2) * p.y;
-                            current_stroke.push((x as i32, y as i32));
-                        }
-                    },
-                    rusttype::Curve::Cubic(c1, c2, p) => {
-                        // 三次贝塞尔曲线，将其分解为多个点
-                        let steps = 15;  // 曲线细分程度
-                        for i in 0..=steps {
-                            let t = i as f32 / steps as f32;
-                            let x = (1.0 - t).powi(3) * current_stroke.last().unwrap().0 as f32
-                                + 3.0 * (1.0 - t).powi(2) * t * c1.x
-                                + 3.0 * (1.0 - t) * t.powi(2) * c2.x
-                                + t.powi(3) * p.x;
-                            let y = (1.0 - t).powi(3) * current_stroke.last().unwrap().1 as f32
-                                + 3.0 * (1.0 - t).powi(2) * t * c1.y
-                                + 3.0 * (1.0 - t) * t.powi(2) * c2.y
-                                + t.powi(3) * p.y;
-                            current_stroke.push((x as i32, y as i32));
+            // 获取字形的像素点
+            glyph.draw(|x, y, v| {
+                if v > 0.5 {
+                    points.push((x as i32 + bbox.min.x, y as i32 + bbox.min.y));
+                }
+            });
+
+            // 使用连通区域算法将点转换为笔画
+            let mut visited = std::collections::HashSet::new();
+            for &start_point in &points {
+                if visited.contains(&start_point) {
+                    continue;
+                }
+
+                let mut stroke = Vec::new();
+                let mut queue = VecDeque::new();
+                queue.push_back(start_point);
+                visited.insert(start_point);
+
+                while let Some(point) = queue.pop_front() {
+                    stroke.push(point);
+
+                    // 检查8个方向的相邻点
+                    for dx in -1..=1 {
+                        for dy in -1..=1 {
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
+                            
+                            let next = (point.0 + dx, point.1 + dy);
+                            if points.contains(&next) && !visited.contains(&next) {
+                                queue.push_back(next);
+                                visited.insert(next);
+                            }
                         }
                     }
                 }
+
+                if stroke.len() > 1 {
+                    // 对笔画点进行排序，使其更连续
+                    optimize_stroke_path(&mut stroke);
+                    strokes.push(stroke);
+                }
             }
-            
-            if !current_stroke.is_empty() {
-                strokes.push(current_stroke);
-            }
-            
+
             strokes
         } else {
             Vec::new()
         }
     }
+}
+
+// 优化笔画路径，使点的连接更平滑
+fn optimize_stroke_path(stroke: &mut Vec<(i32, i32)>) {
+    if stroke.len() <= 2 {
+        return;
+    }
+
+    let mut optimized = Vec::with_capacity(stroke.len());
+    optimized.push(stroke[0]);
+    
+    let mut current = stroke[0];
+    while optimized.len() < stroke.len() {
+        let mut best_next = None;
+        let mut min_dist = std::i32::MAX;
+        
+        for &point in stroke.iter() {
+            if optimized.contains(&point) {
+                continue;
+            }
+            
+            let dist = manhattan_distance(current, point);
+            if dist < min_dist {
+                min_dist = dist;
+                best_next = Some(point);
+            }
+        }
+        
+        if let Some(next) = best_next {
+            optimized.push(next);
+            current = next;
+        } else {
+            break;
+        }
+    }
+    
+    *stroke = optimized;
 }
 
 fn manhattan_distance(p1: (i32, i32), p2: (i32, i32)) -> i32 {
