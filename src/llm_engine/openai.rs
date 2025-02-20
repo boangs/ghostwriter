@@ -1,10 +1,11 @@
 use super::LLMEngine;
 use crate::util::{option_or_env, option_or_env_fallback, OptionMap};
 use anyhow::Result;
-use log::info;
+use log::{debug, info};
 use serde_json::json;
 use serde_json::Value as json;
-use ureq;
+
+use ureq::Error;
 
 pub struct Tool {
     name: String,
@@ -34,31 +35,6 @@ impl OpenAI {
 
     pub fn add_content(&mut self, content: json) {
         self.content.push(content);
-    }
-
-    fn build_request(&self) -> Result<serde_json::Value> {
-        let mut messages = Vec::new();
-        
-        // 添加系统消息
-        messages.push(json!({
-            "role": "system",
-            "content": "你是一个有帮助的助手。"
-        }));
-
-        // 添加用户内容
-        for content in &self.content {
-            messages.push(json!({
-                "role": "user",
-                "content": content
-            }));
-        }
-
-        // 构建完整请求
-        Ok(json!({
-            "model": self.model,
-            "messages": messages,
-            "tools": self.tools.iter().map(|t| &t.definition).collect::<Vec<_>>()
-        }))
     }
 }
 
@@ -110,23 +86,68 @@ impl LLMEngine for OpenAI {
         self.content.clear();
     }
 
-    fn execute(&mut self) -> Result<String> {
-        info!("执行 OpenAI LLM 引擎");
-        
-        // 使用 build_request 构建请求体
-        let body = self.build_request()?;
+    fn execute(&mut self) -> Result<()> {
+        let body = json!({
+            "model": self.model,
+            "messages": [{
+                "role": "user",
+                "content": self.content
+            }],
+            "tools": self.tools.iter().map(|tool| Self::openai_tool_definition(tool)).collect::<Vec<_>>(),
+            "tool_choice": "required",
+            "parallel_tool_calls": false
+        });
 
-        // 发送请求
-        let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
+        // print body for debugging
+        debug!("Request: {}", body);
+        let raw_response = ureq::post(format!("{}/v1/chat/completions", self.base_url).as_str())
             .set("Authorization", &format!("Bearer {}", self.api_key))
-            .send_json(&body)?;
+            .set("Content-Type", "application/json")
+            .send_json(&body);
 
-        // 解析响应
-        let json: serde_json::Value = response.into_json()?;
-        let message = json["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("无法从响应中获取文本"))?;
+        let response = match raw_response {
+            Ok(response) => response,
+            Err(Error::Status(code, response)) => {
+                info!("Error: {}", code);
+                let json: json = response.into_json()?;
+                debug!("Response: {}", json);
+                return Err(anyhow::anyhow!("API ERROR"));
+            }
+            Err(_) => return Err(anyhow::anyhow!("OTHER API ERROR")),
+        };
 
-        Ok(message.to_string())
+        let json: json = response.into_json().unwrap();
+        debug!("Response: {}", json);
+
+        let tool_calls = &json["choices"][0]["message"]["tool_calls"];
+
+        if let Some(tool_call) = tool_calls.get(0) {
+            let function_name = tool_call["function"]["name"].as_str().unwrap();
+            let function_input_raw = tool_call["function"]["arguments"].as_str().unwrap();
+            let function_input = serde_json::from_str::<json>(function_input_raw).unwrap();
+            let tool = self
+                .tools
+                .iter_mut()
+                .find(|tool| tool.name == function_name);
+
+            if let Some(tool) = tool {
+                if let Some(callback) = &mut tool.callback {
+                    callback(function_input.clone());
+                    Ok(())
+                } else {
+                    Err(anyhow::anyhow!(
+                        "No callback registered for tool {}",
+                        function_name
+                    ))
+                }
+            } else {
+                Err(anyhow::anyhow!(
+                    "No tool registered with name {}",
+                    function_name
+                ))
+            }
+        } else {
+            Err(anyhow::anyhow!("No tool calls found in response"))
+        }
     }
 }
