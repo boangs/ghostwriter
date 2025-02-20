@@ -25,7 +25,7 @@ impl Keyboard {
         let start_y = 100;     // 上边距
         let char_width = 80;   // 字符宽度
         let line_height = 100; // 行高
-        let scale_factor = 2.0; // 增大字体缩放因子
+        let scale_factor = 1.0; // 增大字体缩放因子
         
         let mut current_x = start_x;
         let mut current_y = start_y;

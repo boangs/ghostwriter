@@ -5,11 +5,7 @@ use log::{debug, error, info};
 use std::thread::sleep;
 use std::time::Duration;
 use crate::util::Asset;
-
-const INPUT_WIDTH: i32 = 15725;
-const INPUT_HEIGHT: i32 = 20967;
-const REMARKABLE_WIDTH: i32 = 1620;
-const REMARKABLE_HEIGHT: i32 = 2160;
+use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 pub struct Pen {
     device: Option<Device>,
@@ -22,11 +18,14 @@ impl Pen {
         }
     }
 
-    pub fn pen_up(&mut self) -> Result<()> {
+    pub fn pen_down(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.device {
             let events = vec![
-                InputEvent::new(EventType::ABSOLUTE, 0x18, 0),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
+                InputEvent::new(EventType::KEY, 320, 1),     // BTN_TOOL_PEN
+                InputEvent::new(EventType::KEY, 330, 1),     // BTN_TOUCH
+                InputEvent::new(EventType::ABSOLUTE, 24, 2630), // ABS_PRESSURE (max pressure)
+                InputEvent::new(EventType::ABSOLUTE, 25, 0),    // ABS_DISTANCE
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ];
             for event in events {
                 device.send_events(&[event])?;
@@ -35,11 +34,14 @@ impl Pen {
         Ok(())
     }
 
-    pub fn pen_down(&mut self) -> Result<()> {
+    pub fn pen_up(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.device {
             let events = vec![
-                InputEvent::new(EventType::ABSOLUTE, 0x18, 1),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
+                InputEvent::new(EventType::ABSOLUTE, 24, 0),    // ABS_PRESSURE
+                InputEvent::new(EventType::ABSOLUTE, 25, 100),  // ABS_DISTANCE
+                InputEvent::new(EventType::KEY, 330, 0),        // BTN_TOUCH
+                InputEvent::new(EventType::KEY, 320, 0),        // BTN_TOOL_PEN
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ];
             for event in events {
                 device.send_events(&[event])?;
