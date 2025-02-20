@@ -70,15 +70,15 @@ impl Keyboard {
                 }
                 
                 pen.pen_up()?;
-                sleep(Duration::from_millis(20));  // 笔画之间的停顿
+                sleep(Duration::from_millis(0));  // 笔画之间的停顿
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 100 {
+            if current_x > REMARKABLE_WIDTH - 500 {
                 current_y += line_height;
                 current_x = start_x;
                 
-                if current_y > REMARKABLE_HEIGHT - 100 {
+                if current_y > REMARKABLE_HEIGHT - 500 {
                     current_y = start_y;
                 }
             }
