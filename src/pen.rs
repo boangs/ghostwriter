@@ -115,6 +115,28 @@ impl Pen {
             Err(anyhow::anyhow!("找不到字体文件"))
         }
     }
+
+    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
+        let scale_x = INPUT_WIDTH as f32 / bitmap[0].len() as f32;
+        let scale_y = INPUT_HEIGHT as f32 / bitmap.len() as f32;
+        
+        for (y, row) in bitmap.iter().enumerate() {
+            for (x, &pixel) in row.iter().enumerate() {
+                if pixel {
+                    let x_pos = (x as f32 * scale_x) as i32;
+                    let y_pos = (y as f32 * scale_y) as i32;
+                    
+                    self.pen_down()?;
+                    self.goto_xy((x_pos, y_pos))?;
+                } else {
+                    self.pen_up()?;
+                }
+            }
+        }
+        
+        self.pen_up()?;
+        Ok(())
+    }
 }
 
 fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
