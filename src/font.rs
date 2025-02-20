@@ -16,7 +16,6 @@ impl FontRenderer {
         
         let font_data = Rc::new(font_data.to_vec());
         let face = lib.new_memory_face(font_data, 0)?;
-        face.set_pixel_sizes(0, 100)?;
         
         Ok(FontRenderer { face })
     }
@@ -25,76 +24,91 @@ impl FontRenderer {
         // 设置字体大小
         self.face.set_pixel_sizes(0, size as u32)?;
         
-        // 加载字符，使用 LOAD_DEFAULT 而不是 NO_SCALE
-        self.face.load_char(c as usize, freetype::face::LoadFlag::DEFAULT)?;
+        // 加载字符并进行光栅化
+        self.face.load_char(
+            c as usize, 
+            freetype::face::LoadFlag::RENDER | freetype::face::LoadFlag::MONOCHROME
+        )?;
         
+        let bitmap = self.face.glyph().bitmap();
+        let metrics = self.face.glyph().metrics();
+        
+        // 获取字形位图数据
         let mut strokes = Vec::new();
-        let outline = self.face.glyph().outline().unwrap();
-        
-        // 获取轮廓点，应用缩放并翻转 Y 坐标
-        let scale_factor = 0.02;  // 缩放因子
-        let points: Vec<_> = outline.points().iter()
-            .map(|p| (
-                (p.x as f32 * scale_factor) as i32,
-                (-p.y as f32 * scale_factor) as i32  // 注意这里加了负号
-            ))
-            .collect();
-            
-        // 根据轮廓标记分割笔画
         let mut current_stroke = Vec::new();
-        let contours = outline.contours();
         
-        let mut point_index = 0;
-        for &end_index in contours.iter() {
-            while point_index <= end_index as usize {
-                let point = points[point_index];
-                current_stroke.push(point);
+        let buffer = bitmap.buffer();
+        let width = bitmap.width() as usize;
+        let height = bitmap.rows() as usize;
+        
+        // 遍历位图的每一行
+        for y in 0..height {
+            let mut in_stroke = false;
+            let mut stroke_start = 0;
+            
+            // 遍历每一行的每个像素
+            for x in 0..width {
+                let byte = buffer[y * bitmap.pitch() as usize + (x >> 3)];
+                let bit = (byte >> (7 - (x & 7))) & 1;
                 
-                if point_index == end_index as usize {
-                    // 闭合轮廓
-                    if !current_stroke.is_empty() {
-                        current_stroke.push(current_stroke[0]);
-                        strokes.push(current_stroke.clone());
-                        current_stroke.clear();
+                if bit == 1 && !in_stroke {
+                    // 开始新的笔画
+                    in_stroke = true;
+                    stroke_start = x;
+                } else if (bit == 0 || x == width - 1) && in_stroke {
+                    // 结束当前笔画
+                    in_stroke = false;
+                    let stroke_end = if bit == 1 { x } else { x - 1 };
+                    
+                    // 添加水平线段
+                    let mut stroke = Vec::new();
+                    for px in (stroke_start..=stroke_end).step_by(1) {
+                        stroke.push((
+                            px as i32,
+                            y as i32
+                        ));
+                    }
+                    if !stroke.is_empty() {
+                        strokes.push(stroke);
                     }
                 }
-                
-                point_index += 1;
             }
         }
         
-        // 对每个笔画进行平滑处理
-        let smoothed_strokes = strokes.into_iter()
-            .map(|stroke| smooth_stroke(stroke))
-            .collect();
+        // 对笔画进行优化，合并相邻的水平线段
+        let optimized_strokes = optimize_strokes(strokes);
         
-        Ok(smoothed_strokes)
+        Ok(optimized_strokes)
     }
 }
 
-// 平滑笔画路径
-fn smooth_stroke(stroke: Vec<(i32, i32)>) -> Vec<(i32, i32)> {
-    if stroke.len() < 3 {
-        return stroke;
-    }
+fn optimize_strokes(strokes: Vec<Vec<(i32, i32)>>) -> Vec<Vec<(i32, i32)>> {
+    let mut optimized = Vec::new();
+    let mut current_stroke = Vec::new();
     
-    let mut result = Vec::new();
-    let steps = 5;  // 减少插值点数量
-    
-    for i in 0..stroke.len() - 1 {
-        let p0 = stroke[i];
-        let p1 = stroke[i + 1];
+    for stroke in strokes {
+        if current_stroke.is_empty() {
+            current_stroke = stroke;
+            continue;
+        }
         
-        // 在两点之间插入平滑过渡点
-        for step in 0..steps {
-            let t = step as f32 / steps as f32;
-            let x = p0.0 as f32 + (p1.0 - p0.0) as f32 * t;
-            let y = p0.1 as f32 + (p1.1 - p0.1) as f32 * t;
-            result.push((x as i32, y as i32));
+        // 检查是否可以与前一个笔画合并
+        let last_point = *current_stroke.last().unwrap();
+        let first_point = stroke[0];
+        
+        if (last_point.1 - first_point.1).abs() <= 1 {
+            // 可以合并
+            current_stroke.extend(stroke);
+        } else {
+            // 不能合并，开始新的笔画
+            optimized.push(current_stroke);
+            current_stroke = stroke;
         }
     }
     
-    // 添加最后一个点
-    result.push(*stroke.last().unwrap());
-    result
+    if !current_stroke.is_empty() {
+        optimized.push(current_stroke);
+    }
+    
+    optimized
 } 
