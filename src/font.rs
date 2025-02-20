@@ -32,7 +32,7 @@ impl FontRenderer {
         let outline = self.face.glyph().outline().unwrap();
         
         // 获取轮廓点，应用缩放并翻转 Y 坐标
-        let scale_factor = 0.01;  // 缩放因子
+        let scale_factor = 0.03;  // 缩放因子
         let points: Vec<_> = outline.points().iter()
             .map(|p| (
                 (p.x as f32 * scale_factor) as i32,

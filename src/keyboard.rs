@@ -25,7 +25,7 @@ impl Keyboard {
         
         // 调整起始位置和字符大小
         let start_x: u32 = 100;      // 左边距
-        let start_y: u32 = 200;      // 上边距
+        let start_y: u32 = 100;      // 上边距
         let char_width: u32 = 50;    // 字符宽度
         let line_height: u32 = 10;  // 行高
         let font_size = 30.0;        // 字体大小
