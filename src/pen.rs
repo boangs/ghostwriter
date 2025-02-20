@@ -24,10 +24,17 @@ impl Pen {
 
     pub fn write_text(&mut self, text: &str) -> Result<()> {
         debug!("开始书写文本: {}", text);
-        let start_x = 200;    // 起始位置右移一些
-        let start_y = 200;    // 起始位置下移一些
-        let char_width = 100;  // 字符间距
-        let line_height = 150; // 行间距
+        
+        // 设置合适的缩放比例
+        let scale_factor = 50.0;  // 调整字体大小
+        
+        // 设置起始位置和间距
+        let start_x = 2000;     // 在设备坐标系中右移
+        let start_y = 2000;     // 在设备坐标系中下移
+        let char_width = 1000;  // 字符间距（设备坐标系）
+        let line_height = 1500; // 行高（设备坐标系）
+        let max_x = INPUT_WIDTH - 2000;  // 留出右边距
+        
         let mut current_x = start_x;
         let mut current_y = start_y;
 
@@ -36,7 +43,7 @@ impl Pen {
             let strokes = self.get_char_strokes(c)?;
             
             // 检查是否需要换行
-            if current_x + char_width > REMARKABLE_WIDTH {
+            if current_x + char_width > max_x {
                 current_y += line_height;
                 current_x = start_x;
             }
@@ -47,19 +54,30 @@ impl Pen {
                 self.pen_up()?;
                 if let Some(&first_point) = stroke.first() {
                     let (x, y) = first_point;
-                    self.goto_xy((x + current_x, y + current_y))?;
+                    // 应用缩放和偏移
+                    let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
+                    let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
+                    self.goto_xy((scaled_x, scaled_y))?;
                     self.pen_down()?;
                     
                     // 绘制笔画的其余部分
                     for &(x, y) in stroke.iter().skip(1) {
-                        self.goto_xy((x + current_x, y + current_y))?;
+                        let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
+                        let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
+                        self.goto_xy((scaled_x, scaled_y))?;
                     }
                 }
                 self.pen_up()?;
+                
+                // 笔画之间添加短暂停顿
+                sleep(Duration::from_millis(50));
             }
             
             // 移动到下一个字符位置
             current_x += char_width;
+            
+            // 字符之间添加停顿
+            sleep(Duration::from_millis(100));
         }
         
         Ok(())
