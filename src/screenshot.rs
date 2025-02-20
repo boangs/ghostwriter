@@ -14,9 +14,6 @@ const HEIGHT: usize = 1404;
 const BYTES_PER_PIXEL: usize = 2;
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
-const REMARKABLE_WIDTH: u32 = 1404;
-const REMARKABLE_HEIGHT: u32 = 1872;
-
 const OUTPUT_WIDTH: u32 = 768;
 const OUTPUT_HEIGHT: u32 = 1024;
 

@@ -11,6 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::env;
+use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use ghostwriter::{
     keyboard::Keyboard,
@@ -21,9 +22,6 @@ use ghostwriter::{
     touch::Touch,
     util::{svg_to_bitmap, write_bitmap_to_file, OptionMap},
 };
-
-const REMARKABLE_WIDTH: u32 = 768;
-const REMARKABLE_HEIGHT: u32 = 1024;
 
 #[derive(Embed)]
 #[folder = "prompts/"]

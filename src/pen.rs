@@ -54,15 +54,12 @@ impl Pen {
         // 转换屏幕坐标到输入设备坐标
         let (input_x, input_y) = screen_to_input((x, y));
         
-        if let Some(ref mut device) = self.device {
-            let events = vec![
-                InputEvent::new(EventType::ABSOLUTE, 0x00, input_x),
-                InputEvent::new(EventType::ABSOLUTE, 0x01, input_y),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
-            ];
-            for event in events {
-                device.send_events(&[event])?;
-            }
+        if let Some(device) = &mut self.device {
+            device.send_events(&[
+                InputEvent::new(EventType::ABSOLUTE, 0, input_x),        // ABS_X
+                InputEvent::new(EventType::ABSOLUTE, 1, input_y),        // ABS_Y
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),       // SYN_REPORT
+            ])?;
         }
         Ok(())
     }
