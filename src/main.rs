@@ -147,7 +147,11 @@ fn main() -> Result<()> {
     info!("开始绘制 AI 回复");
     keyboard.write_text(&response_text)?;
     
-    Ok(())
+    if args.no_loop {
+        Ok(response_text)
+    } else {
+        Ok(response_text)
+    }
 }
 
 macro_rules! shared {
