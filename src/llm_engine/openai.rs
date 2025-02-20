@@ -113,16 +113,8 @@ impl LLMEngine for OpenAI {
     fn execute(&mut self) -> Result<String> {
         info!("执行 OpenAI LLM 引擎");
         
-        // 构建请求体
-        let messages = vec![json!({
-            "role": "user",
-            "content": &self.content
-        })];
-
-        let body = json!({
-            "model": self.model,
-            "messages": messages
-        });
+        // 使用 build_request 构建请求体
+        let body = self.build_request()?;
 
         // 发送请求
         let response = ureq::post(&format!("{}/v1/chat/completions", self.base_url))
