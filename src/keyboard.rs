@@ -21,11 +21,11 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         // 调整起始位置和字符大小
-        let start_x = 100;     // 左边距
-        let start_y = 100;     // 上边距
-        let char_width = 80;   // 字符宽度
-        let line_height = 100; // 行高
-        let scale_factor = 1.0; // 增大字体缩放因子
+        let start_x = 100;      // 左边距
+        let start_y = 200;      // 上边距
+        let char_width = 80;    // 字符宽度
+        let line_height = 100;  // 行高
+        let scale_factor = 0.1; // 缩小字体缩放因子
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -41,27 +41,30 @@ impl Keyboard {
                     
                     pen.pen_up()?;
                     let (sx, sy) = stroke[0];
+                    // 翻转 y 坐标并应用缩放
                     let scaled_x = (sx as f32 * scale_factor) as i32 + current_x;
-                    let scaled_y = (sy as f32 * scale_factor) as i32 + current_y;
+                    let scaled_y = (-sy as f32 * scale_factor) as i32 + current_y;
+                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", sx, sy, scaled_x, scaled_y);
                     pen.goto_xy((scaled_x, scaled_y))?;
                     pen.pen_down()?;
                     
                     for &(px, py) in stroke.iter().skip(1) {
                         let scaled_x = (px as f32 * scale_factor) as i32 + current_x;
-                        let scaled_y = (py as f32 * scale_factor) as i32 + current_y;
+                        let scaled_y = (-py as f32 * scale_factor) as i32 + current_y;
+                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", px, py, scaled_x, scaled_y);
                         pen.goto_xy((scaled_x, scaled_y))?;
                     }
                     
+                    pen.pen_up()?;
                     sleep(Duration::from_millis(50));
                 }
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 100 || current_y > REMARKABLE_HEIGHT - 100 {
+            if current_x > REMARKABLE_WIDTH - 100 {
                 current_y += line_height;
                 current_x = start_x;
                 
-                // 如果超出底部边界，重新从顶部开始
                 if current_y > REMARKABLE_HEIGHT - 100 {
                     current_y = start_y;
                 }
