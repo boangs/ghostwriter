@@ -37,11 +37,11 @@ pub struct Args {
     engine: String,
 
     /// LLM engine base URL
-    #[arg(long, env("ENGINE_BASE_URL"))]
+    #[arg(long, env = "ENGINE_BASE_URL")]
     engine_base_url: String,
 
     /// LLM engine API key
-    #[arg(long, env("ENGINE_API_KEY"))]
+    #[arg(long, env = "ENGINE_API_KEY")]
     engine_api_key: String,
 
     /// LLM model to use
