@@ -26,49 +26,36 @@ impl Pen {
         debug!("开始书写文本: {}", text);
         let start_x = 200;    // 起始位置右移一些
         let start_y = 200;    // 起始位置下移一些
-        let char_width = 100;  // 增加字符间距
-        let line_height = 150; // 增加行间距
+        let char_width = 100;  // 字符间距
+        let line_height = 150; // 行间距
         let mut current_x = start_x;
         let mut current_y = start_y;
 
         for c in text.chars() {
-            // 如果到达行尾，换行
-            if current_x > 700 {  // 减小行宽，避免超出屏幕
-                current_x = start_x;
-                current_y += line_height;
-            }
-
-            debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
+            // 获取字符的笔画
+            let strokes = self.get_char_strokes(c)?;
             
-            // 获取字符的笔画信息并绘制
-            if let Ok(strokes) = self.get_char_strokes(c) {
-                for stroke in strokes {
-                    if stroke.len() < 2 {
-                        continue;
-                    }
-                    
-                    // 移动到笔画起点
-                    self.pen_up()?;
-                    let (sx, sy) = stroke[0];
-                    self.goto_xy((current_x + sx, current_y + sy))?;
-                    self.pen_down()?;
-                    
-                    // 绘制笔画的其余部分
-                    for &(px, py) in stroke.iter().skip(1) {
-                        self.goto_xy((current_x + px, current_y + py))?;
-                    }
-                    
-                    // 笔画之间添加短暂停顿
-                    sleep(Duration::from_millis(50));
-                }
+            // 检查是否需要换行
+            if current_x + char_width > REMARKABLE_WIDTH {
+                current_y += line_height;
+                current_x = start_x;
+            }
+            
+            // 写入字符
+            for stroke in strokes {
+                // 移动笔画到当前位置
+                let adjusted_stroke: Vec<(i32, i32)> = stroke
+                    .iter()
+                    .map(|(x, y)| (x + current_x, y + current_y))
+                    .collect();
+                
+                self.write_stroke(&adjusted_stroke)?;
             }
             
             // 移动到下一个字符位置
             current_x += char_width;
-            
-            // 字符之间添加停顿
-            sleep(Duration::from_millis(100));
         }
+        
         Ok(())
     }
 
