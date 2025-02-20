@@ -20,12 +20,12 @@ impl Keyboard {
         debug!("模拟笔书写文本: {}", text);
         let mut pen = self.pen.lock().unwrap();
         
-        // 使用屏幕坐标系 (1404 x 1872)
-        let start_x = 200;     // 起始位置
-        let start_y = 200;
-        let char_width = 100;  // 字符宽度
-        let line_height = 150; // 行高
-        let scale_factor = 1.0; // 字体缩放
+        // 调整起始位置和字符大小
+        let start_x = 100;     // 左边距
+        let start_y = 100;     // 上边距
+        let char_width = 80;   // 字符宽度
+        let line_height = 100; // 行高
+        let scale_factor = 2.0; // 增大字体缩放因子
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -33,41 +33,33 @@ impl Keyboard {
         for c in text.chars() {
             debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
             
-            // 获取字符的笔画信息并绘制
             if let Ok(strokes) = pen.get_char_strokes(c) {
                 for stroke in strokes {
                     if stroke.len() < 2 {
                         continue;
                     }
                     
-                    // 移动到笔画起点
                     pen.pen_up()?;
                     let (sx, sy) = stroke[0];
                     let scaled_x = (sx as f32 * scale_factor) as i32 + current_x;
                     let scaled_y = (sy as f32 * scale_factor) as i32 + current_y;
-                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", sx, sy, scaled_x, scaled_y);
                     pen.goto_xy((scaled_x, scaled_y))?;
                     pen.pen_down()?;
                     
-                    // 绘制笔画的其余部分
                     for &(px, py) in stroke.iter().skip(1) {
                         let scaled_x = (px as f32 * scale_factor) as i32 + current_x;
                         let scaled_y = (py as f32 * scale_factor) as i32 + current_y;
-                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", px, py, scaled_x, scaled_y);
                         pen.goto_xy((scaled_x, scaled_y))?;
                     }
                     
-                    pen.pen_up()?;
                     sleep(Duration::from_millis(50));
                 }
             }
             
-            // 移动到下一个字符位置
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 200 {  // 留出右边距
+            if current_x > REMARKABLE_WIDTH - 100 {
                 current_y += line_height;
                 current_x = start_x;
-                debug!("换行: 从 x={} 到 start_x={}", current_x, start_x);
             }
             
             sleep(Duration::from_millis(100));

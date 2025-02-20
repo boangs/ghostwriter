@@ -49,10 +49,13 @@ impl Pen {
     }
 
     pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
+        // 转换屏幕坐标到输入设备坐标
+        let (input_x, input_y) = screen_to_input((x, y));
+        
         if let Some(ref mut device) = self.device {
             let events = vec![
-                InputEvent::new(EventType::ABSOLUTE, 0x00, x as i32),
-                InputEvent::new(EventType::ABSOLUTE, 0x01, y as i32),
+                InputEvent::new(EventType::ABSOLUTE, 0x00, input_x),
+                InputEvent::new(EventType::ABSOLUTE, 0x01, input_y),
                 InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
             ];
             for event in events {
@@ -139,9 +142,7 @@ impl Pen {
     }
 }
 
-fn screen_to_input(point: (i32, i32)) -> (i32, i32) {
-    let (x, y) = point;
-    // 坐标转换
+fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {
     let x_normalized = x as f32 / REMARKABLE_WIDTH as f32;
     let y_normalized = y as f32 / REMARKABLE_HEIGHT as f32;
     
