@@ -22,165 +22,47 @@ impl Pen {
         }
     }
 
-    pub fn write_text(&mut self, text: &str) -> Result<()> {
-        debug!("开始书写文本: {}", text);
-        
-        // 设置合适的缩放比例
-        let scale_factor = 50.0;  // 调整字体大小
-        
-        // 设置起始位置和间距
-        let start_x = 2000;     // 在设备坐标系中右移
-        let start_y = 2000;     // 在设备坐标系中下移
-        let char_width = 1000;  // 字符间距（设备坐标系）
-        let line_height = 1500; // 行高（设备坐标系）
-        let max_x = INPUT_WIDTH - 2000;  // 留出右边距
-        
-        let mut current_x = start_x;
-        let mut current_y = start_y;
-
-        for c in text.chars() {
-            debug!("绘制字符 '{}' 在位置 ({}, {})", c, current_x, current_y);
-            
-            // 获取字符的笔画
-            let strokes = self.get_char_strokes(c)?;
-            debug!("获取到 {} 个笔画", strokes.len());
-            
-            for (stroke_idx, stroke) in strokes.iter().enumerate() {
-                debug!("绘制第 {} 个笔画，包含 {} 个点", stroke_idx + 1, stroke.len());
-                
-                self.pen_up()?;
-                if let Some(&first_point) = stroke.first() {
-                    let (x, y) = first_point;
-                    let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
-                    let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
-                    debug!("笔画起点: 原始({}, {}) -> 缩放后({}, {})", x, y, scaled_x, scaled_y);
-                    self.goto_xy((scaled_x, scaled_y))?;
-                    self.pen_down()?;
-                    
-                    for &(x, y) in stroke.iter().skip(1) {
-                        let scaled_x = (x as f32 * scale_factor) as i32 + current_x;
-                        let scaled_y = (y as f32 * scale_factor) as i32 + current_y;
-                        debug!("笔画点: 原始({}, {}) -> 缩放后({}, {})", x, y, scaled_x, scaled_y);
-                        self.goto_xy((scaled_x, scaled_y))?;
-                    }
-                }
-                self.pen_up()?;
-                sleep(Duration::from_millis(50));
+    pub fn pen_up(&mut self) -> Result<()> {
+        if let Some(device) = &self.device {
+            let events = vec![
+                InputEvent::new(EventType::ABSOLUTE, 0x18, 0),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
+            ];
+            for event in events {
+                device.send_events(&[event])?;
             }
-            
-            current_x += char_width;
-            if current_x + char_width > max_x {
-                debug!("换行: 从 x={} 到 start_x={}", current_x, start_x);
-                current_y += line_height;
-                current_x = start_x;
-            }
-            
-            sleep(Duration::from_millis(100));
         }
-        
-        Ok(())
-    }
-
-    pub fn draw_line_screen(&mut self, p1: (i32, i32), p2: (i32, i32)) -> Result<()> {
-        self.draw_line(screen_to_input(p1), screen_to_input(p2))
-    }
-
-    pub fn draw_line(&mut self, (x1, y1): (i32, i32), (x2, y2): (i32, i32)) -> Result<()> {
-        let length = ((x2 as f32 - x1 as f32).powf(2.0) + (y2 as f32 - y1 as f32).powf(2.0)).sqrt();
-        
-        // 如果长度为0，说明是同一个点，直接返回
-        if length == 0.0 {
-            return Ok(());
-        }
-        
-        // 5.0 是点之间的最大距离
-        let steps = (length / 5.0).ceil() as i32;
-        let dx = (x2 - x1) / steps;
-        let dy = (y2 - y1) / steps;
-
-        self.pen_up()?;
-        self.goto_xy((x1, y1))?;
-        self.pen_down()?;
-
-        for i in 0..steps {
-            let x = x1 + dx * i;
-            let y = y1 + dy * i;
-            self.goto_xy((x, y))?;
-        }
-
-        self.pen_up()?;
         Ok(())
     }
 
     pub fn pen_down(&mut self) -> Result<()> {
-        if let Some(device) = &mut self.device {
-            debug!("笔落下");
-            device.send_events(&[
-                InputEvent::new(EventType::ABSOLUTE, 24, 4096),
-                InputEvent::new(EventType::KEY, 330, 1),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
-            ])?;
-            sleep(Duration::from_millis(10));
-        }
-        Ok(())
-    }
-
-    pub fn pen_up(&mut self) -> Result<()> {
-        if let Some(device) = &mut self.device {
-            debug!("笔抬起");
-            device.send_events(&[
-                InputEvent::new(EventType::ABSOLUTE, 24, 0),
-                InputEvent::new(EventType::KEY, 330, 0),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
-            ])?;
-            sleep(Duration::from_millis(10));
-        }
-        Ok(())
-    }
-
-    pub fn goto_xy_screen(&mut self, point: (i32, i32)) -> Result<()> {
-        self.goto_xy(screen_to_input(point))
-    }
-
-    pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
-        if let Some(device) = &mut self.device {
-            debug!("笔移动到: ({}, {})", x, y);
-            // 确保坐标在有效范围内
-            let x = x.clamp(0, 15725) as i32;
-            let y = y.clamp(0, 20967) as i32;
-            
-            device.send_events(&[
-                InputEvent::new(EventType::ABSOLUTE, 0, x),
-                InputEvent::new(EventType::ABSOLUTE, 1, y),
-                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0),
-            ])?;
-            sleep(Duration::from_millis(5));
-        }
-        Ok(())
-    }
-
-    pub fn draw_point(&mut self, (x, y): (i32, i32)) -> Result<()> {
-        debug!("笔开始绘制点: ({}, {})", x, y);
-        self.pen_down()?;
-        self.goto_xy((x, y))?;
-        self.pen_up()?;
-        debug!("笔结束绘制点");
-        Ok(())
-    }
-
-    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
-        info!("开始绘制位图");
-        for (y, row) in bitmap.iter().enumerate() {
-            for (x, &pixel) in row.iter().enumerate() {
-                if pixel {
-                    self.goto_xy((x as i32, y as i32))?;
-                }
+        if let Some(device) = &self.device {
+            let events = vec![
+                InputEvent::new(EventType::ABSOLUTE, 0x18, 1),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
+            ];
+            for event in events {
+                device.send_events(&[event])?;
             }
         }
         Ok(())
     }
 
-    pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
+    pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
+        if let Some(device) = &self.device {
+            let events = vec![
+                InputEvent::new(EventType::ABSOLUTE, 0x00, x as i32),
+                InputEvent::new(EventType::ABSOLUTE, 0x01, y as i32),
+                InputEvent::new(EventType::SYNCHRONIZATION, 0x00, 0),
+            ];
+            for event in events {
+                device.send_events(&[event])?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_char_strokes(&self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
         info!("开始获取字符 '{}' 的笔画", c);
         
         let library = match Library::init() {
