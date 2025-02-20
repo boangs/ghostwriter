@@ -104,20 +104,48 @@ fn main() -> Result<()> {
     options.insert("model".to_string(), args.model.clone());
     
     let mut engine = OpenAI::new(&options);
-    let response = match engine.execute() {
-        Ok(text) => {
-            info!("收到 AI 回复: {}", text);
-            text
-        },
-        Err(e) => {
-            error!("获取 AI 回复失败: {}", e);
-            return Err(anyhow::anyhow!("AI 回复失败: {}", e));
-        }
-    };
+    
+    // 添加文本内容
+    engine.add_text_content(&args.initial_text);
+    
+    // 注册回调函数来处理 AI 的回复
+    let response = Arc::new(Mutex::new(String::new()));
+    let response_clone = response.clone();
+    
+    engine.register_tool(
+        "write",
+        json!({
+            "name": "write",
+            "description": "Write the response text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The text to write"
+                    }
+                },
+                "required": ["text"]
+            }
+        }),
+        Box::new(move |args| {
+            let text = args["text"].as_str().unwrap_or_default();
+            *response_clone.lock().unwrap() = text.to_string();
+        })
+    );
+
+    // 执行并获取回复
+    if let Err(e) = engine.execute() {
+        error!("获取 AI 回复失败: {}", e);
+        return Err(anyhow::anyhow!("AI 回复失败: {}", e));
+    }
+
+    let response_text = response.lock().unwrap().clone();
+    info!("收到 AI 回复: {}", response_text);
 
     // 绘制 AI 回复的文字
     info!("开始绘制 AI 回复");
-    keyboard.write_text(&response)?;
+    keyboard.write_text(&response_text)?;
     
     Ok(())
 }
