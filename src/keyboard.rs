@@ -65,6 +65,10 @@ impl Keyboard {
             // 字符之间添加停顿
             sleep(Duration::from_millis(100));
         }
+
+        // 完成所有绘制后，确保笔是抬起的状态
+        pen.pen_up()?;
+        
         Ok(())
     }
 

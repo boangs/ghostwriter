@@ -38,9 +38,10 @@ impl Pen {
                 current_y += line_height;
             }
 
-            // 获取字符的笔画信息
+            debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
+            
+            // 获取字符的笔画信息并绘制
             if let Ok(strokes) = self.get_char_strokes(c) {
-                // 绘制每个笔画
                 for stroke in strokes {
                     if stroke.len() < 2 {
                         continue;
@@ -48,21 +49,25 @@ impl Pen {
                     
                     // 移动到笔画起点
                     self.pen_up()?;
-                    let (x, y) = stroke[0];
-                    self.goto_xy_screen((current_x + x, current_y + y))?;
+                    let (sx, sy) = stroke[0];
+                    self.goto_xy((current_x + sx, current_y + sy))?;
                     self.pen_down()?;
                     
-                    // 绘制笔画
-                    for &(x, y) in stroke.iter().skip(1) {
-                        self.goto_xy_screen((current_x + x, current_y + y))?;
+                    // 绘制笔画的其余部分
+                    for &(px, py) in stroke.iter().skip(1) {
+                        self.goto_xy((current_x + px, current_y + py))?;
                     }
                     
-                    sleep(Duration::from_millis(50)); // 笔画间停顿
+                    // 笔画之间添加短暂停顿
+                    sleep(Duration::from_millis(50));
                 }
             }
             
+            // 移动到下一个字符位置
             current_x += char_width;
-            sleep(Duration::from_millis(100)); // 字符间停顿
+            
+            // 字符之间添加停顿
+            sleep(Duration::from_millis(100));
         }
         Ok(())
     }
@@ -97,7 +102,6 @@ impl Pen {
         self.pen_up()?;
         Ok(())
     }
-
 
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
@@ -155,14 +159,23 @@ impl Pen {
         Ok(())
     }
 
+    pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
+        info!("开始绘制位图");
+        for (y, row) in bitmap.iter().enumerate() {
+            for (x, &pixel) in row.iter().enumerate() {
+                if pixel {
+                    self.goto_xy((x as i32, y as i32))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn get_char_strokes(&mut self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
         info!("开始获取字符 '{}' 的笔画", c);
         
         let library = match Library::init() {
-            Ok(lib) => {
-                info!("FreeType 库初始化成功");
-                lib
-            },
+            Ok(lib) => lib,
             Err(e) => {
                 error!("FreeType 库初始化失败: {}", e);
                 return Err(anyhow::anyhow!("FreeType 初始化失败"));
@@ -171,17 +184,12 @@ impl Pen {
         
         if let Some(font_data) = Asset::get("LXGWWenKaiScreen-Regular.ttf") {
             let face = library.new_memory_face(font_data.data.to_vec(), 0)?;
-            
-            // 设置更大的字体大小 (72 points * 64)
             face.set_char_size(0, 72 * 64, 96, 96)?;
-            
-            // 加载字符并获取轮廓
             face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
-            let glyph = face.glyph();
             
+            let glyph = face.glyph();
             let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
             
-            // 获取轮廓点并进行缩放
             let points = outline.points();
             let tags = outline.tags();
             let contours = outline.contours();
@@ -198,7 +206,6 @@ impl Pen {
                     let tag = tags[i];
                     
                     if tag & 0x1 != 0 {
-                        // 缩放坐标点，使其适应屏幕大小
                         let x = (point.x as f32 * 0.5) as i32;
                         let y = (point.y as f32 * 0.5) as i32;
                         current_stroke.push((x, y));
