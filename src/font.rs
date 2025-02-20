@@ -1,4 +1,4 @@
-use rusttype::{point, Font, Scale};
+use rusttype::{point, Font, Scale, Point, Vector};
 use anyhow::Result;
 use crate::util::Asset;
 
@@ -29,41 +29,57 @@ impl FontRenderer {
     pub fn get_char_strokes(&self, c: char, size: f32) -> Vec<Vec<(i32, i32)>> {
         let scale = Scale::uniform(size);
         let glyph = self.font.glyph(c).scaled(scale);
-        let glyph = glyph.positioned(point(0.0, 0.0));
-
-        if let Some(bitmap) = glyph.pixel_bounding_box() {
-            // 将相邻的点组合成笔画
+        
+        // 获取字形轮廓
+        if let Some(outline) = glyph.exact_outline() {
             let mut strokes = Vec::new();
             let mut current_stroke = Vec::new();
-            let mut last_point = None;
-
-            // 遍历位图中的点
-            glyph.draw(|x, y, v| {
-                if v > 0.5 {
-                    let point = (
-                        x as i32 + bitmap.min.x,
-                        y as i32 + bitmap.min.y
-                    );
-
-                    // 如果与上一个点距离太远，就开始新的笔画
-                    if let Some(last) = last_point {
-                        if manhattan_distance(last, point) > 1 {
-                            if !current_stroke.is_empty() {
-                                strokes.push(current_stroke.clone());
-                                current_stroke.clear();
-                            }
+            
+            // 遍历轮廓的控制点
+            for curve in outline.curves() {
+                match curve {
+                    rusttype::Curve::Line(p) => {
+                        // 直线段
+                        let point = (p.x as i32, p.y as i32);
+                        current_stroke.push(point);
+                    },
+                    rusttype::Curve::Quadratic(c, p) => {
+                        // 二次贝塞尔曲线，将其分解为多个点
+                        let steps = 10;  // 曲线细分程度
+                        for i in 0..=steps {
+                            let t = i as f32 / steps as f32;
+                            let x = (1.0 - t).powi(2) * current_stroke.last().unwrap().0 as f32
+                                + 2.0 * (1.0 - t) * t * c.x
+                                + t.powi(2) * p.x;
+                            let y = (1.0 - t).powi(2) * current_stroke.last().unwrap().1 as f32
+                                + 2.0 * (1.0 - t) * t * c.y
+                                + t.powi(2) * p.y;
+                            current_stroke.push((x as i32, y as i32));
+                        }
+                    },
+                    rusttype::Curve::Cubic(c1, c2, p) => {
+                        // 三次贝塞尔曲线，将其分解为多个点
+                        let steps = 15;  // 曲线细分程度
+                        for i in 0..=steps {
+                            let t = i as f32 / steps as f32;
+                            let x = (1.0 - t).powi(3) * current_stroke.last().unwrap().0 as f32
+                                + 3.0 * (1.0 - t).powi(2) * t * c1.x
+                                + 3.0 * (1.0 - t) * t.powi(2) * c2.x
+                                + t.powi(3) * p.x;
+                            let y = (1.0 - t).powi(3) * current_stroke.last().unwrap().1 as f32
+                                + 3.0 * (1.0 - t).powi(2) * t * c1.y
+                                + 3.0 * (1.0 - t) * t.powi(2) * c2.y
+                                + t.powi(3) * p.y;
+                            current_stroke.push((x as i32, y as i32));
                         }
                     }
-
-                    current_stroke.push(point);
-                    last_point = Some(point);
                 }
-            });
-
+            }
+            
             if !current_stroke.is_empty() {
                 strokes.push(current_stroke);
             }
-
+            
             strokes
         } else {
             Vec::new()
