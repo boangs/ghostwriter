@@ -32,21 +32,52 @@ struct Asset;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// LLM engine to use
+    /// Sets the engine to use (openai, anthropic);
+    /// Sometimes we can guess the engine from the model name
     #[arg(long)]
-    engine: String,
+    engine: Option<String>,
 
-    /// LLM engine base URL
-    #[arg(long, env = "ENGINE_BASE_URL")]
-    engine_base_url: String,
+    /// Sets the base URL for the engine API;
+    /// Or use environment variable OPENAI_BASE_URL or ANTHROPIC_BASE_URL
+    #[arg(long)]
+    engine_base_url: Option<String>,
 
-    /// LLM engine API key
-    #[arg(long, env = "ENGINE_API_KEY")]
-    engine_api_key: String,
+    /// Sets the API key for the engine;
+    /// Or use environment variable OPENAI_API_KEY or ANTHROPIC_API_KEY
+    #[arg(long)]
+    engine_api_key: Option<String>,
 
-    /// LLM model to use
-    #[arg(long, default_value = "gpt-4")]
+    /// Sets the model to use
+    #[arg(long, short, default_value = "claude-3-5-sonnet-latest")]
     model: String,
+
+    /// Sets the prompt to use
+    #[arg(long, default_value = "general.json")]
+    prompt: String,
+
+    /// Do not actually submit to the model, for testing
+    #[arg(short, long)]
+    no_submit: bool,
+
+    /// Skip running draw_text or draw_svg
+    #[arg(long)]
+    no_draw: bool,
+
+    /// Disable keyboard progress
+    #[arg(long)]
+    no_draw_progress: bool,
+
+    /// Input PNG file for testing
+    #[arg(long)]
+    input_png: Option<String>,
+
+    /// Output file for testing
+    #[arg(long)]
+    output_file: Option<String>,
+
+    /// Output file for model parameters
+    #[arg(long)]
+    model_output_file: Option<String>,
 
     /// Save screenshot filename
     #[arg(long)]
@@ -55,14 +86,6 @@ pub struct Args {
     /// Save bitmap filename
     #[arg(long)]
     save_bitmap: Option<String>,
-
-    /// Output file
-    #[arg(long)]
-    output_file: Option<String>,
-
-    /// Disable drawing
-    #[arg(long)]
-    no_draw: bool,
 
     /// Disable looping
     #[arg(long)]
@@ -79,9 +102,6 @@ pub struct Args {
     /// Set the log level. Try 'debug' or 'trace'
     #[arg(long, default_value = "info")]
     log_level: String,
-
-    #[arg(long, default_value = "你好，写一篇200字的笑话")]
-    initial_text: String,
 }
 
 fn main() -> Result<()> {
