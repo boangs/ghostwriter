@@ -3,21 +3,27 @@ use anyhow::Result;
 use crate::util::Asset;
 
 pub struct FontRenderer {
+    font_data: Vec<u8>,          // 存储字体数据
     font: Font<'static>,
 }
 
 impl FontRenderer {
     pub fn new() -> Result<Self> {
-        // 加载字体并转换为 'static 生命周期的数据
-        let font_data: Vec<u8> = Asset::get("LXGWWenKaiScreen-Regular.ttf")
+        // 加载字体数据
+        let font_data = Asset::get("LXGWWenKaiScreen-Regular.ttf")
             .expect("Failed to load font")
             .data
-            .to_vec();  // 转换为拥有的数据
+            .to_vec();
             
-        let font = Font::try_from_bytes(&font_data)
+        // 使用 Box::leak 将数据转换为 'static 生命周期
+        let font_bytes = Box::leak(font_data.clone().into_boxed_slice());
+        let font = Font::try_from_bytes(font_bytes)
             .expect("Failed to parse font");
             
-        Ok(FontRenderer { font })
+        Ok(FontRenderer { 
+            font_data: font_data,  // 保存数据所有权
+            font 
+        })
     }
 
     pub fn get_char_bitmap(&self, c: char, size: f32) -> Vec<(i32, i32)> {
