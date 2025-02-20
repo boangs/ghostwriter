@@ -38,12 +38,12 @@ impl FontRenderer {
         let contours = outline.contours();
         
         let mut point_index = 0;
-        for &end_index in contours {
-            while point_index <= *end_index as usize {
+        for end_index in contours {
+            while point_index <= end_index as usize {
                 let point = points[point_index];
                 current_stroke.push(point);
                 
-                if point_index == *end_index as usize {
+                if point_index == end_index as usize {
                     // 闭合轮廓
                     if !current_stroke.is_empty() {
                         current_stroke.push(current_stroke[0]);
