@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use env_logger;
 use log::{debug, info, error};
 use rust_embed::Embed;
-use serde_json::Value as json;
+use serde_json::{json, Value as JsonValue};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
