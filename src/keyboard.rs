@@ -42,6 +42,7 @@ impl Keyboard {
                 current_y as i32
             )?;
             svg.push_str(&char_svg);
+            debug!("生成字符 {} 的 SVG: {}", c, char_svg);
             
             current_x += char_width;
             if current_x > REMARKABLE_WIDTH - 500 {
@@ -51,8 +52,8 @@ impl Keyboard {
         }
         
         svg.push_str("</svg>");
+        debug!("完整的 SVG: {}", svg);
         
-        // 使用现有的 SVG 渲染功能
         let bitmap = svg_to_bitmap(&svg, REMARKABLE_WIDTH as u32, REMARKABLE_HEIGHT as u32)?;
         pen.draw_bitmap(&bitmap)?;
         

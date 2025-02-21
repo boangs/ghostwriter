@@ -65,10 +65,10 @@ impl FontRenderer {
     }
 
     pub fn char_to_svg(&self, c: char, size: f32, x: i32, y: i32) -> Result<String> {
-        self.face.set_char_size(0, (size * 64.0) as isize, 96, 96)?;
+        self.face.set_pixel_sizes(0, size as u32)?;
         self.face.load_char(
             c as usize, 
-            freetype::face::LoadFlag::NO_SCALE
+            freetype::face::LoadFlag::DEFAULT
         )?;
         
         let glyph = self.face.glyph();
@@ -78,7 +78,7 @@ impl FontRenderer {
         let tags = outline.tags();
         let contours = outline.contours();
         
-        let scale = 0.2;
+        let scale = 1.0;
         let mut path_data = String::new();
         let mut start: usize = 0;
         
@@ -86,14 +86,14 @@ impl FontRenderer {
             let end_idx = *end as usize;
             path_data.push_str(&format!("M {} {} ", 
                 x + (points[start].x as f32 * scale) as i32,
-                y + (points[start].y as f32 * scale) as i32
+                y - (points[start].y as f32 * scale) as i32
             ));
             
             for i in (start + 1)..=end_idx {
                 let point = points[i];
                 path_data.push_str(&format!("L {} {} ",
                     x + (point.x as f32 * scale) as i32,
-                    y + (point.y as f32 * scale) as i32
+                    y - (point.y as f32 * scale) as i32
                 ));
             }
             
