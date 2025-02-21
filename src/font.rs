@@ -24,7 +24,7 @@ impl FontRenderer {
         self.face.set_pixel_sizes(0, size as u32)?;
         self.face.load_char(
             c as usize, 
-            freetype::face::LoadFlag::NO_SCALE
+            freetype::face::LoadFlag::DEFAULT
         )?;
         
         let glyph = self.face.glyph();
@@ -37,7 +37,7 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let mut start: usize = 0;
         
-        let scale = 0.01;
+        let scale = 0.02;
         
         for end in contours.iter() {
             let mut current_stroke = Vec::new();
@@ -49,12 +49,15 @@ impl FontRenderer {
                 
                 if tag & 0x1 != 0 {
                     let x = (point.x as f32 * scale) as i32;
-                    let y = (point.y as f32 * scale) as i32;
+                    let y = -(point.y as f32 * scale) as i32;
                     current_stroke.push((x, y));
                 }
             }
             
             if !current_stroke.is_empty() {
+                if current_stroke[0] != *current_stroke.last().unwrap() {
+                    current_stroke.push(current_stroke[0]);
+                }
                 strokes.push(current_stroke);
             }
             
