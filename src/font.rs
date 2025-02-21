@@ -37,7 +37,7 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let mut start: usize = 0;
         
-        let scale = 0.2;
+        let scale = 0.02;
         
         for end in contours.iter() {
             let mut current_stroke = Vec::new();
