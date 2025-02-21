@@ -23,55 +23,38 @@ impl Keyboard {
         debug!("模拟笔书写文本: {}", text);
         let mut pen = self.pen.lock().unwrap();
         
-        // 调整起始位置和字符大小
-        let start_x: u32 = 100;      // 左边距
-        let start_y: u32 = 100;      // 上边距
-        let char_width: u32 = 50;    // 字符宽度
-        let line_height: u32 = 10;  // 行高
-        let font_size = 30.0;        // 字体大小
+        let start_x: u32 = 100;
+        let start_y: u32 = 100;
+        let char_width: u32 = 50;
+        let font_size = 30.0;
+        
+        let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872">"#);
         
         let mut current_x = start_x;
         let mut current_y = start_y;
-
+        
         for c in text.chars() {
-            debug!("开始绘制字符: {} 在位置 ({}, {})", c, current_x, current_y);
-            
-            // 获取字符的笔画
-            let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
-            
-            // 绘制每个笔画
-            for stroke in strokes {
-                if stroke.len() < 2 {
-                    continue;
-                }
-                
-                // 移动到笔画起点
-                pen.pen_up()?;
-                let (x, y) = stroke[0];
-                pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                pen.pen_down()?;
-                
-                // 连续绘制整个笔画
-                for &(x, y) in stroke.iter().skip(1) {
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(0));
-                }
-            }
+            let char_svg = self.font_renderer.char_to_svg(
+                c, 
+                font_size,
+                current_x as i32,
+                current_y as i32
+            )?;
+            svg.push_str(&char_svg);
             
             current_x += char_width;
             if current_x > REMARKABLE_WIDTH - 500 {
-                current_y += line_height;
+                current_y += char_width;
                 current_x = start_x;
-                
-                if current_y > REMARKABLE_HEIGHT - 500 {
-                    current_y = start_y;
-                }
             }
-            
-            sleep(Duration::from_millis(50));
         }
         
-        pen.pen_up()?;
+        svg.push_str("</svg>");
+        
+        // 使用现有的 SVG 渲染功能
+        let bitmap = svg_to_bitmap(&svg, REMARKABLE_WIDTH as u32, REMARKABLE_HEIGHT as u32)?;
+        pen.draw_bitmap(&bitmap)?;
+        
         Ok(())
     }
 
