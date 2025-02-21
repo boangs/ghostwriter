@@ -65,6 +65,7 @@ impl Pen {
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
         let scale_x = INPUT_WIDTH as f32 / bitmap[0].len() as f32;
         let scale_y = INPUT_HEIGHT as f32 / bitmap.len() as f32;
+        let mut pen_state = false;  // 跟踪笔的状态
         
         for (y, row) in bitmap.iter().enumerate() {
             for (x, &pixel) in row.iter().enumerate() {
@@ -72,15 +73,21 @@ impl Pen {
                     let x_pos = (x as f32 * scale_x) as i32;
                     let y_pos = (y as f32 * scale_y) as i32;
                     
-                    self.pen_down()?;
+                    if !pen_state {
+                        self.pen_down()?;
+                        pen_state = true;
+                    }
                     self.goto_xy((x_pos, y_pos))?;
-                } else {
+                } else if pen_state {
                     self.pen_up()?;
+                    pen_state = false;
                 }
             }
         }
         
-        self.pen_up()?;
+        if pen_state {
+            self.pen_up()?;
+        }
         Ok(())
     }
 }
