@@ -22,7 +22,10 @@ impl FontRenderer {
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
         self.face.set_char_size(0, (size * 64.0) as isize, 96, 96)?;
-        self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
+        self.face.load_char(
+            c as usize, 
+            freetype::face::LoadFlag::FORCE_AUTOHINT | freetype::face::LoadFlag::NO_BITMAP
+        )?;
         
         let glyph = self.face.glyph();
         let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
@@ -34,7 +37,7 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let mut start: usize = 0;
         
-        let scale = size / 2048.0;  // 调整缩放因子
+        let scale = size / 64.0;
         
         for end in contours.iter() {
             let mut current_stroke = Vec::new();
@@ -44,14 +47,17 @@ impl FontRenderer {
                 let point = points[i];
                 let tag = tags[i];
                 
-                if tag & 0x1 != 0 {  // 只取轮廓点
+                if tag & 0x1 != 0 {
                     let x = (point.x as f32 * scale) as i32;
-                    let y = (-point.y as f32 * scale) as i32;  // 翻转 Y 坐标
+                    let y = (-point.y as f32 * scale) as i32;
                     current_stroke.push((x, y));
                 }
             }
             
             if !current_stroke.is_empty() {
+                if current_stroke[0] != *current_stroke.last().unwrap() {
+                    current_stroke.push(current_stroke[0]);
+                }
                 strokes.push(current_stroke);
             }
             

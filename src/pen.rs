@@ -1,10 +1,8 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use freetype::Library;
 use log::{debug, error, info};
 use std::thread::sleep;
 use std::time::Duration;
-use crate::util::Asset;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 pub struct Pen {
@@ -62,60 +60,6 @@ impl Pen {
             ])?;
         }
         Ok(())
-    }
-
-    pub fn get_char_strokes(&self, c: char) -> Result<Vec<Vec<(i32, i32)>>> {
-        info!("开始获取字符 '{}' 的笔画", c);
-        
-        let library = match Library::init() {
-            Ok(lib) => lib,
-            Err(e) => {
-                error!("FreeType 库初始化失败: {}", e);
-                return Err(anyhow::anyhow!("FreeType 初始化失败"));
-            }
-        };
-        
-        if let Some(font_data) = Asset::get("LXGWWenKaiScreen-Regular.ttf") {
-            let face = library.new_memory_face(font_data.data.to_vec(), 0)?;
-            face.set_char_size(0, 72 * 64, 96, 96)?;
-            face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
-            
-            let glyph = face.glyph();
-            let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
-            
-            let points = outline.points();
-            let tags = outline.tags();
-            let contours = outline.contours();
-            
-            let mut strokes = Vec::new();
-            let mut start: usize = 0;
-            
-            for end in contours.iter() {
-                let mut current_stroke = Vec::new();
-                let end_idx = *end as usize;
-                
-                for i in start..=end_idx {
-                    let point = points[i];
-                    let tag = tags[i];
-                    
-                    if tag & 0x1 != 0 {
-                        let x = (point.x as f32 * 0.5) as i32;
-                        let y = (point.y as f32 * 0.5) as i32;
-                        current_stroke.push((x, y));
-                    }
-                }
-                
-                if !current_stroke.is_empty() {
-                    strokes.push(current_stroke);
-                }
-                
-                start = end_idx + 1;
-            }
-            
-            Ok(strokes)
-        } else {
-            Err(anyhow::anyhow!("找不到字体文件"))
-        }
     }
 
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
