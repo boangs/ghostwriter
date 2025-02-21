@@ -22,50 +22,47 @@ impl FontRenderer {
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
         self.face.set_pixel_sizes(0, size as u32)?;
-        self.face.load_char(c as usize, freetype::face::LoadFlag::RENDER | freetype::face::LoadFlag::MONOCHROME)?;
+        self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
         
-        let bitmap = self.face.glyph().bitmap();
-        let metrics = self.face.glyph().metrics();
+        let glyph = self.face.glyph();
+        let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
         
-        let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
-        let mut current_stroke: Vec<(i32, i32)> = Vec::new();
+        let points = outline.points();
+        let tags = outline.tags();
+        let contours = outline.contours();
         
-        let buffer = bitmap.buffer();
-        let width = bitmap.width() as usize;
-        let height = bitmap.rows() as usize;
+        let mut strokes = Vec::new();
+        let mut start: usize = 0;
         
-        for y in 0..height {
-            let mut in_stroke = false;
-            let mut stroke_start = 0;
+        let scale = size / 1000.0;  // 缩放因子
+        
+        for end in contours.iter() {
+            let mut current_stroke = Vec::new();
+            let end_idx = *end as usize;
             
-            for x in 0..width {
-                let byte = buffer[y * bitmap.pitch() as usize + (x >> 3)];
-                let bit = (byte >> (7 - (x & 7))) & 1;
+            for i in start..=end_idx {
+                let point = points[i];
+                let tag = tags[i];
                 
-                if bit == 1 && !in_stroke {
-                    in_stroke = true;
-                    stroke_start = x;
-                } else if (bit == 0 || x == width - 1) && in_stroke {
-                    in_stroke = false;
-                    let stroke_end = if bit == 1 { x } else { x - 1 };
-                    
-                    let mut stroke: Vec<(i32, i32)> = Vec::new();
-                    for px in (stroke_start..=stroke_end).step_by(1) {
-                        stroke.push((
-                            px as i32,
-                            y as i32
-                        ));
-                    }
-                    if !stroke.is_empty() {
-                        strokes.push(stroke);
-                    }
+                if tag & 0x1 != 0 {  // 只取轮廓点
+                    let x = (point.x as f32 * scale) as i32;
+                    let y = (-point.y as f32 * scale) as i32;  // 翻转 Y 坐标
+                    current_stroke.push((x, y));
                 }
             }
+            
+            if !current_stroke.is_empty() {
+                // 闭合笔画
+                if current_stroke[0] != *current_stroke.last().unwrap() {
+                    current_stroke.push(current_stroke[0]);
+                }
+                strokes.push(current_stroke);
+            }
+            
+            start = end_idx + 1;
         }
         
-        let optimized_strokes = optimize_strokes(strokes);
-        
-        Ok(optimized_strokes)
+        Ok(strokes)
     }
 }
 
