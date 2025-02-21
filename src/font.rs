@@ -21,7 +21,7 @@ impl FontRenderer {
     }
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
-        self.face.set_pixel_sizes(0, size as u32)?;
+        self.face.set_char_size(0, (size * 64.0) as i32, 96, 96)?;
         self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
         
         let glyph = self.face.glyph();
@@ -34,7 +34,7 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let mut start: usize = 0;
         
-        let scale = size / 1000.0;  // 缩放因子
+        let scale = size / 2048.0;  // 调整缩放因子
         
         for end in contours.iter() {
             let mut current_stroke = Vec::new();
@@ -52,10 +52,6 @@ impl FontRenderer {
             }
             
             if !current_stroke.is_empty() {
-                // 闭合笔画
-                if current_stroke[0] != *current_stroke.last().unwrap() {
-                    current_stroke.push(current_stroke[0]);
-                }
                 strokes.push(current_stroke);
             }
             
