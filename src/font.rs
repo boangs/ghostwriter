@@ -21,7 +21,7 @@ impl FontRenderer {
     }
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
-        self.face.set_char_size(0, (size * 64.0) as i32, 96, 96)?;
+        self.face.set_char_size(0, (size * 64.0) as isize, 96, 96)?;
         self.face.load_char(c as usize, freetype::face::LoadFlag::NO_SCALE)?;
         
         let glyph = self.face.glyph();
