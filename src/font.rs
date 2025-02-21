@@ -21,7 +21,7 @@ impl FontRenderer {
     }
 
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<Vec<Vec<(i32, i32)>>> {
-        self.face.set_char_size(0, (size * 64.0) as isize, 96, 96)?;
+        self.face.set_pixel_sizes(0, size as u32)?;
         self.face.load_char(
             c as usize, 
             freetype::face::LoadFlag::NO_SCALE
@@ -37,7 +37,7 @@ impl FontRenderer {
         let mut strokes = Vec::new();
         let mut start: usize = 0;
         
-        let scale = 0.2;  // 调整缩放因子为 0.2
+        let scale = 0.2;
         
         for end in contours.iter() {
             let mut current_stroke = Vec::new();
