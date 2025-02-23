@@ -27,37 +27,48 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y: u32 = 100;
         let char_width: u32 = 35;
+        let line_height: u32 = 45;  // 增加行高
         let font_size = 35.0;
         
         let mut current_x = start_x;
         let mut current_y = start_y;
         
         for c in text.chars() {
-            // 获取字符的笔画数据
-            let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
-            
-            // 绘制每个笔画
-            for stroke in strokes {
-                if stroke.len() < 2 {
-                    continue;
+            match c {
+                ' ' => {
+                    // 处理空格
+                    current_x += char_width;
                 }
-                
-                // 移动到笔画起点
-                let (x, y) = stroke[0];
-                pen.pen_up()?;
-                pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                pen.pen_down()?;
-                
-                // 连续绘制笔画
-                for &(x, y) in stroke.iter().skip(1) {
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(0));
+                '\n' => {
+                    // 处理换行
+                    current_y += line_height;
+                    current_x = start_x;
+                }
+                _ => {
+                    // 绘制普通字符
+                    let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
+                    for stroke in strokes {
+                        if stroke.len() < 2 {
+                            continue;
+                        }
+                        
+                        let (x, y) = stroke[0];
+                        pen.pen_up()?;
+                        pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                        pen.pen_down()?;
+                        
+                        for &(x, y) in stroke.iter().skip(1) {
+                            pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                            sleep(Duration::from_millis(0));
+                        }
+                    }
+                    current_x += char_width;
                 }
             }
             
-            current_x += char_width;
+            // 检查是否需要换行
             if current_x > REMARKABLE_WIDTH - 600 {
-                current_y += char_width+10;
+                current_y += line_height;
                 current_x = start_x;
             }
             
