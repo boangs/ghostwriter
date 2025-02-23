@@ -29,14 +29,8 @@ impl Keyboard {
         let char_width: u32 = 100;
         let font_size = 80.0;    // 增大字体
         
-        // 添加字体声明
-        let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872">
-        <style>
-            @font-face {
-                font-family: 'LXGWWenKaiScreen-Regular';
-                src: url('data:font/ttf;base64,{font_data}');
-            }
-        </style>"#);
+        // 简化 SVG 头部
+        let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872">"#);
         
         let mut current_x = start_x;
         let mut current_y = start_y;
