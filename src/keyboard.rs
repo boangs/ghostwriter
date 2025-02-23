@@ -56,8 +56,8 @@ impl Keyboard {
             }
             
             current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 500 {
-                current_y += char_width;
+            if current_x > REMARKABLE_WIDTH - 800 {
+                current_y += char_width+5;
                 current_x = start_x;
             }
             
