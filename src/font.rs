@@ -33,6 +33,10 @@ impl FontRenderer {
         let height = bitmap.rows() as usize;
         let buffer = bitmap.buffer();
         
+        // 获取字形度量信息
+        let metrics = glyph.metrics();
+        let baseline = (metrics.horiBearingY >> 6) as i32;  // 基线位置
+        
         let mut strokes = Vec::new();
         let mut current_stroke = Vec::new();
         let scale = 1.0;
@@ -45,7 +49,6 @@ impl FontRenderer {
                 
                 if bit == 1 {
                     if !in_stroke {
-                        // 开始新的笔画
                         if !current_stroke.is_empty() {
                             strokes.push(current_stroke);
                             current_stroke = Vec::new();
@@ -53,7 +56,8 @@ impl FontRenderer {
                         in_stroke = true;
                     }
                     let px = (x as f32 * scale) as i32;
-                    let py = (y as f32 * scale) as i32;
+                    // 调整 y 坐标，使其相对于基线
+                    let py = ((y as f32 * scale) as i32) - baseline;
                     current_stroke.push((px, py));
                 } else if in_stroke {
                     in_stroke = false;
