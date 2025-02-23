@@ -51,13 +51,13 @@ impl Keyboard {
                 // 连续绘制笔画
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(1));
+                    sleep(Duration::from_millis(0));
                 }
             }
             
             current_x += char_width;
             if current_x > REMARKABLE_WIDTH - 600 {
-                current_y += char_width+5;
+                current_y += char_width+10;
                 current_x = start_x;
             }
             
