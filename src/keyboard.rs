@@ -26,8 +26,8 @@ impl Keyboard {
         
         let start_x: u32 = 100;
         let start_y: u32 = 200;
-        let char_width: u32 = 100;
-        let font_size = 30.0;
+        let char_width: u32 = 35;
+        let font_size = 35.0;
         
         let mut current_x = start_x;
         let mut current_y = start_y;
