@@ -25,7 +25,7 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y: u32 = 200;
+        let start_y: u32 = 100;
         let char_width: u32 = 35;
         let font_size = 35.0;
         
@@ -51,7 +51,7 @@ impl Keyboard {
                 // 连续绘制笔画
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(1));
+                    sleep(::from_millis(0));
                 }
             }
             
@@ -61,7 +61,7 @@ impl Keyboard {
                 current_x = start_x;
             }
             
-            sleep(Duration::from_millis(10));
+            sleep(Duration::from_millis(0));
         }
         
         pen.pen_up()?;
