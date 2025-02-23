@@ -25,11 +25,18 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y: u32 = 100;
-        let char_width: u32 = 100;  // 增加字符间距
-        let font_size = 50.0;      // 增加字体大小
+        let start_y: u32 = 200;  // 增加上边距
+        let char_width: u32 = 100;
+        let font_size = 80.0;    // 增大字体
         
-        let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872">"#);
+        // 添加字体声明
+        let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872">
+        <style>
+            @font-face {
+                font-family: 'LXGWWenKaiScreen-Regular';
+                src: url('data:font/ttf;base64,{font_data}');
+            }
+        </style>"#);
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -42,7 +49,6 @@ impl Keyboard {
                 current_y as i32
             )?;
             svg.push_str(&char_svg);
-            debug!("生成字符 {} 的 SVG: {}", c, char_svg);
             
             current_x += char_width;
             if current_x > REMARKABLE_WIDTH - 500 {

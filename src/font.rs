@@ -68,45 +68,22 @@ impl FontRenderer {
     }
 
     pub fn char_to_svg(&self, c: char, size: f32, x: i32, y: i32) -> Result<String> {
-        self.face.set_pixel_sizes(0, size as u32)?;
+        self.face.set_pixel_sizes(0, (size * 2.0) as u32)?;
         self.face.load_char(
             c as usize, 
-            freetype::face::LoadFlag::DEFAULT
+            freetype::face::LoadFlag::RENDER
         )?;
         
         let glyph = self.face.glyph();
-        let outline = glyph.outline().ok_or_else(|| anyhow::anyhow!("无法获取字符轮廓"))?;
+        let bitmap = glyph.bitmap();
+        let metrics = glyph.metrics();
         
-        let points = outline.points();
-        let tags = outline.tags();
-        let contours = outline.contours();
-        
-        let scale = 1.0;
-        let mut path_data = String::new();
-        let mut start: usize = 0;
-        
-        for end in contours.iter() {
-            let end_idx = *end as usize;
-            path_data.push_str(&format!("M {} {} ", 
-                x + (points[start].x as f32 * scale) as i32,
-                y - (points[start].y as f32 * scale) as i32
-            ));
-            
-            for i in (start + 1)..=end_idx {
-                let point = points[i];
-                path_data.push_str(&format!("L {} {} ",
-                    x + (point.x as f32 * scale) as i32,
-                    y - (point.y as f32 * scale) as i32
-                ));
-            }
-            
-            path_data.push('Z');
-            start = end_idx + 1;
-        }
-
         Ok(format!(
-            r#"<path d="{}" fill="black" />"#,
-            path_data
+            r#"<text x="{}" y="{}" font-family="LXGWWenKaiScreen-Regular" font-size="{}" fill="black">{}</text>"#,
+            x,
+            y + (size as i32),
+            size,
+            c
         ))
     }
 }
