@@ -27,8 +27,8 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y: u32 = 100;
         let char_width: u32 = 35;
-        let line_height: u32 = 45;  // 增加行高
-        let font_size = 35.0;
+        let line_height: u32 = 40;  // 增加行高
+        let font_size = 32.0;
         
         let mut current_x = start_x;
         let mut current_y = start_y;
