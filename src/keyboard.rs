@@ -27,7 +27,7 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y: u32 = 200;
         let char_width: u32 = 100;
-        let font_size = 80.0;
+        let font_size = 30.0;
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -61,7 +61,7 @@ impl Keyboard {
                 current_x = start_x;
             }
             
-            sleep(Duration::from_millis(50));
+            sleep(Duration::from_millis(10));
         }
         
         pen.pen_up()?;
