@@ -90,6 +90,13 @@ impl Pen {
         }
         Ok(())
     }
+
+    pub fn send_events(&mut self, events: &[InputEvent]) -> Result<()> {
+        if let Some(ref mut device) = self.device {
+            device.send_events(events)?;
+        }
+        Ok(())
+    }
 }
 
 fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {

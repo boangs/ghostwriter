@@ -6,6 +6,7 @@ use std::time::Duration;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use crate::font::FontRenderer;
 use crate::util::svg_to_bitmap;
+use evdev::{Device, EventType, InputEvent};
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
@@ -49,16 +50,14 @@ impl Keyboard {
                             continue;
                         }
                         
-                        // 一次性发送整个笔画的所有点
-                        let mut events = Vec::new();
-                        
                         // 移动到起点
                         let (x, y) = stroke[0];
                         pen.pen_up()?;
                         pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
                         pen.pen_down()?;
                         
-                        // 批量添加所有点的事件
+                        // 批量创建所有点的事件
+                        let mut events = Vec::new();
                         for &(x, y) in stroke.iter().skip(1) {
                             events.push(InputEvent::new(EventType::ABSOLUTE, 0, x + current_x as i32));
                             events.push(InputEvent::new(EventType::ABSOLUTE, 1, y + current_y as i32));
@@ -66,9 +65,7 @@ impl Keyboard {
                         }
                         
                         // 一次性发送所有事件
-                        if let Some(ref mut device) = pen.device {
-                            device.send_events(&events)?;
-                        }
+                        pen.send_events(&events)?;
                     }
                     current_x += char_width;
                 }
