@@ -27,7 +27,7 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y: u32 = 100;
         let char_width: u32 = 35;
-        let line_height: u32 = 40;  // 增加行高
+        let line_height: u32 = 40;
         let font_size = 32.0;
         
         let mut current_x = start_x;
@@ -36,43 +36,48 @@ impl Keyboard {
         for c in text.chars() {
             match c {
                 ' ' => {
-                    // 处理空格
                     current_x += char_width;
                 }
                 '\n' => {
-                    // 处理换行
                     current_y += line_height;
                     current_x = start_x;
                 }
                 _ => {
-                    // 绘制普通字符
                     let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
                     for stroke in strokes {
                         if stroke.len() < 2 {
                             continue;
                         }
                         
+                        // 一次性发送整个笔画的所有点
+                        let mut events = Vec::new();
+                        
+                        // 移动到起点
                         let (x, y) = stroke[0];
                         pen.pen_up()?;
                         pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
                         pen.pen_down()?;
                         
+                        // 批量添加所有点的事件
                         for &(x, y) in stroke.iter().skip(1) {
-                            pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                            sleep(Duration::from_millis(1));
+                            events.push(InputEvent::new(EventType::ABSOLUTE, 0, x + current_x as i32));
+                            events.push(InputEvent::new(EventType::ABSOLUTE, 1, y + current_y as i32));
+                            events.push(InputEvent::new(EventType::SYNCHRONIZATION, 0, 0));
+                        }
+                        
+                        // 一次性发送所有事件
+                        if let Some(ref mut device) = pen.device {
+                            device.send_events(&events)?;
                         }
                     }
                     current_x += char_width;
                 }
             }
             
-            // 检查是否需要换行
             if current_x > REMARKABLE_WIDTH - 600 {
                 current_y += line_height;
                 current_x = start_x;
             }
-            
-            sleep(Duration::from_millis(1));
         }
         
         pen.pen_up()?;
