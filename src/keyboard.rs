@@ -72,7 +72,7 @@ impl Keyboard {
                 current_x = start_x;
             }
             
-            sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(1));
         }
         
         pen.pen_up()?;
