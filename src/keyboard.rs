@@ -22,7 +22,7 @@ impl Keyboard {
 
     pub fn write_text(&self, text: &str) -> Result<()> {
         debug!("模拟笔书写文本: {}", text);
-        let mut pen = self.pen.unwrap();
+        let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
         let start_y: u32 = 100;
