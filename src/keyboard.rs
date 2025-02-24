@@ -42,13 +42,8 @@ impl Keyboard {
                 '\n' => {
                     current_y += line_height;
                     current_x = start_x;
-                    sleep(Duration::from_millis(100)); // 换行时稍微停顿
                 }
                 _ => {
-                    // 移动到字的起始位置时先抬笔
-                    pen.pen_up()?;
-                    sleep(Duration::from_millis(10));
-                    
                     let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
                     for stroke in strokes {
                         if stroke.len() < 2 {
@@ -58,33 +53,25 @@ impl Keyboard {
                         // 移动到笔画起点
                         let (x, y) = stroke[0];
                         pen.pen_up()?;
-                        sleep(Duration::from_millis(5));
                         pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
                         pen.pen_down()?;
-                        sleep(Duration::from_millis(5));
                         
-                        // 批量创建所有点的事件
-                        let mut events = Vec::new();
+                        // 连续绘制笔画
                         for &(x, y) in stroke.iter().skip(1) {
-                            events.push(InputEvent::new(EventType::ABSOLUTE, 0, x + current_x as i32));
-                            events.push(InputEvent::new(EventType::ABSOLUTE, 1, y + current_y as i32));
-                            events.push(InputEvent::new(EventType::SYNCHRONIZATION, 0, 0));
+                            pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                            sleep(Duration::from_millis(1));
                         }
-                        
-                        // 一次性发送所有事件
-                        pen.send_events(&events)?;
-                        sleep(Duration::from_millis(10)); // 每个笔画之间稍微停顿
                     }
                     current_x += char_width;
-                    sleep(Duration::from_millis(20)); // 字符之间稍微停顿
                 }
             }
             
             if current_x > REMARKABLE_WIDTH - 600 {
                 current_y += line_height;
                 current_x = start_x;
-                sleep(Duration::from_millis(100)); // 换行时稍微停顿
             }
+            
+            sleep(Duration::from_millis(5));
         }
         
         pen.pen_up()?;
