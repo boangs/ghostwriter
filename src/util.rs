@@ -19,10 +19,8 @@ pub fn svg_to_bitmap(svg_data: &str, width: u32, height: u32) -> Result<Vec<Vec<
     let mut opt = Options::default();
     let mut fontdb = fontdb::Database::new();
     
-    // 加载嵌入的字体
-    if let Some(font_data) = Asset::get("LXGWWenKaiScreen-Regular.ttf") {
-        fontdb.load_font_data(font_data.data.to_vec());
-    }
+    // 加载系统字体
+    fontdb.load_system_fonts();
     
     opt.fontdb = Arc::new(fontdb);
 
@@ -30,7 +28,9 @@ pub fn svg_to_bitmap(svg_data: &str, width: u32, height: u32) -> Result<Vec<Vec<
         Ok(tree) => tree,
         Err(e) => {
             info!("Error parsing SVG: {}. Using fallback SVG.", e);
-            let fallback_svg = r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'><text x='100' y='900' font-family='Noto Sans' font-size='24'>ERROR!</text></svg>"#;
+            let fallback_svg = r#"<svg width='768' height='1024' xmlns='http://www.w3.org/2000/svg'>
+                <text x='100' y='900' font-family="FZShuSong-Z01S" font-size='24'>ERROR!</text>
+            </svg>"#;
             Tree::from_str(fallback_svg, &opt)?
         }
     };

@@ -111,27 +111,35 @@ impl Keyboard {
         let start_x = 100;
         let start_y = 200;
         let line_height = 40;
-        let font_size = 32.0;
+        let font_size = 32;
         
         let mut current_x = start_x;
         let mut current_y = start_y;
+        let mut line_text = String::new();
         
         for c in text.chars() {
             match c {
                 '\n' => {
+                    if !line_text.is_empty() {
+                        svg.push_str(&format!(
+                            r#"<text x="{}" y="{}" font-family="FZShuSong-Z01S" font-size="{}" fill="black">{}</text>
+"#,
+                            current_x, current_y, font_size, line_text
+                        ));
+                        line_text.clear();
+                    }
                     current_y += line_height;
                     current_x = start_x;
                 }
-                ' ' => {
-                    current_x += 20;
-                }
                 _ => {
-                    // 使用 char_to_svg 方法获取字符的 SVG 路径
-                    let char_svg = self.font_renderer.char_to_svg(c, font_size, current_x, current_y)?;
-                    svg.push_str(&char_svg);
-                    current_x += 35;
-                    
-                    if current_x > REMARKABLE_WIDTH - 600 {
+                    line_text.push(c);
+                    if line_text.len() >= 40 {
+                        svg.push_str(&format!(
+                            r#"<text x="{}" y="{}" font-family="FZShuSong-Z01S" font-size="{}" fill="black">{}</text>
+"#,
+                            current_x, current_y, font_size, line_text
+                        ));
+                        line_text.clear();
                         current_y += line_height;
                         current_x = start_x;
                     }
@@ -139,9 +147,16 @@ impl Keyboard {
             }
         }
         
+        if !line_text.is_empty() {
+            svg.push_str(&format!(
+                r#"<text x="{}" y="{}" font-family="FZShuSong-Z01S" font-size="{}" fill="black">{}</text>
+"#,
+                current_x, current_y, font_size, line_text
+            ));
+        }
+        
         svg.push_str("</svg>");
         
-        // 将 SVG 转换为位图并绘制
         let bitmap = svg_to_bitmap(&svg, REMARKABLE_WIDTH, REMARKABLE_HEIGHT)?;
         let mut pen = self.pen.lock().unwrap();
         pen.draw_bitmap(&bitmap)?;
