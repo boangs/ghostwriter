@@ -3,6 +3,8 @@ use log::debug;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use std::fs::File;
+use std::io::Write;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use crate::font::FontRenderer;
 use crate::util::svg_to_bitmap;
@@ -95,6 +97,97 @@ impl Keyboard {
     }
 
     pub fn write_progress(&self, _progress: f32) -> Result<()> {
+        Ok(())
+    }
+
+    // 添加新方法，直接打印文本到屏幕
+    pub fn print_text_to_screen(&self, text: &str) -> Result<()> {
+        debug!("直接打印文本到屏幕: {}", text);
+        
+        // 创建一个 SVG 文档
+        let mut svg = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1620" height="2160">
+"#);
+        
+        // 添加文本元素
+        let start_x = 100;
+        let start_y = 200;
+        let line_height = 40;
+        let font_size = 32;
+        
+        let mut current_x = start_x;
+        let mut current_y = start_y;
+        let mut line_text = String::new();
+        
+        for c in text.chars() {
+            match c {
+                '\n' => {
+                    // 添加当前行文本
+                    if !line_text.is_empty() {
+                        svg.push_str(&format!(
+                            r#"<text x="{}" y="{}" font-family="LXGWWenKaiScreen-Regular" font-size="{}" fill="black">{}</text>
+"#,
+                            current_x, current_y, font_size, line_text
+                        ));
+                        line_text.clear();
+                    }
+                    current_y += line_height;
+                    current_x = start_x;
+                }
+                _ => {
+                    line_text.push(c);
+                    if line_text.len() >= 40 { // 每行大约40个字符
+                        svg.push_str(&format!(
+                            r#"<text x="{}" y="{}" font-family="LXGWWenKaiScreen-Regular" font-size="{}" fill="black">{}</text>
+"#,
+                            current_x, current_y, font_size, line_text
+                        ));
+                        line_text.clear();
+                        current_y += line_height;
+                        current_x = start_x;
+                    }
+                }
+            }
+        }
+        
+        // 添加最后一行
+        if !line_text.is_empty() {
+            svg.push_str(&format!(
+                r#"<text x="{}" y="{}" font-family="LXGWWenKaiScreen-Regular" font-size="{}" fill="black">{}</text>
+"#,
+                current_x, current_y, font_size, line_text
+            ));
+        }
+        
+        // 关闭 SVG 文档
+        svg.push_str("</svg>");
+        
+        // 将 SVG 转换为位图
+        let bitmap = svg_to_bitmap(&svg, REMARKABLE_WIDTH, REMARKABLE_HEIGHT)?;
+        
+        // 使用 pen 绘制位图
+        let mut pen = self.pen.lock().unwrap();
+        pen.draw_bitmap(&bitmap)?;
+        
+        // 或者直接写入到 reMarkable 的帧缓冲区
+        self.write_to_framebuffer(&svg)?;
+        
+        Ok(())
+    }
+    
+    // 直接写入到帧缓冲区
+    fn write_to_framebuffer(&self, svg: &str) -> Result<()> {
+        // 保存 SVG 到临时文件
+        let temp_svg_path = "/tmp/remarkable_text.svg";
+        let mut file = File::create(temp_svg_path)?;
+        file.write_all(svg.as_bytes())?;
+        
+        // 使用 reMarkable 的工具将 SVG 渲染到屏幕
+        // 注意：这需要 root 权限
+        std::process::Command::new("rm2fb-client")
+            .args(&["draw", temp_svg_path])
+            .status()?;
+        
         Ok(())
     }
 }

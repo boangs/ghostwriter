@@ -186,11 +186,11 @@ fn main() -> Result<()> {
         std::fs::write(output_file, &response_text)?;
     }
 
-    // 绘制 AI 回复的文字
-    if !args.no_draw {
-        info!("开始绘制 AI 回复");
-        keyboard.write_text(&response_text)?;
-    }
+    // 先手写文本
+    keyboard.write_text(&response_text)?;
+
+    // 然后直接打印到屏幕
+    keyboard.print_text_to_screen(&response_text)?;
     
     Ok(())
 }
