@@ -184,7 +184,7 @@ impl Keyboard {
         
         // 使用 reMarkable 的工具将 SVG 渲染到屏幕
         // 注意：这需要 root 权限
-        std::process::Command::new("rm2fb-client")
+        std::process::Command::new("epframebuffer")
             .args(&["draw", temp_svg_path])
             .status()?;
         
