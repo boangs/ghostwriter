@@ -73,19 +73,16 @@ impl Keyboard {
                     }
                 }
                 
-                current_x += char_width;
-                
                 // 如果超出页面宽度，换行
                 if current_x > REMARKABLE_WIDTH - char_width {
                     current_x = start_x;
                     current_y += 50;
                 }
-                
+                else{
+                    current_x += char_width;
+                }
                 sleep(Duration::from_millis(10));
             }
-            
-            // 每行结束后换行
-            current_y += 50;
         }
         
         pen.pen_up()?;
