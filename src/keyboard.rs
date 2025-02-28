@@ -51,7 +51,28 @@ impl Keyboard {
             }
             
             for c in line.chars() {
-                self.font_renderer.render_char(c, current_x as f32, current_y as f32, font_size, &mut pen)?;
+                // 获取字符的笔画数据
+                let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
+                
+                // 绘制每个笔画
+                for stroke in strokes {
+                    if stroke.len() < 2 {
+                        continue;
+                    }
+                    
+                    // 移动到笔画起点
+                    let (x, y) = stroke[0];
+                    pen.pen_up()?;
+                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                    pen.pen_down()?;
+                    
+                    // 连续绘制笔画
+                    for &(x, y) in stroke.iter().skip(1) {
+                        pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                        sleep(Duration::from_millis(1));
+                    }
+                }
+                
                 current_x += char_width;
                 
                 // 如果超出页面宽度，换行
@@ -59,12 +80,15 @@ impl Keyboard {
                     current_x = start_x;
                     current_y += 50;
                 }
+                
+                sleep(Duration::from_millis(10));
             }
             
             // 每行结束后换行
             current_y += 50;
         }
         
+        pen.pen_up()?;
         Ok(())
     }
 
