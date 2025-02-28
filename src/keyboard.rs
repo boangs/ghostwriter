@@ -75,7 +75,7 @@ impl Keyboard {
                 }
                 
                 // 如果超出页面宽度，换行
-                if current_x > REMARKABLE_WIDTH - 5 * char_width {
+                if current_x > REMARKABLE_WIDTH - 6 * char_width {
                     current_x = start_x;
                     current_y += 40;
                 }
