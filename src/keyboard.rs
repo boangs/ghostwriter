@@ -28,43 +28,43 @@ impl Keyboard {
         let start_y: u32 = 200;
         let char_width: u32 = 35;
         let font_size = 35.0;
+        let paragraph_indent = 70; // 段落缩进（两个字符宽度）
         
         let mut current_x = start_x;
         let mut current_y = start_y;
         
-        for c in text.chars() {
-            // 获取字符的笔画数据
-            let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
-            
-            // 绘制每个笔画
-            for stroke in strokes {
-                if stroke.len() < 2 {
-                    continue;
-                }
-                
-                // 移动到笔画起点
-                let (x, y) = stroke[0];
-                pen.pen_up()?;
-                pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                pen.pen_down()?;
-                
-                // 连续绘制笔画
-                for &(x, y) in stroke.iter().skip(1) {
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
-                    sleep(Duration::from_millis(1));
-                }
+        let mut is_new_paragraph = true;
+        
+        for line in text.split('\n') {
+            if line.trim().is_empty() {
+                // 空行表示段落分隔
+                current_y += 50; // 段落间增加额外间距
+                is_new_paragraph = true;
+                continue;
             }
             
-            current_x += char_width;
-            if current_x > REMARKABLE_WIDTH - 500 {
-                current_y += char_width;
+            if is_new_paragraph {
+                current_x = start_x + paragraph_indent;
+                is_new_paragraph = false;
+            } else {
                 current_x = start_x;
             }
             
-            sleep(Duration::from_millis(10));
+            for c in line.chars() {
+                self.font_renderer.render_char(c, current_x as f32, current_y as f32, font_size, &mut pen)?;
+                current_x += char_width;
+                
+                // 如果超出页面宽度，换行
+                if current_x > REMARKABLE_WIDTH - char_width {
+                    current_x = start_x;
+                    current_y += 50;
+                }
+            }
+            
+            // 每行结束后换行
+            current_y += 50;
         }
         
-        pen.pen_up()?;
         Ok(())
     }
 
