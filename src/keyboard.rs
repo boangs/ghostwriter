@@ -29,6 +29,7 @@ impl Keyboard {
         let char_width: u32 = 32;
         let font_size = 30.0;
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
+        let baseline_offset = font_size as i32 * 2 / 3; // 基线偏移，使字符垂直居中
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -60,15 +61,15 @@ impl Keyboard {
                         continue;
                     }
                     
-                    // 移动到笔画起点
+                    // 移动到笔画起点，添加基线偏移
                     let (x, y) = stroke[0];
                     pen.pen_up()?;
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                    pen.goto_xy((x + current_x as i32, y + current_y as i32 + baseline_offset))?;
                     pen.pen_down()?;
                     
-                    // 连续绘制笔画
+                    // 连续绘制笔画，添加基线偏移
                     for &(x, y) in stroke.iter().skip(1) {
-                        pen.goto_xy((x + current_x as i32, y + current_y as i32))?;
+                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + baseline_offset))?;
                         sleep(Duration::from_millis(1));
                     }
                 }
