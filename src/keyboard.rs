@@ -28,8 +28,8 @@ impl Keyboard {
         let start_y: u32 = 100;
         let char_width: u32 = 32;
         let font_size = 30.0;
-        let paragraph_indent = 64; // 段落缩进（两个字符宽度）
-        let baseline_offset = font_size as i32 * 2 / 3; // 基线偏移，使字符垂直居中
+        let paragraph_indent = 64; //段落缩进（两个字符宽度）
+        let baseline_offset = font_size as i32 * 2 / 3; //基线偏移，使字符垂直居中
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -61,13 +61,13 @@ impl Keyboard {
                         continue;
                     }
                     
-                    // 移动到笔画起点，添加基线偏移
+                    // 移动到笔画起点，基线偏移
                     let (x, y) = stroke[0];
                     pen.pen_up()?;
                     pen.goto_xy((x + current_x as i32, y + current_y as i32 + baseline_offset))?;
                     pen.pen_down()?;
                     
-                    // 连续绘制笔画，添加基线偏移
+                    // 连续绘制笔画，基线偏移
                     for &(x, y) in stroke.iter().skip(1) {
                         pen.goto_xy((x + current_x as i32, y + current_y as i32 + baseline_offset))?;
                         sleep(Duration::from_millis(1));
@@ -75,7 +75,7 @@ impl Keyboard {
                 }
                 
                 // 如果超出页面宽度，换行
-                if current_x > REMARKABLE_WIDTH - 6 * char_width {
+                if current_x > REMARKABLE_WIDTH - char_width -100 {
                     current_x = start_x;
                     current_y += 40;
                 }
