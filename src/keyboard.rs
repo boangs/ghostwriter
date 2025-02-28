@@ -25,10 +25,10 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y: u32 = 200;
-        let char_width: u32 = 35;
-        let font_size = 35.0;
-        let paragraph_indent = 70; // 段落缩进（两个字符宽度）
+        let start_y: u32 = 100;
+        let char_width: u32 = 32;
+        let font_size = 30.0;
+        let paragraph_indent = 64; // 段落缩进（两个字符宽度）
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -38,7 +38,7 @@ impl Keyboard {
         for line in text.split('\n') {
             if line.trim().is_empty() {
                 // 空行表示段落分隔
-                current_y += 50; // 段落间增加额外间距
+                current_y += 40; // 段落间增加额外间距
                 is_new_paragraph = true;
                 continue;
             }
