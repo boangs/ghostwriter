@@ -11,7 +11,6 @@ use std::time::Duration;
 use std::thread::sleep;
 use log;
 use sha2::{Sha256, Digest};
-use reqwest;
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -83,7 +82,7 @@ impl HandwritingInput {
         self.is_writing = false;
     }
 
-    pub async fn capture_and_recognize(&mut self) -> Result<String> {
+    pub fn capture_and_recognize(&mut self) -> Result<String> {
         // 1. 截取当前屏幕
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
@@ -121,10 +120,8 @@ impl HandwritingInput {
         let sign = format!("{:x}", hasher.finalize());
         
         // 4. 发送请求
-        let client = reqwest::Client::new();
-        let res = client
-            .post("https://openapi.youdao.com/ocr_hand_writing")
-            .form(&[
+        let res = ureq::post("https://openapi.youdao.com/ocr_hand_writing")
+            .send_form(&[
                 ("appKey", self.app_key.as_str()),
                 ("salt", salt.as_str()),
                 ("curtime", curtime.as_str()),
@@ -133,11 +130,9 @@ impl HandwritingInput {
                 ("langType", "zh-CHS"),
                 ("imageType", "1"),
                 ("img", base64_image.as_str()),
-            ])
-            .send()
-            .await?;
+            ])?;
             
-        let json: Value = res.json().await?;
+        let json: Value = res.into_json()?;
         
         // 5. 解析结果
         if json["errorCode"].as_str() == Some("0") {
