@@ -6,16 +6,9 @@ use base64::prelude::*;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;
-use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
 use log;
-use tesseract::Tesseract;
-use image::{DynamicImage, ImageBuffer, Luma};
-use imageproc::contrast::stretch_contrast;
-use imageproc::filter::gaussian_blur_f32;
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::json;
 use ureq;
 
@@ -25,7 +18,6 @@ pub struct HandwritingInput {
     is_writing: bool,
     temp_dir: PathBuf,
     engine: Box<dyn LLMEngine>,
-    cache: HashMap<String, (String, u64)>,  // (图像hash, (识别结果, 时间戳))
 }
 
 impl HandwritingInput {
@@ -43,7 +35,6 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
-            cache: HashMap::new(),
         })
     }
 
@@ -98,11 +89,6 @@ impl HandwritingInput {
             access_token
         );
         
-        let params = json!({
-            "image": img_base64,
-            "language_type": "CHN_ENG"
-        });
-        
         let response = ureq::post(&url)
             .set("Content-Type", "application/x-www-form-urlencoded")
             .send_string(&format!("image={}", img_base64))?;
@@ -119,7 +105,45 @@ impl HandwritingInput {
                 }
             }
         }
+
+        // 5. 将识别结果传给 AI 引擎
+        self.engine.clear_content();
+        self.engine.add_text_content(&format!(
+            "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
+            result.trim()
+        ));
         
+        // 6. 注册回调处理识别结果
+        let response = Arc::new(Mutex::new(String::new()));
+        let response_clone = response.clone();
+        
+        self.engine.register_tool(
+            "write",
+            json!({
+                "name": "write",
+                "description": "Write the recognized text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The recognized text"
+                        }
+                    },
+                    "required": ["text"]
+                }
+            }),
+            Box::new(move |args: serde_json::Value| {
+                let text = args["text"].as_str().unwrap_or_default();
+                *response_clone.lock().unwrap() = text.to_string();
+            })
+        );
+        
+        // 7. 执行识别
+        self.engine.execute()?;
+        
+        // 8. 返回识别结果
+        let result = response.lock().unwrap().clone();
         Ok(result)
     }
     
@@ -143,4 +167,4 @@ impl HandwritingInput {
             Err(anyhow::anyhow!("Failed to get access token"))
         }
     }
-} 
+}
