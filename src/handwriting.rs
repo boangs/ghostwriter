@@ -9,6 +9,7 @@ use crate::llm_engine::LLMEngine;
 use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
+use log;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -76,6 +77,12 @@ impl HandwritingInput {
         
         // 2. 将图像转换为 base64
         let base64_image = base64::encode(&img_data);
+        
+        // 打印调试信息
+        log::info!("准备发送到 API 的参数：");
+        log::info!("提示词: 请识别图片中的手写文字内容。直接输出识别到的文字，不要解释。");
+        log::info!("图片 base64 长度: {}", base64_image.len());
+        log::info!("图片 base64 前100个字符: {}", &base64_image[..100]);
         
         // 3. 清除之前的内容
         self.engine.clear_content();
