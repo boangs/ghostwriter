@@ -166,39 +166,57 @@ impl Screenshot {
         let count = target_size;
         info!("最终读取参数: skip=0x{:x}, count={}", skip, count);
         
-        // 5. 使用 dd 和 ffmpeg 获取截图
-        let cmd = format!(
-            "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={} | \
-             ffmpeg -f rawvideo -pixel_format rgba -video_size {}x{} -i pipe:0 -frames:v 1 -f png pipe:1",
-            pid, count, skip, self.width, self.height
+        // 5. 使用 dd 获取原始数据，然后用 ffmpeg 转换
+        let raw_file = "/tmp/ghostwriter/raw_capture.rgba";
+        let png_file = "/tmp/ghostwriter/capture.png";
+        
+        // 首先用 dd 获取原始数据
+        let dd_cmd = format!(
+            "dd if=/proc/{}/mem of={} count={} bs=1024 iflag=skip_bytes,count_bytes skip={}",
+            pid, raw_file, count, skip
         );
         
-        info!("执行截图命令: {}", cmd);
-        let output = Command::new("sh")
+        info!("执行 dd 命令: {}", dd_cmd);
+        let dd_output = Command::new("sh")
             .arg("-c")
-            .arg(&cmd)
+            .arg(&dd_cmd)
             .output()?;
             
-        if !output.status.success() {
-            error!("截图命令执行失败: {}", String::from_utf8_lossy(&output.stderr));
-            return Err(anyhow::anyhow!("截图命令执行失败"));
+        if !dd_output.status.success() {
+            error!("dd 命令执行失败: {}", String::from_utf8_lossy(&dd_output.stderr));
+            return Err(anyhow::anyhow!("dd 命令执行失败"));
         }
         
-        info!("截图命令执行成功，获取到 {} 字节的图像数据", output.stdout.len());
+        // 然后用 ffmpeg 转换为 PNG
+        let ffmpeg_cmd = format!(
+            "ffmpeg -f rawvideo -pixel_format rgba -video_size {}x{} -i {} -frames:v 1 {}",
+            self.width, self.height, raw_file, png_file
+        );
         
-        // 保存图像数据
-        self.data = output.stdout.clone();
+        info!("执行 ffmpeg 命令: {}", ffmpeg_cmd);
+        let ffmpeg_output = Command::new("sh")
+            .arg("-c")
+            .arg(&ffmpeg_cmd)
+            .output()?;
+            
+        if !ffmpeg_output.status.success() {
+            error!("ffmpeg 命令执行失败: {}", String::from_utf8_lossy(&ffmpeg_output.stderr));
+            return Err(anyhow::anyhow!("ffmpeg 命令执行失败"));
+        }
         
-        // 保存调试用的原始图像
-        if !self.data.is_empty() {
-            if let Err(e) = std::fs::write("/tmp/ghostwriter/debug_raw.png", &self.data) {
-                error!("保存调试图像失败: {}", e);
-            } else {
-                info!("保存原始调试图像到 /tmp/ghostwriter/debug_raw.png");
+        // 读取生成的 PNG 文件
+        info!("读取生成的 PNG 文件");
+        match std::fs::read(png_file) {
+            Ok(data) => {
+                info!("成功读取 PNG 文件，大小: {} 字节", data.len());
+                self.data = data.clone();
+                Ok(data)
+            }
+            Err(e) => {
+                error!("读取 PNG 文件失败: {}", e);
+                Err(anyhow::anyhow!("读取 PNG 文件失败"))
             }
         }
-        
-        Ok(output.stdout)
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
