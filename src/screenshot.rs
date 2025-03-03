@@ -39,7 +39,8 @@ impl Screenshot {
             .arg("xochitl")
             .output()?;
         
-        let pid = String::from_utf8(output.stdout)?
+        let stdout = String::from_utf8(output.stdout)?;
+        let pid = stdout
             .trim()
             .split_whitespace()
             .next()
