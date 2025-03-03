@@ -5,13 +5,11 @@ use std::thread::sleep;
 use std::time::Duration;
 use crate::constants::REMARKABLE_WIDTH;
 use crate::font::FontRenderer;
-use image::{GrayImage, GenericImageView};
-use crate::screenshot::Screenshot;
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
     font_renderer: FontRenderer,
-    last_y: u32,  // 添加一个字段来记录最后写入的位置
+    last_y: u32,
 }
 
 impl Keyboard {
@@ -19,37 +17,8 @@ impl Keyboard {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
-            last_y: 100,  // 初始位置
+            last_y: 100,
         })
-    }
-
-    // 检测屏幕上已有内容的最后一行位置
-    fn detect_last_content_line() -> Result<u32> {
-        let screenshot = Screenshot::new()?;
-        let img_data = screenshot.get_image_data()?;
-        let img = image::load_from_memory(&img_data)?;
-        let gray_img = img.to_luma8();
-        
-        let height = gray_img.height();
-        let width = gray_img.width();
-        let mut last_content_line = 100; // 默认从顶部开始
-        
-        // 从下往上扫描，找到第一行有内容的位置
-        for y in (100..height-100).rev() {
-            let mut has_content = false;
-            for x in 100..width-100 {
-                if gray_img.get_pixel(x, y)[0] < 200 { // 检测非白色像素
-                    has_content = true;
-                    break;
-                }
-            }
-            if has_content {
-                last_content_line = y + 60; // 在最后一行内容下方留出一些空间
-                break;
-            }
-        }
-        
-        Ok(last_content_line)
     }
 
     pub fn write_text(&self, text: &str) -> Result<()> {
