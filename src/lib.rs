@@ -7,3 +7,4 @@ pub mod segmenter;
 pub mod touch;
 pub mod util;
 pub mod font;
+pub mod handwriting;

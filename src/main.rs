@@ -20,6 +20,7 @@ use ghostwriter::{
     screenshot::Screenshot,
     segmenter::analyze_image,
     touch::Touch,
+    handwriting::HandwritingInput,
     util::{svg_to_bitmap, write_bitmap_to_file, OptionMap},
 };
 
@@ -100,6 +101,10 @@ pub struct Args {
     /// Set the log level. Try 'debug' or 'trace'
     #[arg(long, default_value = "info")]
     log_level: String,
+
+    /// 使用手写输入模式
+    #[arg(long)]
+    handwriting_mode: bool,
 }
 
 fn main() -> Result<()> {
@@ -111,13 +116,48 @@ fn main() -> Result<()> {
     )
     .init();
 
+    if args.handwriting_mode {
+        // 手写输入模式
+        let mut handwriting = HandwritingInput::new(args.no_draw)?;
+        let touch = Touch::new(args.no_draw)?;
+        
+        // 等待用户在右上角触发
+        loop {
+            if let Ok((x, y)) = touch.wait_for_touch() {
+                if x > REMARKABLE_WIDTH as i32 - 100 && y < 100 {
+                    // 右上角触发，开始识别
+                    match handwriting.capture_and_recognize() {
+                        Ok(prompt) => {
+                            info!("识别到的提示词: {}", prompt);
+                            // 使用识别到的文本作为提示词
+                            process_with_prompt(&args, &prompt)?;
+                        }
+                        Err(e) => {
+                            error!("识别失败: {}", e);
+                        }
+                    }
+                    handwriting.clear();
+                } else {
+                    // 正常的笔迹输入
+                    handwriting.start_stroke(x, y)?;
+                    while let Ok((x, y)) = touch.wait_for_touch() {
+                        handwriting.continue_stroke(x, y)?;
+                    }
+                    handwriting.end_stroke()?;
+                }
+            }
+        }
+    } else {
+        // 原有的提示词文件模式
+        process_with_prompt(&args, &args.prompt)?;
+    }
+    
+    Ok(())
+}
+
+fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
     // 创建键盘实例
     let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress)?;
-    
-    // 读取提示文件
-    let prompt_path = format!("prompts/{}", args.prompt);  // 添加 prompts/ 路径前缀
-    let prompt = std::fs::read_to_string(prompt_path)
-        .map_err(|e| anyhow::anyhow!("无法读取提示文件 {}: {}", args.prompt, e))?;
     
     // 获取 AI 回复
     let mut options = HashMap::new();
@@ -135,7 +175,7 @@ fn main() -> Result<()> {
     let mut engine = OpenAI::new(&options);
     
     // 添加提示内容
-    engine.add_text_content(&prompt);
+    engine.add_text_content(prompt);
     
     // 如果有输入图片，添加图片内容
     if let Some(png_file) = &args.input_png {
