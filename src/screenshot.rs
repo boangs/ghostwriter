@@ -2,9 +2,8 @@ use anyhow::Result;
 use image::GrayImage;
 use log::{info, error};
 use std::fs::File;
-use std::io::{Write, Read, Seek};
-use std::path::Path;
-use std::process::Command;
+use std::io::{Write, Read};
+use std::os::unix::io::AsRawFd;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use base64::{engine::general_purpose, Engine as _};
@@ -31,53 +30,38 @@ impl Screenshot {
     }
 
     fn take_screenshot() -> Result<Vec<u8>> {
-        // 查找 xochitl 进程
-        let output = Command::new("pidof")
-            .arg("xochitl")
-            .output()?;
-        
-        let stdout = String::from_utf8(output.stdout)?;
-        let pid = stdout
-            .trim()
-            .split_whitespace()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("未找到 xochitl 进程"))?;
-        
-        info!("找到 xochitl 进程 PID: {}", pid);
+        // 直接打开显示设备
+        let file = File::open("/dev/dri/card0")?;
+        info!("成功打开显示设备");
 
-        // 查找内存映射区域
-        let maps_file = format!("/proc/{}/maps", pid);
-        let maps_content = std::fs::read_to_string(&maps_file)?;
-        
-        // 查找包含 /dev/dri/card0 的内存区域
-        let mem_region = maps_content
-            .lines()
-            .find(|line| line.contains("/dev/dri/card0"))
-            .ok_or_else(|| anyhow::anyhow!("未找到显示内存区域"))?;
+        // 使用 mmap 映射设备内存
+        let buffer = unsafe {
+            let ptr = libc::mmap(
+                std::ptr::null_mut(),
+                WINDOW_BYTES,
+                libc::PROT_READ,
+                libc::MAP_SHARED,
+                file.as_raw_fd(),
+                0,
+            );
 
-        info!("找到内存区域: {}", mem_region);
+            if ptr == libc::MAP_FAILED {
+                return Err(anyhow::anyhow!(
+                    "mmap 失败: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
 
-        // 解析内存区域地址
-        let addr_range = mem_region
-            .split_whitespace()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("无法解析内存地址"))?;
+            let slice = std::slice::from_raw_parts(ptr as *const u8, WINDOW_BYTES);
+            let mut buffer = vec![0u8; WINDOW_BYTES];
+            buffer.copy_from_slice(slice);
 
-        let (start_addr, _) = addr_range
-            .split_once('-')
-            .ok_or_else(|| anyhow::anyhow!("无法解析地址范围"))?;
+            // 取消映射
+            libc::munmap(ptr, WINDOW_BYTES);
 
-        let start_addr = u64::from_str_radix(start_addr, 16)?;
-        info!("内存起始地址: 0x{:x}", start_addr);
+            buffer
+        };
 
-        // 打开进程内存
-        let mut mem_file = File::open(format!("/proc/{}/mem", pid))?;
-        
-        // 读取显示内存数据
-        let mut buffer = vec![0u8; WINDOW_BYTES];
-        mem_file.seek(std::io::SeekFrom::Start(start_addr))?;
-        mem_file.read_exact(&mut buffer)?;
-        
         info!("读取显示内存成功，大小: {} 字节", buffer.len());
 
         // 处理图像数据
