@@ -11,8 +11,8 @@ use std::mem::size_of;
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
 
-const WIDTH: usize = 2154;  // 更新为正确的屏幕尺寸
-const HEIGHT: usize = 1624;
+const WIDTH: usize = 1404;  // remarkable paper pro 的实际宽度
+const HEIGHT: usize = 1872; // remarkable paper pro 的实际高度
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
@@ -146,68 +146,27 @@ impl Screenshot {
         let mut gray_data = vec![0u8; WIDTH * HEIGHT];
         for i in 0..WIDTH * HEIGHT {
             let rgba = &data[i * 4..(i + 1) * 4];
-            // 使用 RGB 平均值作为灰度值
-            gray_data[i] = ((rgba[0] as u16 + rgba[1] as u16 + rgba[2] as u16) / 3) as u8;
+            // 使用加权平均值计算灰度值，增加对比度
+            gray_data[i] = ((rgba[0] as f32 * 0.299 + 
+                           rgba[1] as f32 * 0.587 + 
+                           rgba[2] as f32 * 0.114) * 1.2) as u8;
         }
 
         let img = GrayImage::from_raw(WIDTH as u32, HEIGHT as u32, gray_data)
             .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
-        // 将原始图像保存为调试用途
-        let mut debug_png_data = Vec::new();
-        let debug_encoder = image::codecs::png::PngEncoder::new(&mut debug_png_data);
-        debug_encoder.write_image(
-            img.as_raw(),
-            WIDTH as u32,
-            HEIGHT as u32,
-            image::ExtendedColorType::L8,
-        )?;
+        // 增强对比度
+        let enhanced = imageproc::contrast::stretch_contrast(&img);
         
-        // 保存原始图像到文件
-        let mut debug_file = File::create("debug_original.png")?;
-        debug_file.write_all(&debug_png_data)?;
-        info!("保存原始图像到 debug_original.png");
-
-        // 将 GrayImage 转换为 DynamicImage
-        let dynamic_img = DynamicImage::ImageLuma8(img);
-
-        // 调整图像大小
-        let resized_img = dynamic_img.resize_exact(
-            OUTPUT_WIDTH,
-            OUTPUT_HEIGHT,
-            image::imageops::FilterType::Lanczos3,
-        );
-
-        // 确保我们得到的是灰度图像
-        let gray_img = resized_img.to_luma8();
-
-        // 保存调整大小后的图像到文件
-        let mut resized_debug_png_data = Vec::new();
-        let resized_debug_encoder = image::codecs::png::PngEncoder::new(&mut resized_debug_png_data);
-        resized_debug_encoder.write_image(
-            gray_img.as_raw(),
-            OUTPUT_WIDTH,
-            OUTPUT_HEIGHT,
-            image::ExtendedColorType::L8,
-        )?;
-        
-        let mut resized_debug_file = File::create("debug_resized.png")?;
-        resized_debug_file.write_all(&resized_debug_png_data)?;
-        info!("保存调整大小后的图像到 debug_resized.png");
-
         // 编码为 PNG
         let mut png_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
         encoder.write_image(
-            gray_img.as_raw(),
-            OUTPUT_WIDTH,
-            OUTPUT_HEIGHT,
+            enhanced.as_raw(),
+            WIDTH as u32,
+            HEIGHT as u32,
             image::ExtendedColorType::L8,
         )?;
-
-        // 输出 base64 编码的图像数据前几个字符，用于调试
-        let base64_image = general_purpose::STANDARD.encode(&png_data);
-        info!("Base64 图像数据预览: {}...", &base64_image[..100]);
 
         Ok(png_data)
     }
