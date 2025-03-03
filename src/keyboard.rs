@@ -29,7 +29,7 @@ impl Keyboard {
         let line_height: u32 = 40;
         let font_size = 30.0;
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
-        let max_width = REMARKABLE_WIDTH as u32 - 400; // 增加右侧边距
+        let max_width = REMARKABLE_WIDTH as u32 - 500; // 增加右侧边距
         
         let mut current_x = start_x;
         let mut current_y = start_y;
