@@ -76,7 +76,7 @@ impl HandwritingInput {
 
     pub fn capture_and_recognize(&mut self) -> Result<String> {
         // 1. 截取当前屏幕
-        let screenshot = Screenshot::new()?;
+        let mut screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
         // 2. 转换为 base64
