@@ -15,8 +15,12 @@ const HEIGHT: usize = 1404;
 const BYTES_PER_PIXEL: usize = 2;
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
-// reMarkable 显示内存的物理地址
-const DISPLAY_MEM_ADDR: u64 = 0x20000000;
+// reMarkable 显示内存的可能物理地址
+const DISPLAY_MEM_ADDRS: [u64; 3] = [
+    0x20000000,  // 第一个可能的地址
+    0x9C000000,  // 第二个可能的地址
+    0x10000000,  // 第三个可能的地址
+];
 const DISPLAY_MEM_SIZE: usize = WINDOW_BYTES;
 
 const OUTPUT_WIDTH: u32 = 768;
@@ -72,22 +76,53 @@ impl Screenshot {
 
     fn take_screenshot() -> Result<Vec<u8>> {
         // 打开物理内存设备
-        let mut file = File::open("/dev/mem")?;
+        let file = File::open("/dev/mem")?;
         info!("成功打开物理内存设备");
 
-        // 定位到显示内存区域
-        file.seek(SeekFrom::Start(DISPLAY_MEM_ADDR))?;
+        let mut last_error = None;
 
-        // 读取显示内存
-        let mut buffer = vec![0u8; DISPLAY_MEM_SIZE];
-        file.read_exact(&mut buffer)?;
+        // 尝试每个可能的内存地址
+        for &addr in DISPLAY_MEM_ADDRS.iter() {
+            info!("尝试内存地址: 0x{:x}", addr);
+            
+            // 映射内存
+            let result = unsafe {
+                let ptr = libc::mmap(
+                    std::ptr::null_mut(),
+                    DISPLAY_MEM_SIZE,
+                    libc::PROT_READ,
+                    libc::MAP_SHARED,
+                    file.as_raw_fd(),
+                    addr as i64,
+                );
 
-        info!("读取显示内存成功，大小: {} 字节", buffer.len());
+                if ptr == libc::MAP_FAILED {
+                    let err = std::io::Error::last_os_error();
+                    error!("映射地址 0x{:x} 失败: {}", addr, err);
+                    last_error = Some(err);
+                    continue;
+                }
 
-        // 处理图像数据
-        let processed_data = Self::process_image(buffer)?;
+                // 复制内存数据
+                let slice = std::slice::from_raw_parts(ptr as *const u8, DISPLAY_MEM_SIZE);
+                let mut buffer = vec![0u8; DISPLAY_MEM_SIZE];
+                buffer.copy_from_slice(slice);
 
-        Ok(processed_data)
+                // 取消映射
+                libc::munmap(ptr, DISPLAY_MEM_SIZE);
+
+                Ok(buffer)
+            };
+
+            // 如果这个地址成功了，就处理数据并返回
+            if let Ok(buffer) = result {
+                info!("成功从地址 0x{:x} 读取显示内存，大小: {} 字节", addr, buffer.len());
+                return Self::process_image(buffer);
+            }
+        }
+
+        // 如果所有地址都失败了，返回最后一个错误
+        Err(anyhow::anyhow!("无法访问显示内存: {}", last_error.unwrap()))
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
