@@ -134,10 +134,16 @@ fn main() -> Result<()> {
         let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
         let mut touch = Touch::new(args.no_draw);
         
-        // 等待用户在右上角触发
+        info!("进入手写输入模式");
+        info!("请在屏幕上书写内容");
+        info!("触摸右下角区域并松开手指来触发识别");
+        info!("触发区域：距离右边缘约 60 像素，距离底部约 60 像素的区域");
+        
+        // 等待用户在右下角触发
         loop {
             // 等待触摸事件
             if let Ok(()) = touch.wait_for_trigger() {
+                info!("检测到触发手势，开始识别...");
                 // 触发识别
                 match handwriting.capture_and_recognize() {
                     Ok(prompt) => {
