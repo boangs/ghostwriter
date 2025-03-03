@@ -118,7 +118,20 @@ fn main() -> Result<()> {
 
     if args.handwriting_mode {
         // 手写输入模式
-        let mut handwriting = HandwritingInput::new(args.no_draw)?;
+        let mut options = HashMap::new();
+        if let Some(engine) = &args.engine {
+            options.insert("engine".to_string(), engine.clone());
+        }
+        if let Some(base_url) = &args.engine_base_url {
+            options.insert("base_url".to_string(), base_url.clone());
+        }
+        if let Some(api_key) = &args.engine_api_key {
+            options.insert("api_key".to_string(), api_key.clone());
+        }
+        options.insert("model".to_string(), args.model.clone());
+        
+        let engine = Box::new(OpenAI::new(&options));
+        let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
         let touch = Touch::new(args.no_draw)?;
         
         // 等待用户在右上角触发

@@ -2,9 +2,11 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::fs;
 use std::path::PathBuf;
+use base64::prelude::*;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
-use crate::segmenter::analyze_image;
+use crate::llm_engine::LLMEngine;
+use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
 
@@ -13,10 +15,11 @@ pub struct HandwritingInput {
     strokes: Vec<Vec<(i32, i32)>>,
     is_writing: bool,
     temp_dir: PathBuf,
+    engine: Box<dyn LLMEngine>,
 }
 
 impl HandwritingInput {
-    pub fn new(no_draw: bool) -> Result<Self> {
+    pub fn new(no_draw: bool, engine: Box<dyn LLMEngine>) -> Result<Self> {
         // 创建临时目录
         let temp_dir = std::env::temp_dir().join("ghostwriter");
         fs::create_dir_all(&temp_dir)?;
@@ -26,6 +29,7 @@ impl HandwritingInput {
             strokes: Vec::new(),
             is_writing: false,
             temp_dir,
+            engine,
         })
     }
 
@@ -65,28 +69,51 @@ impl HandwritingInput {
         self.is_writing = false;
     }
 
-    pub fn capture_and_recognize(&self) -> Result<String> {
+    pub fn capture_and_recognize(&mut self) -> Result<String> {
         // 1. 截取当前屏幕
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
-        // 2. 保存图像到临时文件
-        let temp_image = self.temp_dir.join("capture.png");
-        fs::write(&temp_image, &img_data)?;
+        // 2. 将图像转换为 base64
+        let base64_image = base64::encode(&img_data);
         
-        // 3. 分析图像区域
-        let regions = analyze_image(temp_image.to_str().unwrap())
-            .map_err(|e| anyhow::anyhow!("图像分析失败: {}", e))?;
+        // 3. 清除之前的内容
+        self.engine.clear_content();
         
-        // 4. 将区域信息添加到提示中
-        let prompt = format!(
-            "以下是手写内容的区域信息，请识别出文字内容：\n{}",
-            regions
+        // 4. 添加提示词和图片
+        self.engine.add_text_content("请识别图片中的手写文字内容。直接输出识别到的文字，不要解释。");
+        self.engine.add_image_content(&base64_image);
+        
+        // 5. 注册回调处理识别结果
+        let response = Arc::new(Mutex::new(String::new()));
+        let response_clone = response.clone();
+        
+        self.engine.register_tool(
+            "write",
+            serde_json::json!({
+                "name": "write",
+                "description": "Write the recognized text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The recognized text"
+                        }
+                    },
+                    "required": ["text"]
+                }
+            }),
+            Box::new(move |args: serde_json::Value| {
+                let text = args["text"].as_str().unwrap_or_default();
+                *response_clone.lock().unwrap() = text.to_string();
+            })
         );
         
-        // TODO: 调用 OCR 服务识别文字
-        // 这里需要添加实际的 OCR 调用
+        // 6. 执行识别
+        self.engine.execute()?;
         
-        Ok(prompt)
+        // 7. 返回识别结果
+        Ok(response.lock().unwrap().clone())
     }
 } 
