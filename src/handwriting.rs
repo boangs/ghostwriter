@@ -81,51 +81,28 @@ impl HandwritingInput {
     }
 
     pub fn capture_and_recognize(&mut self) -> Result<String> {
-        // 1. 根据笔画创建图像
-        let mut image = ImageBuffer::new(self.width, self.height);
+        // 1. 等待一小段时间确保屏幕内容已经完全更新
+        sleep(Duration::from_millis(100));
         
-        // 填充白色背景
-        for pixel in image.pixels_mut() {
-            *pixel = Rgba([255, 255, 255, 255]);
+        // 2. 截取当前屏幕
+        log::info!("开始截取屏幕");
+        let screenshot = Screenshot::new()?;
+        let img_data = screenshot.get_image_data()?;
+        log::info!("截图大小: {} bytes", img_data.len());
+        
+        // 保存截图用于调试
+        let debug_file = self.temp_dir.join("debug_screenshot.png");
+        fs::write(&debug_file, &img_data)?;
+        log::info!("保存调试截图到: {:?}", debug_file);
+        
+        // 检查图片是否为空
+        if img_data.len() < 100 {
+            return Err(anyhow::anyhow!("截图数据异常，大小过小"));
         }
         
-        log::info!("开始绘制笔画，总笔画数: {}", self.strokes.len());
-        
-        // 绘制笔画
-        for (stroke_idx, stroke) in self.strokes.iter().enumerate() {
-            log::info!("绘制第 {} 个笔画，点数: {}", stroke_idx + 1, stroke.len());
-            
-            for window in stroke.windows(2) {
-                let (x1, y1) = window[0];
-                let (x2, y2) = window[1];
-                
-                // 使用 Bresenham 算法绘制加粗的线段
-                for (x, y) in bresenham_line(x1, y1, x2, y2) {
-                    if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
-                        // 绘制 3x3 的点来加粗线条
-                        for dx in -1..=1 {
-                            for dy in -1..=1 {
-                                let nx = x + dx;
-                                let ny = y + dy;
-                                if nx >= 0 && nx < self.width as i32 && ny >= 0 && ny < self.height as i32 {
-                                    image.put_pixel(nx as u32, ny as u32, Rgba([0, 0, 0, 255]));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 2. 保存图像
-        let temp_file = self.temp_dir.join("handwriting.png");
-        image.save(&temp_file)?;
-        log::info!("保存手写图片到: {:?}", temp_file);
-        
-        // 3. 读取图像并转换为 base64
-        let img_data = fs::read(&temp_file)?;
+        // 3. 转换为 base64
         let img_base64 = base64::encode(&img_data);
-        log::info!("图片大小: {} bytes", img_data.len());
+        log::info!("Base64 编码后大小: {} bytes", img_base64.len());
         
         // 4. 调用百度 OCR API
         let access_token = self.get_baidu_access_token()?;
@@ -134,11 +111,22 @@ impl HandwritingInput {
             access_token
         );
         
+        log::info!("发送 OCR 请求到百度 API");
         let response = ureq::post(&url)
             .set("Content-Type", "application/x-www-form-urlencoded")
             .send_string(&format!("image={}", img_base64))?;
             
         let json: serde_json::Value = response.into_json()?;
+        log::info!("收到 OCR 响应: {:?}", json);
+        
+        // 检查是否有错误响应
+        if let Some(error_code) = json["error_code"].as_i64() {
+            return Err(anyhow::anyhow!(
+                "百度 OCR API 返回错误: code={}, msg={}", 
+                error_code,
+                json["error_msg"].as_str().unwrap_or("未知错误")
+            ));
+        }
         
         // 5. 解析识别结果
         let mut result = String::new();
@@ -150,6 +138,7 @@ impl HandwritingInput {
                 }
             }
         }
+        log::info!("识别结果: {}", result);
 
         // 6. 将识别结果传给 AI 引擎
         self.engine.clear_content();
