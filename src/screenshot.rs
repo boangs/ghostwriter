@@ -157,17 +157,20 @@ impl Screenshot {
         let dynamic_img = DynamicImage::ImageLuma8(img);
 
         // 调整图像大小
-        let resized_img = dynamic_img.resize(
+        let resized_img = dynamic_img.resize_exact(
             OUTPUT_WIDTH,
             OUTPUT_HEIGHT,
             image::imageops::FilterType::Lanczos3,
         );
 
+        // 确保我们得到的是灰度图像
+        let gray_img = resized_img.to_luma8();
+
         // 编码为 PNG
         let mut png_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
         encoder.write_image(
-            resized_img.as_bytes(),
+            gray_img.as_raw(),
             OUTPUT_WIDTH,
             OUTPUT_HEIGHT,
             image::ExtendedColorType::L8,
