@@ -30,20 +30,7 @@ impl Keyboard {
         let line_height: u32 = 40;
         let font_size = 30.0;
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
-        let max_width = REMARKABLE_WIDTH as u32 - 300; // 增加边距
-        
-        // 预先加载一个汉字来获取基准高度
-        let sample_strokes = self.font_renderer.get_char_strokes('中', font_size)?;
-        let mut min_y = i32::MAX;
-        let mut max_y = i32::MIN;
-        for stroke in &sample_strokes {
-            for &(_, y) in stroke {
-                min_y = min_y.min(y);
-                max_y = max_y.max(y);
-            }
-        }
-        let char_height = (max_y - min_y) as i32;
-        let baseline_offset = -(char_height / 2); // 使用实际字符高度计算基线偏移
+        let max_width = REMARKABLE_WIDTH as u32 - 400; // 增加右侧边距
         
         let mut current_x = start_x;
         let mut current_y = start_y;
@@ -67,28 +54,21 @@ impl Keyboard {
                 current_x = start_x;
             }
             
+            // 预先计算这一行是否需要换行
+            let mut line_x = current_x;
+            let mut line_chars = Vec::new();
             for c in line.chars() {
-                // 提前检查添加这个字符是否会超出宽度
-                if (current_x + char_width) > max_width {
-                    line_start_y += line_height;
-                    current_y = line_start_y;
-                    current_x = start_x;
+                if line_x + char_width > max_width {
+                    break;
                 }
-                
-                // 获取字符的笔画数据
-                let strokes = self.font_renderer.get_char_strokes(c, font_size)?;
-                
-                // 计算当前字符的垂直范围
-                let mut char_min_y = i32::MAX;
-                let mut char_max_y = i32::MIN;
-                for stroke in &strokes {
-                    for &(_, y) in stroke {
-                        char_min_y = char_min_y.min(y);
-                        char_max_y = char_max_y.max(y);
-                    }
-                }
-                let current_char_height = char_max_y - char_min_y;
-                let current_baseline_offset = baseline_offset + (char_height - current_char_height) / 2;
+                line_chars.push(c);
+                line_x += char_width;
+            }
+            
+            // 绘制这一行的字符
+            for c in line_chars {
+                // 获取字符的笔画数据和基线偏移
+                let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
                 
                 // 绘制每个笔画
                 for stroke in strokes {
@@ -96,21 +76,57 @@ impl Keyboard {
                         continue;
                     }
                     
-                    // 移动到笔画起点，添加基线偏移
+                    // 移动到笔画起点，使用字形提供的基线偏移
                     let (x, y) = stroke[0];
                     pen.pen_up()?;
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32 + current_baseline_offset))?;
+                    pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
                     pen.pen_down()?;
                     
-                    // 连续绘制笔画，添加基线偏移
+                    // 连续绘制笔画
                     for &(x, y) in stroke.iter().skip(1) {
-                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + current_baseline_offset))?;
+                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
                         sleep(Duration::from_millis(1));
                     }
                 }
                 
                 current_x += char_width;
                 sleep(Duration::from_millis(10));
+            }
+            
+            // 处理剩余的字符（如果有的话）
+            if line_chars.len() < line.chars().count() {
+                line_start_y += line_height;
+                current_y = line_start_y;
+                current_x = start_x;
+                
+                for c in line.chars().skip(line_chars.len()) {
+                    if current_x + char_width > max_width {
+                        line_start_y += line_height;
+                        current_y = line_start_y;
+                        current_x = start_x;
+                    }
+                    
+                    let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    
+                    for stroke in strokes {
+                        if stroke.len() < 2 {
+                            continue;
+                        }
+                        
+                        let (x, y) = stroke[0];
+                        pen.pen_up()?;
+                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                        pen.pen_down()?;
+                        
+                        for &(x, y) in stroke.iter().skip(1) {
+                            pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                            sleep(Duration::from_millis(1));
+                        }
+                    }
+                    
+                    current_x += char_width;
+                    sleep(Duration::from_millis(10));
+                }
             }
             
             // 更新到下一行的起始位置
