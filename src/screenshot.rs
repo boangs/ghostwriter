@@ -11,8 +11,8 @@ use std::mem::size_of;
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
 
-const WIDTH: usize = 1404;  // remarkable paper pro 的实际宽度
-const HEIGHT: usize = 1872; // remarkable paper pro 的实际高度
+const WIDTH: usize = 2154;  // remarkable paper pro 的实际宽度
+const HEIGHT: usize = 1624; // remarkable paper pro 的实际高度
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
@@ -146,7 +146,7 @@ impl Screenshot {
         let mut gray_data = vec![0u8; WIDTH * HEIGHT];
         for i in 0..WIDTH * HEIGHT {
             let rgba = &data[i * 4..(i + 1) * 4];
-            // 使用加权平均值计算灰度值，增加对比度
+            // 使用加权平均值计算灰度值
             gray_data[i] = ((rgba[0] as f32 * 0.299 + 
                            rgba[1] as f32 * 0.587 + 
                            rgba[2] as f32 * 0.114) * 1.2) as u8;
@@ -155,8 +155,16 @@ impl Screenshot {
         let img = GrayImage::from_raw(WIDTH as u32, HEIGHT as u32, gray_data)
             .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
-        // 增强对比度
-        let enhanced = imageproc::contrast::stretch_contrast(&img);
+        // 手动增强对比度
+        let mut enhanced = img.clone();
+        for pixel in enhanced.pixels_mut() {
+            let value = pixel[0];
+            if value < 128 {
+                pixel[0] = value.saturating_mul(2);
+            } else {
+                pixel[0] = value.saturating_add((255 - value) / 2);
+            }
+        }
         
         // 编码为 PNG
         let mut png_data = Vec::new();

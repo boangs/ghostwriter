@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::fs;
 use std::path::PathBuf;
-use base64::prelude::*;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;
@@ -11,8 +10,7 @@ use std::thread::sleep;
 use log;
 use serde_json::json;
 use ureq;
-use image::{ImageBuffer, Rgba};
-use bresenham::Line;
+use base64;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -39,8 +37,8 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
-            width: 1404,  // remarkable paper pro 的屏幕宽度
-            height: 1872, // remarkable paper pro 的屏幕高度
+            width: 2154,  // remarkable paper pro 的屏幕宽度
+            height: 1624, // remarkable paper pro 的屏幕高度
         })
     }
 
