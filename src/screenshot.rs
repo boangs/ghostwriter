@@ -9,9 +9,6 @@ use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
-use drm::control::{Device as DrmDevice, ResourceHandle, dumbbuffer};
-use drm::Device as _;
-use drm::Control;
 
 const WIDTH: usize = 1872;
 const HEIGHT: usize = 1404;
