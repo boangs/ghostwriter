@@ -124,42 +124,14 @@ impl Screenshot {
         
         info!("找到内存区域: {} (start: 0x{:x}, end: 0x{:x})", range, start, end);
 
-        // 计算偏移量
-        let mut offset = 0u64;
-        let mut length = 2u64;
-        let target_size = (WIDTH * HEIGHT * 4) as u64;
-        
-        // 打开进程内存文件来计算正确的偏移量
-        let mut mem_file = File::open(format!("/proc/{}/mem", pid))
-            .context("打开进程内存失败")?;
-            
-        while length < target_size {
-            offset += length - 2;
-            mem_file.seek(SeekFrom::Start(start + offset + 8))
-                .context("seek 失败")?;
-            
-            let mut header = [0u8; 8];
-            mem_file.read_exact(&mut header)
-                .context("读取 header 失败")?;
-            length = u64::from_le_bytes(header);
-            info!("当前长度: {}, 目标大小: {}", length, target_size);
-        }
-
-        let skip = start + offset;
-        info!("计算得到偏移量: 0x{:x}", skip);
-
-        // 计算实际的内存大小
-        let count = end - start;
-        info!("实际内存大小: 0x{:x} bytes", count);
-
-        // 使用 dd 命令读取内存
+        // 使用固定大小读取数据
         let temp_file = PathBuf::from("/tmp/remarkable_screen.raw");
         let dd_output = Command::new("dd")
             .arg(format!("if=/proc/{}/mem", pid))
             .arg(format!("of={}", temp_file.display()))
             .arg("iflag=skip_bytes,count_bytes")
-            .arg(format!("skip={}", skip))
-            .arg(format!("count={}", count))
+            .arg(format!("skip={}", start))
+            .arg(format!("count={}", WINDOW_BYTES))
             .output()
             .context("执行 dd 命令失败")?;
 
@@ -184,23 +156,16 @@ impl Screenshot {
         }
 
         // 检查数据大小
-        if raw_data.len() < count as usize {
+        if raw_data.len() < WINDOW_BYTES {
             return Err(anyhow::anyhow!(
                 "读取的数据大小不足，期望 {} 字节，实际 {} 字节",
-                count,
+                WINDOW_BYTES,
                 raw_data.len()
             ));
         }
 
-        // 只取需要的数据部分
-        let data_to_process = if raw_data.len() > WINDOW_BYTES {
-            raw_data[..WINDOW_BYTES].to_vec()
-        } else {
-            raw_data
-        };
-
         // 处理图像数据
-        let processed_data = Self::process_image(data_to_process)
+        let processed_data = Self::process_image(raw_data)
             .context("处理图像数据失败")?;
 
         Ok(processed_data)
