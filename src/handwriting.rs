@@ -1,5 +1,7 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
+use std::fs;
+use std::path::PathBuf;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::segmenter::analyze_image;
@@ -10,14 +12,20 @@ pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
     strokes: Vec<Vec<(i32, i32)>>,
     is_writing: bool,
+    temp_dir: PathBuf,
 }
 
 impl HandwritingInput {
     pub fn new(no_draw: bool) -> Result<Self> {
+        // 创建临时目录
+        let temp_dir = std::env::temp_dir().join("ghostwriter");
+        fs::create_dir_all(&temp_dir)?;
+        
         Ok(Self {
             pen: Arc::new(Mutex::new(Pen::new(no_draw))),
             strokes: Vec::new(),
             is_writing: false,
+            temp_dir,
         })
     }
 
@@ -62,10 +70,15 @@ impl HandwritingInput {
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
-        // 2. 分析图像区域
-        let regions = analyze_image(&img_data)?;
+        // 2. 保存图像到临时文件
+        let temp_image = self.temp_dir.join("capture.png");
+        fs::write(&temp_image, &img_data)?;
         
-        // 3. 将区域信息添加到提示中
+        // 3. 分析图像区域
+        let regions = analyze_image(temp_image.to_str().unwrap())
+            .map_err(|e| anyhow::anyhow!("图像分析失败: {}", e))?;
+        
+        // 4. 将区域信息添加到提示中
         let prompt = format!(
             "以下是手写内容的区域信息，请识别出文字内容：\n{}",
             regions
