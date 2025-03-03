@@ -66,17 +66,19 @@ struct DrmModeMapDumb {
 pub struct Screenshot {
     width: u32,
     height: u32,
+    data: Vec<u8>,  // 添加 data 字段存储图像数据
 }
 
 impl Screenshot {
     pub fn new() -> Result<Self> {
         Ok(Self {
             width: 1624,  // remarkable 的实际宽度
-            height: 2154  // remarkable 的实际高度
+            height: 2154, // remarkable 的实际高度
+            data: Vec::new(),
         })
     }
 
-    pub fn get_image_data(&self) -> Result<Vec<u8>> {
+    pub fn get_image_data(&mut self) -> Result<Vec<u8>> {
         // 1. 获取 xochitl 进程 ID
         let output = Command::new("pgrep")
             .arg("xochitl")
@@ -87,27 +89,28 @@ impl Screenshot {
         let maps = std::fs::read_to_string(format!("/proc/{}/maps", pid))?;
         let mut memory_range = None;
         
-        for (i, line) in maps.lines().enumerate().rev() {
-            if line.contains("/dev/dri/card0") {
-                if let Some(next_line) = maps.lines().nth(i + 1) {
-                    memory_range = Some(next_line.split_whitespace().next().unwrap().to_string());
+        // 将行收集到 Vec 中以便反向迭代
+        let lines: Vec<&str> = maps.lines().collect();
+        for i in (0..lines.len()).rev() {
+            if lines[i].contains("/dev/dri/card0") {
+                if i + 1 < lines.len() {
+                    memory_range = Some(lines[i + 1].split_whitespace().next().unwrap().to_string());
                 }
                 break;
             }
         }
         
         let memory_range = memory_range.ok_or_else(|| anyhow::anyhow!("Memory range not found"))?;
-        let (start, end) = memory_range.split_once("-").unwrap();
+        let (start, _) = memory_range.split_once("-").unwrap();
         let start = u64::from_str_radix(start, 16)?;
         
         // 3. 查找实际图像数据的偏移量
         let mut mem_file = std::fs::File::open(format!("/proc/{}/mem", pid))?;
-        let mut offset = 0;
-        let mut length = 2;
+        let mut offset: u64 = 0;
+        let mut length: u64 = 2;
         
-        while length < self.width * self.height * 4 {
+        while length < (self.width * self.height * 4) as u64 {
             offset += length - 2;
-            use std::io::{Seek, SeekFrom, Read};
             mem_file.seek(SeekFrom::Start(start + offset + 8))?;
             let mut header = [0u8; 8];
             mem_file.read_exact(&mut header)?;
@@ -116,13 +119,13 @@ impl Screenshot {
         
         // 4. 计算正确的读取大小
         let skip = start + offset;
-        let count = self.width * self.height * 4;  // RGBA 格式，每个像素4字节
+        let count = (self.width * self.height * 4) as u64;  // RGBA 格式，每个像素4字节
         
         // 5. 使用 dd 和 ffmpeg 获取截图
         let cmd = format!(
             "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={} | \
              ffmpeg -f rawvideo -pixel_format rgba -video_size {}x{} -i pipe:0 -frames:v 1 -f png pipe:1",
-            pid, count, skip, self.width, self.height  // 注意这里使用正确的宽高顺序
+            pid, count, skip, self.width, self.height
         );
         
         let output = Command::new("sh")
@@ -130,6 +133,8 @@ impl Screenshot {
             .arg(&cmd)
             .output()?;
             
+        // 保存图像数据
+        self.data = output.stdout.clone();
         Ok(output.stdout)
     }
 
@@ -256,7 +261,7 @@ impl Screenshot {
     }
 
     pub fn base64(&self) -> Result<String> {
-        let base64_image = general_purpose::STANDARD.encode(&self.data);
+        let base64_image = base64::encode(&self.data);
         Ok(base64_image)
     }
 }
