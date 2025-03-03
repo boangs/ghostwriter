@@ -8,7 +8,7 @@ use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;
 use std::time::Duration;
 use std::thread::sleep;
-use log;
+use log::info;
 use serde_json::json;
 use ureq;
 
@@ -75,9 +75,12 @@ impl HandwritingInput {
     }
 
     pub fn capture_and_recognize(&mut self) -> Result<String> {
+        info!("开始截图和识别过程");
+        
         // 1. 截取当前屏幕
         let mut screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
+        info!("成功获取截图数据，大小: {} 字节", img_data.len());
         
         // 保存原始截图用于调试
         let debug_image_path = self.temp_dir.join("debug_screenshot.png");
@@ -86,8 +89,10 @@ impl HandwritingInput {
         
         // 2. 转换为 base64
         let img_base64 = base64::encode(&img_data);
+        info!("图片已转换为 base64，长度: {} 字符", img_base64.len());
         
         // 3. 调用百度 OCR API
+        info!("开始调用百度 OCR API");
         let access_token = self.get_baidu_access_token()?;
         let url = format!(
             "https://aip.baidubce.com/rest/2.0/ocr/v1/handwriting?access_token={}",
@@ -97,6 +102,7 @@ impl HandwritingInput {
         let response = ureq::post(&url)
             .set("Content-Type", "application/x-www-form-urlencoded")
             .send_string(&format!("image={}", img_base64))?;
+        info!("成功获取 API 响应");
             
         let json: serde_json::Value = response.into_json()?;
         
@@ -115,6 +121,7 @@ impl HandwritingInput {
                 }
             }
         }
+        info!("识别结果: {}", result);
 
         // 保存识别结果用于调试
         let debug_text_path = self.temp_dir.join("debug_result.txt");
@@ -122,6 +129,7 @@ impl HandwritingInput {
         info!("保存识别结果到: {}", debug_text_path.display());
 
         // 5. 将识别结果传给 AI 引擎
+        info!("开始处理 AI 引擎响应");
         self.engine.clear_content();
         self.engine.add_text_content(&format!(
             "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
@@ -155,10 +163,12 @@ impl HandwritingInput {
         );
         
         // 7. 执行识别
+        info!("执行 AI 引擎");
         self.engine.execute()?;
         
         // 8. 返回识别结果
         let result = response.lock().unwrap().clone();
+        info!("完成识别过程");
         Ok(result)
     }
     
