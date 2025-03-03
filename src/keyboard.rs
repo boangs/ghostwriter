@@ -3,9 +3,8 @@ use log::debug;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
-use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use crate::constants::REMARKABLE_WIDTH;
 use crate::font::FontRenderer;
-use crate::util::svg_to_bitmap;
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
@@ -66,7 +65,7 @@ impl Keyboard {
             }
             
             // 绘制这一行的字符
-            for c in line_chars {
+            for &c in line_chars.iter() {
                 // 获取字符的笔画数据和基线偏移
                 let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
                 
