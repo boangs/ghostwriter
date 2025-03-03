@@ -11,6 +11,7 @@ use crate::screenshot::Screenshot;
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
     font_renderer: FontRenderer,
+    last_y: u32,  // 添加一个字段来记录最后写入的位置
 }
 
 impl Keyboard {
@@ -18,6 +19,7 @@ impl Keyboard {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
+            last_y: 100,  // 初始位置
         })
     }
 
@@ -55,7 +57,7 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y = Self::detect_last_content_line()?;
+        let start_y = self.last_y;  // 使用记录的最后位置
         let char_width: u32 = 32;
         let line_height: u32 = 40;
         let font_size = 30.0;
@@ -67,12 +69,14 @@ impl Keyboard {
         let mut line_start_y = start_y;
         
         let mut is_new_paragraph = true;
+        let mut max_y = current_y;  // 跟踪最大的 y 值
         
         for line in text.split('\n') {
             if line.trim().is_empty() {
                 // 空行表示段落分隔
                 line_start_y += line_height; // 更新行起始位置
                 current_y = line_start_y;
+                max_y = max_y.max(current_y);  // 更新最大 y 值
                 is_new_paragraph = true;
                 continue;
             }
@@ -127,12 +131,14 @@ impl Keyboard {
             if line_chars.len() < line.chars().count() {
                 line_start_y += line_height;
                 current_y = line_start_y;
+                max_y = max_y.max(current_y);  // 更新最大 y 值
                 current_x = start_x;
                 
                 for c in line.chars().skip(line_chars.len()) {
                     if current_x + char_width > max_width {
                         line_start_y += line_height;
                         current_y = line_start_y;
+                        max_y = max_y.max(current_y);  // 更新最大 y 值
                         current_x = start_x;
                     }
                     
@@ -162,7 +168,14 @@ impl Keyboard {
             // 更新到下一行的起始位置
             line_start_y += line_height;
             current_y = line_start_y;
+            max_y = max_y.max(current_y);  // 更新最大 y 值
             current_x = start_x;
+        }
+        
+        // 更新最后写入的位置
+        unsafe {
+            let self_mut = &mut *(self as *const _ as *mut Self);
+            self_mut.last_y = max_y + line_height;  // 为下次写入预留一行的空间
         }
         
         pen.pen_up()?;
