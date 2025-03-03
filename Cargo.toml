@@ -24,7 +24,7 @@ libc = "0.2"
 freetype-rs = "0.32"
 rusttype = "0.9"
 ab_glyph_rasterizer = "0.1"
-drm = "0.10.0"
+drm = { version = "0.10.0", features = ["control"] }
 
 [lib]
 name = "ghostwriter"

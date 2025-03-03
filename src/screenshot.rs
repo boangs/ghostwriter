@@ -2,14 +2,16 @@ use anyhow::Result;
 use image::GrayImage;
 use log::{info, error};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, Read, Seek};
+use std::os::unix::io::AsRawFd;
 use std::process;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
-use drm::control::{Device as DrmDevice, ResourceHandle};
+use drm::control::{Device as DrmDevice, ResourceHandle, dumbbuffer};
 use drm::Device as _;
+use drm::Control;
 
 const WIDTH: usize = 1872;
 const HEIGHT: usize = 1404;
@@ -36,24 +38,47 @@ impl Screenshot {
         let card = File::open("/dev/dri/card0")?;
         info!("成功打开 DRM 设备");
 
-        // 获取资源句柄
-        let res_handles = card.resource_handles()?;
-        info!("获取到 {} 个 CRTC", res_handles.crtcs.len());
+        // 将文件转换为 DRM 设备
+        let drm = card.as_raw_fd();
+        let card = unsafe { drm::Control::new(drm) }?;
+        info!("初始化 DRM 控制器成功");
 
-        if res_handles.crtcs.is_empty() {
+        // 获取资源
+        let res = card.get_resources()?;
+        info!("获取到 {} 个 CRTC", res.crtcs().len());
+
+        if res.crtcs().is_empty() {
             return Err(anyhow::anyhow!("未找到可用的 CRTC"));
         }
 
-        // 获取第一个 CRTC 的帧缓冲
-        let crtc = res_handles.crtcs[0];
-        let fb = card.get_framebuffer(crtc)?;
-        info!("获取到帧缓冲，大小: {}x{}", fb.width, fb.height);
+        // 获取第一个 CRTC
+        let crtc = res.crtcs()[0];
+        let crtc_info = card.get_crtc(crtc)?;
+        info!("获取到 CRTC 信息: {:?}", crtc_info);
+
+        // 创建一个 dumb buffer 用于读取屏幕内容
+        let create_dumb = dumbbuffer::DumbBuffer {
+            width: WIDTH as u32,
+            height: HEIGHT as u32,
+            bpp: BYTES_PER_PIXEL as u32 * 8,
+            flags: 0,
+        };
+        let dumb = card.create_dumb_buffer(create_dumb)?;
+        info!("创建 dumb buffer 成功，大小: {}x{}", dumb.width, dumb.height);
+
+        // 映射 dumb buffer
+        let handle = card.map_dumb_buffer(&dumb)?;
+        info!("映射 dumb buffer 成功，句柄: {}", handle);
 
         // 读取帧缓冲数据
         let mut buffer = vec![0u8; WINDOW_BYTES];
-        let mut map_file = File::open("/dev/dri/card0")?;
+        let mut map_file = File::open(format!("/dev/dri/card0"))?;
+        map_file.seek(std::io::SeekFrom::Start(handle as u64))?;
         map_file.read_exact(&mut buffer)?;
         info!("读取帧缓冲数据成功，大小: {} 字节", buffer.len());
+
+        // 清理资源
+        card.destroy_dumb_buffer(dumb)?;
 
         // 处理图像数据
         let processed_data = Self::process_image(buffer)?;
