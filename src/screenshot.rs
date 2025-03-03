@@ -200,4 +200,8 @@ impl Screenshot {
         let base64_image = general_purpose::STANDARD.encode(&self.data);
         Ok(base64_image)
     }
+
+    pub fn get_image_data(&self) -> Result<Vec<u8>> {
+        Ok(self.data.clone())
+    }
 }
