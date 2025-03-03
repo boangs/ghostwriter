@@ -36,6 +36,12 @@ impl Touch {
             match Device::open("/dev/input/touchscreen0") {
                 Ok(dev) => {
                     info!("成功打开触摸设备");
+                    info!("设备名称: {}", dev.name().unwrap_or("未知"));
+                    info!("设备物理路径: {}", dev.phys().unwrap_or("未知"));
+                    info!("支持的事件类型:");
+                    for ev_type in dev.supported_events().event_types() {
+                        info!("  - {:?}", ev_type);
+                    }
                     Some(dev)
                 }
                 Err(e) => {
@@ -43,6 +49,24 @@ impl Touch {
                     error!("请检查设备是否存在并且有正确的权限");
                     error!("可以尝试: ls -l /dev/input/touchscreen0");
                     error!("或者: ls -l /dev/input/event*");
+                    // 尝试列出所有可用的输入设备
+                    if let Ok(entries) = std::fs::read_dir("/dev/input") {
+                        info!("可用的输入设备:");
+                        for entry in entries {
+                            if let Ok(entry) = entry {
+                                info!("  - {}", entry.path().display());
+                                // 尝试打开每个 event 设备并获取信息
+                                if let Some(name) = entry.file_name().to_str() {
+                                    if name.starts_with("event") {
+                                        if let Ok(test_dev) = Device::open(entry.path()) {
+                                            info!("    设备名称: {}", test_dev.name().unwrap_or("未知"));
+                                            info!("    设备物理路径: {}", test_dev.phys().unwrap_or("未知"));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     None
                 }
             }
@@ -59,10 +83,12 @@ impl Touch {
             anyhow::anyhow!("触摸设备未初始化")
         })?;
         
+        info!("等待触摸事件...");
         loop {
             match device.fetch_events() {
                 Ok(events) => {
                     for event in events {
+                        debug!("收到事件: type={:?}, code={}, value={}", event.event_type(), event.code(), event.value());
                         if event.code() == ABS_MT_POSITION_X {
                             position_x = event.value();
                             info!("X坐标: {}", position_x);
