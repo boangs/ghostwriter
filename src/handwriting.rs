@@ -37,8 +37,8 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
-            width: 2154,  // remarkable paper pro 的屏幕宽度
-            height: 1624, // remarkable paper pro 的屏幕高度
+            width: 1624,   // remarkable paper pro 的实际宽度
+            height: 2154,  // remarkable paper pro 的实际高度
         })
     }
 

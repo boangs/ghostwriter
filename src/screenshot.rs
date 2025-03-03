@@ -1,9 +1,8 @@
 use anyhow::Result;
-use image::{GrayImage, DynamicImage, ImageBuffer, Luma};
+use image::{GrayImage, DynamicImage, ImageBuffer, Rgba};
 use log::{info, error};
 use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom, BufRead, BufReader};
-use std::os::unix::io::AsRawFd;
 use std::process::Command;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::mem::size_of;
@@ -11,8 +10,9 @@ use std::mem::size_of;
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
 
-const WIDTH: usize = 2154;  // remarkable paper pro 的实际宽度
-const HEIGHT: usize = 1624; // remarkable paper pro 的实际高度
+// 注意：这里宽高是反的，因为 remarkable 的屏幕是竖向的
+const HEIGHT: usize = 2154;  // remarkable paper pro 的实际宽度
+const WIDTH: usize = 1624;   // remarkable paper pro 的实际高度
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
@@ -94,8 +94,8 @@ impl Screenshot {
         let mut memory_range = None;
         for i in 0..lines.len() {
             if lines[i].contains("/dev/dri/card0") {
-                if i > 0 {
-                    let range = lines[i-1].split_whitespace().next().unwrap();
+                if i + 1 < lines.len() {
+                    let range = lines[i + 1].split_whitespace().next().unwrap();
                     memory_range = Some(range.to_string());
                     break;
                 }
@@ -142,21 +142,21 @@ impl Screenshot {
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
-        // 将 RGBA 数据转换为灰度图
-        let mut gray_data = vec![0u8; WIDTH * HEIGHT];
-        for i in 0..WIDTH * HEIGHT {
-            let rgba = &data[i * 4..(i + 1) * 4];
-            // 使用加权平均值计算灰度值
-            gray_data[i] = ((rgba[0] as f32 * 0.299 + 
-                           rgba[1] as f32 * 0.587 + 
-                           rgba[2] as f32 * 0.114) * 1.2) as u8;
-        }
-
-        let img = GrayImage::from_raw(WIDTH as u32, HEIGHT as u32, gray_data)
+        // 创建 RGBA 图像
+        let img = ImageBuffer::<Rgba<u8>, _>::from_raw(WIDTH as u32, HEIGHT as u32, data.clone())
             .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
-        // 手动增强对比度
-        let mut enhanced = img.clone();
+        // 转换为灰度图
+        let mut gray_img = GrayImage::new(WIDTH as u32, HEIGHT as u32);
+        for (x, y, pixel) in img.enumerate_pixels() {
+            let gray_value = ((pixel[0] as f32 * 0.299 + 
+                             pixel[1] as f32 * 0.587 + 
+                             pixel[2] as f32 * 0.114) * 1.2) as u8;
+            gray_img.put_pixel(x, y, image::Luma([gray_value]));
+        }
+
+        // 增强对比度
+        let mut enhanced = gray_img.clone();
         for pixel in enhanced.pixels_mut() {
             let value = pixel[0];
             if value < 128 {
