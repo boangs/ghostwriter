@@ -1,19 +1,18 @@
-use anyhow::{Result, Context};
-use image::{GrayImage, DynamicImage, ImageBuffer, Rgba};
-use log::{info, error, warn};
+use anyhow::Result;
+use image::{GrayImage, DynamicImage, ImageBuffer, Luma};
+use log::{info, error};
 use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom, BufRead, BufReader};
+use std::os::unix::io::AsRawFd;
 use std::process::Command;
-use std::path::PathBuf;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::mem::size_of;
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
 
-// 注意：这里宽高是反的，因为 remarkable 的屏幕是竖向的
-const HEIGHT: usize = 2154;  // remarkable paper pro 的实际宽度
-const WIDTH: usize = 1624;   // remarkable paper pro 的实际高度
+const WIDTH: usize = 2154;  // 更新为正确的屏幕尺寸
+const HEIGHT: usize = 1624;
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
@@ -70,7 +69,7 @@ pub struct Screenshot {
 
 impl Screenshot {
     pub fn new() -> Result<Screenshot> {
-        let screenshot_data = Self::take_screenshot().context("截取屏幕失败")?;
+        let screenshot_data = Self::take_screenshot()?;
         Ok(Screenshot {
             data: screenshot_data,
         })
@@ -80,34 +79,23 @@ impl Screenshot {
         // 获取 xochitl 进程的 PID
         let output = Command::new("pidof")
             .arg("xochitl")
-            .output()
-            .context("执行 pidof 命令失败")?;
-        let pid = String::from_utf8(output.stdout)
-            .context("解析 PID 失败")?
-            .trim()
-            .to_string();
+            .output()?;
+        let pid = String::from_utf8(output.stdout)?.trim().to_string();
         info!("找到 xochitl 进程 PID: {}", pid);
 
         // 读取内存映射
         let maps_path = format!("/proc/{}/maps", pid);
-        let maps_file = File::open(&maps_path)
-            .context(format!("打开 {} 失败", maps_path))?;
+        let maps_file = File::open(&maps_path)?;
         let reader = BufReader::new(maps_file);
-        let mut lines: Vec<String> = reader.lines()
-            .collect::<std::io::Result<_>>()
-            .context("读取内存映射失败")?;
+        let mut lines: Vec<String> = reader.lines().collect::<std::io::Result<_>>()?;
         lines.reverse();
 
         // 查找 /dev/dri/card0 相关的内存区域
         let mut memory_range = None;
-        for (i, line) in lines.iter().enumerate() {
-            if line.contains("/dev/dri/card0") {
-                info!("找到 /dev/dri/card0 行: {}", line);
-                if i + 1 < lines.len() {
-                    let next_line = &lines[i + 1];
-                    info!("下一行内容: {}", next_line);
-                    let range = next_line.split_whitespace().next()
-                        .ok_or_else(|| anyhow::anyhow!("无法解析内存范围"))?;
+        for i in 0..lines.len() {
+            if lines[i].contains("/dev/dri/card0") {
+                if i > 0 {
+                    let range = lines[i-1].split_whitespace().next().unwrap();
                     memory_range = Some(range.to_string());
                     break;
                 }
@@ -115,96 +103,111 @@ impl Screenshot {
         }
 
         let range = memory_range.ok_or_else(|| anyhow::anyhow!("未找到显示内存区域"))?;
-        let (start_str, end_str) = range.split_once('-')
-            .ok_or_else(|| anyhow::anyhow!("无法解析内存范围"))?;
-        let start = u64::from_str_radix(start_str, 16)
-            .context("解析起始地址失败")?;
-        let end = u64::from_str_radix(end_str, 16)
-            .context("解析结束地址失败")?;
+        let (start_str, end_str) = range.split_once('-').unwrap();
+        let start = u64::from_str_radix(start_str, 16)?;
+        let end = u64::from_str_radix(end_str, 16)?;
         
         info!("找到内存区域: {} (start: 0x{:x}, end: 0x{:x})", range, start, end);
 
-        // 使用固定大小读取数据
-        let temp_file = PathBuf::from("/tmp/remarkable_screen.raw");
-        let dd_output = Command::new("dd")
-            .arg(format!("if=/proc/{}/mem", pid))
-            .arg(format!("of={}", temp_file.display()))
-            .arg("iflag=skip_bytes,count_bytes")
-            .arg(format!("skip={}", start))
-            .arg(format!("count={}", WINDOW_BYTES))
-            .output()
-            .context("执行 dd 命令失败")?;
-
-        if !dd_output.status.success() {
-            let error = String::from_utf8_lossy(&dd_output.stderr);
-            error!("dd 命令执行失败: {}", error);
-            return Err(anyhow::anyhow!("dd 命令执行失败: {}", error));
+        // 打开进程内存
+        let mut mem_file = File::open(format!("/proc/{}/mem", pid))?;
+        
+        // 查找实际的显示内存位置
+        let mut offset = 0u64;
+        let mut length = 2u64;
+        
+        while length < (WIDTH * HEIGHT * 4) as u64 {
+            offset += length - 2;
+            mem_file.seek(SeekFrom::Start(start + offset + 8))?;
+            
+            let mut header = [0u8; 8];
+            mem_file.read_exact(&mut header)?;
+            length = u64::from_le_bytes(header);
         }
 
-        info!("dd 命令执行成功，读取临时文件");
+        let skip = start + offset;
+        info!("找到显示内存偏移量: 0x{:x}", skip);
 
-        // 读取临时文件
-        let mut raw_data = Vec::new();
-        File::open(&temp_file)
-            .context("打开临时文件失败")?
-            .read_to_end(&mut raw_data)
-            .context("读取临时文件失败")?;
+        // 读取显示内存
+        mem_file.seek(SeekFrom::Start(skip))?;
+        let mut buffer = vec![0u8; WINDOW_BYTES];
+        mem_file.read_exact(&mut buffer)?;
 
-        // 删除临时文件
-        if let Err(e) = std::fs::remove_file(&temp_file) {
-            warn!("删除临时文件失败: {}", e);
-        }
-
-        // 检查数据大小
-        if raw_data.len() < WINDOW_BYTES {
-            return Err(anyhow::anyhow!(
-                "读取的数据大小不足，期望 {} 字节，实际 {} 字节",
-                WINDOW_BYTES,
-                raw_data.len()
-            ));
-        }
+        info!("读取显示内存成功，大小: {} 字节", buffer.len());
 
         // 处理图像数据
-        let processed_data = Self::process_image(raw_data)
-            .context("处理图像数据失败")?;
+        let processed_data = Self::process_image(buffer)?;
 
         Ok(processed_data)
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
-        // 创建 RGBA 图像
-        let img = ImageBuffer::<Rgba<u8>, _>::from_raw(WIDTH as u32, HEIGHT as u32, data.clone())
+        // 将 RGBA 数据转换为灰度图
+        let mut gray_data = vec![0u8; WIDTH * HEIGHT];
+        for i in 0..WIDTH * HEIGHT {
+            let rgba = &data[i * 4..(i + 1) * 4];
+            // 使用 RGB 平均值作为灰度值
+            gray_data[i] = ((rgba[0] as u16 + rgba[1] as u16 + rgba[2] as u16) / 3) as u8;
+        }
+
+        let img = GrayImage::from_raw(WIDTH as u32, HEIGHT as u32, gray_data)
             .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
-        // 转换为灰度图
-        let mut gray_img = GrayImage::new(WIDTH as u32, HEIGHT as u32);
-        for (x, y, pixel) in img.enumerate_pixels() {
-            let gray_value = ((pixel[0] as f32 * 0.299 + 
-                             pixel[1] as f32 * 0.587 + 
-                             pixel[2] as f32 * 0.114) * 1.2) as u8;
-            gray_img.put_pixel(x, y, image::Luma([gray_value]));
-        }
-
-        // 增强对比度
-        let mut enhanced = gray_img.clone();
-        for pixel in enhanced.pixels_mut() {
-            let value = pixel[0];
-            if value < 128 {
-                pixel[0] = value.saturating_mul(2);
-            } else {
-                pixel[0] = value.saturating_add((255 - value) / 2);
-            }
-        }
-        
-        // 编码为 PNG
-        let mut png_data = Vec::new();
-        let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
-        encoder.write_image(
-            enhanced.as_raw(),
+        // 将原始图像保存为调试用途
+        let mut debug_png_data = Vec::new();
+        let debug_encoder = image::codecs::png::PngEncoder::new(&mut debug_png_data);
+        debug_encoder.write_image(
+            img.as_raw(),
             WIDTH as u32,
             HEIGHT as u32,
             image::ExtendedColorType::L8,
         )?;
+        
+        // 保存原始图像到文件
+        let mut debug_file = File::create("debug_original.png")?;
+        debug_file.write_all(&debug_png_data)?;
+        info!("保存原始图像到 debug_original.png");
+
+        // 将 GrayImage 转换为 DynamicImage
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // 调整图像大小
+        let resized_img = dynamic_img.resize_exact(
+            OUTPUT_WIDTH,
+            OUTPUT_HEIGHT,
+            image::imageops::FilterType::Lanczos3,
+        );
+
+        // 确保我们得到的是灰度图像
+        let gray_img = resized_img.to_luma8();
+
+        // 保存调整大小后的图像到文件
+        let mut resized_debug_png_data = Vec::new();
+        let resized_debug_encoder = image::codecs::png::PngEncoder::new(&mut resized_debug_png_data);
+        resized_debug_encoder.write_image(
+            gray_img.as_raw(),
+            OUTPUT_WIDTH,
+            OUTPUT_HEIGHT,
+            image::ExtendedColorType::L8,
+        )?;
+        
+        let mut resized_debug_file = File::create("debug_resized.png")?;
+        resized_debug_file.write_all(&resized_debug_png_data)?;
+        info!("保存调整大小后的图像到 debug_resized.png");
+
+        // 编码为 PNG
+        let mut png_data = Vec::new();
+        let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
+        encoder.write_image(
+            gray_img.as_raw(),
+            OUTPUT_WIDTH,
+            OUTPUT_HEIGHT,
+            image::ExtendedColorType::L8,
+        )?;
+
+        // 输出 base64 编码的图像数据前几个字符，用于调试
+        let base64_image = general_purpose::STANDARD.encode(&png_data);
+        info!("Base64 图像数据预览: {}...", &base64_image[..100]);
 
         Ok(png_data)
     }
