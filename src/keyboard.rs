@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::debug;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::sleep;
 use std::time::Duration;
 use crate::constants::REMARKABLE_WIDTH;
@@ -9,7 +10,7 @@ use crate::font::FontRenderer;
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
     font_renderer: FontRenderer,
-    last_y: u32,
+    last_y: AtomicU32,
 }
 
 impl Keyboard {
@@ -17,7 +18,7 @@ impl Keyboard {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
-            last_y: 100,
+            last_y: AtomicU32::new(100),
         })
     }
 
@@ -26,7 +27,7 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y = self.last_y;  // 使用记录的最后位置
+        let start_y = self.last_y.load(Ordering::Relaxed);  // 使用原子操作读取
         let char_width: u32 = 32;
         let line_height: u32 = 40;
         let font_size = 30.0;
@@ -142,10 +143,7 @@ impl Keyboard {
         }
         
         // 更新最后写入的位置
-        unsafe {
-            let self_mut = &mut *(self as *const _ as *mut Self);
-            self_mut.last_y = max_y + line_height;  // 为下次写入预留一行的空间
-        }
+        self.last_y.store(max_y + line_height, Ordering::Relaxed);  // 使用原子操作存储
         
         pen.pen_up()?;
         Ok(())
