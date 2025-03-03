@@ -3,9 +3,9 @@ use image::GrayImage;
 use log::{info, error};
 use std::fs::File;
 use std::io::{Write, Read, Seek};
-use std::os::unix::io::AsRawFd;
-use std::process;
-use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use std::path::Path;
+use std::process::Command;
+use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
@@ -34,51 +34,53 @@ impl Screenshot {
     }
 
     fn take_screenshot() -> Result<Vec<u8>> {
-        // 打开 DRM 设备
-        let card = File::open("/dev/dri/card0")?;
-        info!("成功打开 DRM 设备");
+        // 查找 xochitl 进程
+        let output = Command::new("pidof")
+            .arg("xochitl")
+            .output()?;
+        
+        let pid = String::from_utf8(output.stdout)?
+            .trim()
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("未找到 xochitl 进程"))?;
+        
+        info!("找到 xochitl 进程 PID: {}", pid);
 
-        // 将文件转换为 DRM 设备
-        let drm = card.as_raw_fd();
-        let card = unsafe { drm::Control::new(drm) }?;
-        info!("初始化 DRM 控制器成功");
+        // 查找内存映射区域
+        let maps_file = format!("/proc/{}/maps", pid);
+        let maps_content = std::fs::read_to_string(&maps_file)?;
+        
+        // 查找包含 /dev/dri/card0 的内存区域
+        let mem_region = maps_content
+            .lines()
+            .find(|line| line.contains("/dev/dri/card0"))
+            .ok_or_else(|| anyhow::anyhow!("未找到显示内存区域"))?;
 
-        // 获取资源
-        let res = card.get_resources()?;
-        info!("获取到 {} 个 CRTC", res.crtcs().len());
+        info!("找到内存区域: {}", mem_region);
 
-        if res.crtcs().is_empty() {
-            return Err(anyhow::anyhow!("未找到可用的 CRTC"));
-        }
+        // 解析内存区域地址
+        let addr_range = mem_region
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("无法解析内存地址"))?;
 
-        // 获取第一个 CRTC
-        let crtc = res.crtcs()[0];
-        let crtc_info = card.get_crtc(crtc)?;
-        info!("获取到 CRTC 信息: {:?}", crtc_info);
+        let (start_addr, _) = addr_range
+            .split_once('-')
+            .ok_or_else(|| anyhow::anyhow!("无法解析地址范围"))?;
 
-        // 创建一个 dumb buffer 用于读取屏幕内容
-        let create_dumb = dumbbuffer::DumbBuffer {
-            width: WIDTH as u32,
-            height: HEIGHT as u32,
-            bpp: BYTES_PER_PIXEL as u32 * 8,
-            flags: 0,
-        };
-        let dumb = card.create_dumb_buffer(create_dumb)?;
-        info!("创建 dumb buffer 成功，大小: {}x{}", dumb.width, dumb.height);
+        let start_addr = u64::from_str_radix(start_addr, 16)?;
+        info!("内存起始地址: 0x{:x}", start_addr);
 
-        // 映射 dumb buffer
-        let handle = card.map_dumb_buffer(&dumb)?;
-        info!("映射 dumb buffer 成功，句柄: {}", handle);
-
-        // 读取帧缓冲数据
+        // 打开进程内存
+        let mut mem_file = File::open(format!("/proc/{}/mem", pid))?;
+        
+        // 读取显示内存数据
         let mut buffer = vec![0u8; WINDOW_BYTES];
-        let mut map_file = File::open(format!("/dev/dri/card0"))?;
-        map_file.seek(std::io::SeekFrom::Start(handle as u64))?;
-        map_file.read_exact(&mut buffer)?;
-        info!("读取帧缓冲数据成功，大小: {} 字节", buffer.len());
-
-        // 清理资源
-        card.destroy_dumb_buffer(dumb)?;
+        mem_file.seek(std::io::SeekFrom::Start(start_addr))?;
+        mem_file.read_exact(&mut buffer)?;
+        
+        info!("读取显示内存成功，大小: {} 字节", buffer.len());
 
         // 处理图像数据
         let processed_data = Self::process_image(buffer)?;
