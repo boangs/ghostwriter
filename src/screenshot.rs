@@ -1,5 +1,5 @@
 use anyhow::Result;
-use image::GrayImage;
+use image::{GrayImage, DynamicImage, ImageBuffer, Luma};
 use log::{info, error};
 use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom, BufRead, BufReader};
@@ -153,8 +153,11 @@ impl Screenshot {
         let img = GrayImage::from_raw(WIDTH as u32, HEIGHT as u32, gray_data)
             .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
+        // 将 GrayImage 转换为 DynamicImage
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
         // 调整图像大小
-        let resized_img = img.resize(
+        let resized_img = dynamic_img.resize(
             OUTPUT_WIDTH,
             OUTPUT_HEIGHT,
             image::imageops::FilterType::Lanczos3,
@@ -164,7 +167,7 @@ impl Screenshot {
         let mut png_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
         encoder.write_image(
-            resized_img.as_luma8().unwrap().as_raw(),
+            resized_img.as_bytes(),
             OUTPUT_WIDTH,
             OUTPUT_HEIGHT,
             image::ExtendedColorType::L8,
