@@ -80,46 +80,91 @@ impl Screenshot {
 
     pub fn get_image_data(&mut self) -> Result<Vec<u8>> {
         // 1. 获取 xochitl 进程 ID
+        info!("开始获取 xochitl 进程 ID");
         let output = Command::new("pgrep")
             .arg("xochitl")
             .output()?;
+            
+        if !output.status.success() {
+            error!("无法找到 xochitl 进程: {}", String::from_utf8_lossy(&output.stderr));
+            return Err(anyhow::anyhow!("无法找到 xochitl 进程"));
+        }
+        
         let pid = String::from_utf8(output.stdout)?.trim().to_string();
+        info!("找到 xochitl 进程 ID: {}", pid);
         
         // 2. 查找内存映射
-        let maps = std::fs::read_to_string(format!("/proc/{}/maps", pid))?;
-        let mut memory_range = None;
+        info!("开始读取内存映射文件");
+        let maps_path = format!("/proc/{}/maps", pid);
+        let maps = match std::fs::read_to_string(&maps_path) {
+            Ok(content) => content,
+            Err(e) => {
+                error!("无法读取内存映射文件 {}: {}", maps_path, e);
+                return Err(anyhow::anyhow!("无法读取内存映射文件"));
+            }
+        };
         
-        // 将行收集到 Vec 中以便反向迭代
+        info!("成功读取内存映射文件，开始查找显示内存区域");
+        let mut memory_range = None;
         let lines: Vec<&str> = maps.lines().collect();
+        
         for i in (0..lines.len()).rev() {
             if lines[i].contains("/dev/dri/card0") {
+                info!("找到 DRI 设备映射: {}", lines[i]);
                 if i + 1 < lines.len() {
                     memory_range = Some(lines[i + 1].split_whitespace().next().unwrap().to_string());
+                    info!("找到相关内存区域: {}", memory_range.as_ref().unwrap());
                 }
                 break;
             }
         }
         
-        let memory_range = memory_range.ok_or_else(|| anyhow::anyhow!("Memory range not found"))?;
+        let memory_range = memory_range.ok_or_else(|| {
+            error!("在内存映射中未找到显示内存区域");
+            anyhow::anyhow!("未找到显示内存区域")
+        })?;
+        
         let (start, _) = memory_range.split_once("-").unwrap();
         let start = u64::from_str_radix(start, 16)?;
+        info!("显示内存起始地址: 0x{:x}", start);
         
         // 3. 查找实际图像数据的偏移量
-        let mut mem_file = std::fs::File::open(format!("/proc/{}/mem", pid))?;
+        info!("开始查找图像数据偏移量");
+        let mut mem_file = match std::fs::File::open(format!("/proc/{}/mem", pid)) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("无法打开进程内存文件: {}", e);
+                return Err(anyhow::anyhow!("无法打开进程内存文件"));
+            }
+        };
+        
         let mut offset: u64 = 0;
         let mut length: u64 = 2;
+        let target_size = (self.width * self.height * 4) as u64;
         
-        while length < (self.width * self.height * 4) as u64 {
+        info!("目标图像大小: {} 字节", target_size);
+        
+        while length < target_size {
             offset += length - 2;
-            mem_file.seek(SeekFrom::Start(start + offset + 8))?;
+            if let Err(e) = mem_file.seek(SeekFrom::Start(start + offset + 8)) {
+                error!("内存文件定位失败: {}", e);
+                return Err(anyhow::anyhow!("内存文件定位失败"));
+            }
+            
             let mut header = [0u8; 8];
-            mem_file.read_exact(&mut header)?;
+            if let Err(e) = mem_file.read_exact(&mut header) {
+                error!("读取内存头部失败: {}", e);
+                return Err(anyhow::anyhow!("读取内存头部失败"));
+            }
+            
             length = u64::from_le_bytes(header);
+            info!("当前偏移量: 0x{:x}, 数据长度: {} 字节", offset, length);
         }
         
-        // 4. 计算正确的读取大小
+        // 4. 计算正确的读取参数
         let skip = start + offset;
-        let count = (self.width * self.height * 4) as u64;  // RGBA 格式，每个像素4字节
+        let count = target_size;
+        info!("最终读取参数: skip=0x{:x}, count={}", skip, count);
         
         // 5. 使用 dd 和 ffmpeg 获取截图
         let cmd = format!(
@@ -128,13 +173,31 @@ impl Screenshot {
             pid, count, skip, self.width, self.height
         );
         
+        info!("执行截图命令: {}", cmd);
         let output = Command::new("sh")
             .arg("-c")
             .arg(&cmd)
             .output()?;
             
+        if !output.status.success() {
+            error!("截图命令执行失败: {}", String::from_utf8_lossy(&output.stderr));
+            return Err(anyhow::anyhow!("截图命令执行失败"));
+        }
+        
+        info!("截图命令执行成功，获取到 {} 字节的图像数据", output.stdout.len());
+        
         // 保存图像数据
         self.data = output.stdout.clone();
+        
+        // 保存调试用的原始图像
+        if !self.data.is_empty() {
+            if let Err(e) = std::fs::write("/tmp/ghostwriter/debug_raw.png", &self.data) {
+                error!("保存调试图像失败: {}", e);
+            } else {
+                info!("保存原始调试图像到 /tmp/ghostwriter/debug_raw.png");
+            }
+        }
+        
         Ok(output.stdout)
     }
 
