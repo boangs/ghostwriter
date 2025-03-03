@@ -10,6 +10,10 @@ use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
 use log;
+use sha2::{Sha256, Digest};
+use reqwest;
+use serde_json::Value;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -17,10 +21,17 @@ pub struct HandwritingInput {
     is_writing: bool,
     temp_dir: PathBuf,
     engine: Box<dyn LLMEngine>,
+    app_key: String,
+    app_secret: String,
 }
 
 impl HandwritingInput {
-    pub fn new(no_draw: bool, engine: Box<dyn LLMEngine>) -> Result<Self> {
+    pub fn new(
+        no_draw: bool,
+        engine: Box<dyn LLMEngine>,
+        app_key: String,
+        app_secret: String,
+    ) -> Result<Self> {
         // 创建临时目录
         let temp_dir = std::env::temp_dir().join("ghostwriter");
         fs::create_dir_all(&temp_dir)?;
@@ -31,6 +42,8 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
+            app_key,
+            app_secret,
         })
     }
 
@@ -70,7 +83,7 @@ impl HandwritingInput {
         self.is_writing = false;
     }
 
-    pub fn capture_and_recognize(&mut self) -> Result<String> {
+    pub async fn capture_and_recognize(&mut self) -> Result<String> {
         // 1. 截取当前屏幕
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
@@ -78,50 +91,116 @@ impl HandwritingInput {
         // 2. 将图像转换为 base64
         let base64_image = base64::encode(&img_data);
         
-        // 打印调试信息
-        log::info!("准备发送到 API 的参数：");
-        log::info!("提示词: 请识别图片中的手写文字内容。直接输出识别到的文字，不要解释。");
-        log::info!("图片 base64 长度: {}", base64_image.len());
-        log::info!("图片 base64 前100个字符: {}", &base64_image[..100]);
+        // 3. 准备有道 API 参数
+        let salt = uuid::Uuid::new_v4().to_string();
+        let curtime = SystemTime::now()
+            .duration_since(UNIX_EPOCH)?
+            .as_secs()
+            .to_string();
+            
+        // 计算 input
+        let img_len = base64_image.len().to_string();
+        let input = if base64_image.len() > 20 {
+            format!(
+                "{}{}{}",
+                &base64_image[..10],
+                img_len,
+                &base64_image[base64_image.len()-10..]
+            )
+        } else {
+            base64_image.clone()
+        };
         
-        // 3. 清除之前的内容
-        self.engine.clear_content();
-        
-        // 4. 添加提示词和图片
-        self.engine.add_text_content("请识别图片中的手写文字内容。直接输出识别到的文字，不要解释。");
-        self.engine.add_image_content(&base64_image);
-        
-        // 5. 注册回调处理识别结果
-        let response = Arc::new(Mutex::new(String::new()));
-        let response_clone = response.clone();
-        
-        self.engine.register_tool(
-            "write",
-            serde_json::json!({
-                "name": "write",
-                "description": "Write the recognized text",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "text": {
-                            "type": "string",
-                            "description": "The recognized text"
-                        }
-                    },
-                    "required": ["text"]
-                }
-            }),
-            Box::new(move |args: serde_json::Value| {
-                let text = args["text"].as_str().unwrap_or_default();
-                *response_clone.lock().unwrap() = text.to_string();
-            })
+        // 计算签名
+        let sign_str = format!(
+            "{}{}{}{}{}",
+            self.app_key, input, curtime, salt, self.app_secret
         );
+        let mut hasher = Sha256::new();
+        hasher.update(sign_str.as_bytes());
+        let sign = format!("{:x}", hasher.finalize());
         
-        // 6. 执行识别
-        self.engine.execute()?;
+        // 4. 发送请求
+        let client = reqwest::Client::new();
+        let res = client
+            .post("https://openapi.youdao.com/ocr_hand_writing")
+            .form(&[
+                ("appKey", self.app_key.as_str()),
+                ("salt", salt.as_str()),
+                ("curtime", curtime.as_str()),
+                ("sign", sign.as_str()),
+                ("signType", "v3"),
+                ("langType", "zh-CHS"),
+                ("imageType", "1"),
+                ("img", base64_image.as_str()),
+            ])
+            .send()
+            .await?;
+            
+        let json: Value = res.json().await?;
         
-        // 7. 返回识别结果
-        let result = response.lock().unwrap().clone();
-        Ok(result)
+        // 5. 解析结果
+        if json["errorCode"].as_str() == Some("0") {
+            // 提取识别文本
+            let mut result = String::new();
+            if let Some(regions) = json["Result"]["regions"].as_array() {
+                for region in regions {
+                    if let Some(lines) = region["lines"].as_array() {
+                        for line in lines {
+                            if let Some(text) = line["text"].as_str() {
+                                result.push_str(text);
+                                result.push('\n');
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 6. 将识别结果传给 AI 引擎
+            self.engine.clear_content();
+            self.engine.add_text_content(&format!(
+                "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
+                result.trim()
+            ));
+            
+            // 7. 注册回调处理识别结果
+            let response = Arc::new(Mutex::new(String::new()));
+            let response_clone = response.clone();
+            
+            self.engine.register_tool(
+                "write",
+                serde_json::json!({
+                    "name": "write",
+                    "description": "Write the recognized text",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {
+                                "type": "string",
+                                "description": "The recognized text"
+                            }
+                        },
+                        "required": ["text"]
+                    }
+                }),
+                Box::new(move |args: serde_json::Value| {
+                    let text = args["text"].as_str().unwrap_or_default();
+                    *response_clone.lock().unwrap() = text.to_string();
+                })
+            );
+            
+            // 8. 执行识别
+            self.engine.execute()?;
+            
+            // 9. 返回识别结果
+            let result = response.lock().unwrap().clone();
+            Ok(result)
+            
+        } else {
+            Err(anyhow::anyhow!(
+                "识别失败: {}",
+                json["errorCode"].as_str().unwrap_or("未知错误")
+            ))
+        }
     }
 } 
