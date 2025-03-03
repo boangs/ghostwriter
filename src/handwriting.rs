@@ -79,6 +79,11 @@ impl HandwritingInput {
         let mut screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
+        // 保存原始截图用于调试
+        let debug_image_path = self.temp_dir.join("debug_screenshot.png");
+        std::fs::write(&debug_image_path, &img_data)?;
+        info!("保存原始截图到: {}", debug_image_path.display());
+        
         // 2. 转换为 base64
         let img_base64 = base64::encode(&img_data);
         
@@ -95,6 +100,11 @@ impl HandwritingInput {
             
         let json: serde_json::Value = response.into_json()?;
         
+        // 保存 API 响应用于调试
+        let debug_response_path = self.temp_dir.join("debug_response.json");
+        std::fs::write(&debug_response_path, serde_json::to_string_pretty(&json)?)?;
+        info!("保存 API 响应到: {}", debug_response_path.display());
+        
         // 4. 解析识别结果
         let mut result = String::new();
         if let Some(words_result) = json["words_result"].as_array() {
@@ -105,6 +115,11 @@ impl HandwritingInput {
                 }
             }
         }
+
+        // 保存识别结果用于调试
+        let debug_text_path = self.temp_dir.join("debug_result.txt");
+        std::fs::write(&debug_text_path, &result)?;
+        info!("保存识别结果到: {}", debug_text_path.display());
 
         // 5. 将识别结果传给 AI 引擎
         self.engine.clear_content();
