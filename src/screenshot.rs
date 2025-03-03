@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::{Write, Read};
 use std::os::unix::io::AsRawFd;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use std::mem::size_of;
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
@@ -16,6 +17,42 @@ const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
 const OUTPUT_WIDTH: u32 = 768;
 const OUTPUT_HEIGHT: u32 = 1024;
+
+// DRM ioctl 命令和结构体定义
+const DRM_IOCTL_MODE_MAP_DUMB: u64 = 0xC01064B2;
+const DRM_IOCTL_MODE_CREATE_DUMB: u64 = 0xC01064B0;
+
+#[repr(C)]
+struct DrmModeModeInfo {
+    clock: u32,
+    hdisplay: u16,
+    hsync_start: u16,
+    hsync_end: u16,
+    htotal: u16,
+    vdisplay: u16,
+    vsync_start: u16,
+    vsync_end: u16,
+    vtotal: u16,
+    flags: u32,
+}
+
+#[repr(C)]
+struct DrmModeCreateDumb {
+    height: u32,
+    width: u32,
+    bpp: u32,
+    flags: u32,
+    handle: u32,
+    pitch: u32,
+    size: u64,
+}
+
+#[repr(C)]
+struct DrmModeMapDumb {
+    handle: u32,
+    pad: u32,
+    offset: u64,
+}
 
 pub struct Screenshot {
     data: Vec<u8>,
@@ -30,19 +67,69 @@ impl Screenshot {
     }
 
     fn take_screenshot() -> Result<Vec<u8>> {
-        // 直接打开显示设备
+        // 打开显示设备
         let file = File::open("/dev/dri/card0")?;
         info!("成功打开显示设备");
 
-        // 使用 mmap 映射设备内存
+        // 创建 dumb buffer
+        let mut create_dumb = DrmModeCreateDumb {
+            width: WIDTH as u32,
+            height: HEIGHT as u32,
+            bpp: (BYTES_PER_PIXEL * 8) as u32,
+            flags: 0,
+            handle: 0,
+            pitch: 0,
+            size: 0,
+        };
+
+        unsafe {
+            let ret = libc::ioctl(
+                file.as_raw_fd(),
+                DRM_IOCTL_MODE_CREATE_DUMB,
+                &mut create_dumb as *mut _,
+            );
+            if ret < 0 {
+                return Err(anyhow::anyhow!(
+                    "创建 dumb buffer 失败: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+        }
+
+        info!("创建 dumb buffer 成功，大小: {} 字节", create_dumb.size);
+
+        // 获取内存映射偏移量
+        let mut map_dumb = DrmModeMapDumb {
+            handle: create_dumb.handle,
+            pad: 0,
+            offset: 0,
+        };
+
+        unsafe {
+            let ret = libc::ioctl(
+                file.as_raw_fd(),
+                DRM_IOCTL_MODE_MAP_DUMB,
+                &mut map_dumb as *mut _,
+            );
+            if ret < 0 {
+                return Err(anyhow::anyhow!(
+                    "获取映射偏移量失败: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+        }
+
+        info!("获取映射偏移量成功: 0x{:x}", map_dumb.offset);
+
+        // 映射内存
         let buffer = unsafe {
             let ptr = libc::mmap(
                 std::ptr::null_mut(),
-                WINDOW_BYTES,
+                create_dumb.size as usize,
                 libc::PROT_READ,
                 libc::MAP_SHARED,
                 file.as_raw_fd(),
-                0,
+                map_dumb.offset as i64,
             );
 
             if ptr == libc::MAP_FAILED {
@@ -52,12 +139,12 @@ impl Screenshot {
                 ));
             }
 
-            let slice = std::slice::from_raw_parts(ptr as *const u8, WINDOW_BYTES);
-            let mut buffer = vec![0u8; WINDOW_BYTES];
+            let slice = std::slice::from_raw_parts(ptr as *const u8, create_dumb.size as usize);
+            let mut buffer = vec![0u8; create_dumb.size as usize];
             buffer.copy_from_slice(slice);
 
             // 取消映射
-            libc::munmap(ptr, WINDOW_BYTES);
+            libc::munmap(ptr, create_dumb.size as usize);
 
             buffer
         };
