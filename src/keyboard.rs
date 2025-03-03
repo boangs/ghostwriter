@@ -30,18 +30,20 @@ impl Keyboard {
         let line_height: u32 = 40;
         let font_size = 30.0;
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
-        let baseline_offset = -(font_size as i32) / 2; // 修改基线偏移计算方式
-        let max_width = REMARKABLE_WIDTH as u32 - 200; // 设置最大宽度，留出边距
+        let baseline_offset = -(font_size as i32); // 增加基线偏移量
+        let max_width = REMARKABLE_WIDTH as u32 - 300; // 增加边距
         
         let mut current_x = start_x;
         let mut current_y = start_y;
+        let mut line_start_y = start_y;
         
         let mut is_new_paragraph = true;
         
         for line in text.split('\n') {
             if line.trim().is_empty() {
                 // 空行表示段落分隔
-                current_y += line_height; // 使用统一的行高
+                line_start_y += line_height; // 更新行起始位置
+                current_y = line_start_y;
                 is_new_paragraph = true;
                 continue;
             }
@@ -54,10 +56,11 @@ impl Keyboard {
             }
             
             for c in line.chars() {
-                // 检查是否需要换行
-                if current_x >= max_width {
+                // 提前检查添加这个字符是否会超出宽度
+                if (current_x + char_width) > max_width {
+                    line_start_y += line_height;
+                    current_y = line_start_y;
                     current_x = start_x;
-                    current_y += line_height;
                 }
                 
                 // 获取字符的笔画数据
@@ -86,8 +89,9 @@ impl Keyboard {
                 sleep(Duration::from_millis(10));
             }
             
-            // 每行结束后换行
-            current_y += line_height;
+            // 更新到下一行的起始位置
+            line_start_y += line_height;
+            current_y = line_start_y;
             current_x = start_x;
         }
         
