@@ -132,33 +132,26 @@ fn main() -> Result<()> {
         
         let engine = Box::new(OpenAI::new(&options));
         let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
-        let touch = Touch::new(args.no_draw);
+        let mut touch = Touch::new(args.no_draw);
         
         // 等待用户在右上角触发
         loop {
-            if let Ok((x, y)) = touch.wait_for_touch() {
-                if x > REMARKABLE_WIDTH as i32 - 100 && y < 100 {
-                    // 右上角触发，开始识别
-                    match handwriting.capture_and_recognize() {
-                        Ok(prompt) => {
-                            info!("识别到的提示词: {}", prompt);
-                            // 使用识别到的文本作为提示词
-                            process_with_prompt(&args, &prompt)?;
-                        }
-                        Err(e) => {
-                            error!("识别失败: {}", e);
-                        }
+            // 等待触摸事件
+            if let Ok(()) = touch.wait_for_trigger() {
+                // 触发识别
+                match handwriting.capture_and_recognize() {
+                    Ok(prompt) => {
+                        info!("识别到的提示词: {}", prompt);
+                        // 使用识别到的文本作为提示词
+                        process_with_prompt(&args, &prompt)?;
                     }
-                    handwriting.clear();
-                } else {
-                    // 正常的笔迹输入
-                    handwriting.start_stroke(x, y)?;
-                    while let Ok((x, y)) = touch.wait_for_touch() {
-                        handwriting.continue_stroke(x, y)?;
+                    Err(e) => {
+                        error!("识别失败: {}", e);
                     }
-                    handwriting.end_stroke()?;
                 }
+                handwriting.clear();
             }
+            sleep(Duration::from_millis(10));
         }
     } else {
         // 原有的提示词文件模式
