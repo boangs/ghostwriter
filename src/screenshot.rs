@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::GrayImage;
 use log::{info, error};
 use std::fs::File;
-use std::io::{Write, Read};
+use std::io::{Write, Read, Seek, SeekFrom};
 use std::os::unix::io::AsRawFd;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::mem::size_of;
@@ -14,6 +14,10 @@ const WIDTH: usize = 1872;
 const HEIGHT: usize = 1404;
 const BYTES_PER_PIXEL: usize = 2;
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
+
+// reMarkable 显示内存的物理地址
+const DISPLAY_MEM_ADDR: u64 = 0x20000000;
+const DISPLAY_MEM_SIZE: usize = WINDOW_BYTES;
 
 const OUTPUT_WIDTH: u32 = 768;
 const OUTPUT_HEIGHT: u32 = 1024;
@@ -67,87 +71,16 @@ impl Screenshot {
     }
 
     fn take_screenshot() -> Result<Vec<u8>> {
-        // 打开显示设备
-        let file = File::open("/dev/dri/card0")?;
-        info!("成功打开显示设备");
+        // 打开物理内存设备
+        let mut file = File::open("/dev/mem")?;
+        info!("成功打开物理内存设备");
 
-        // 创建 dumb buffer
-        let mut create_dumb = DrmModeCreateDumb {
-            width: WIDTH as u32,
-            height: HEIGHT as u32,
-            bpp: (BYTES_PER_PIXEL * 8) as u32,
-            flags: 0,
-            handle: 0,
-            pitch: 0,
-            size: 0,
-        };
+        // 定位到显示内存区域
+        file.seek(SeekFrom::Start(DISPLAY_MEM_ADDR))?;
 
-        unsafe {
-            let ret = libc::ioctl(
-                file.as_raw_fd(),
-                DRM_IOCTL_MODE_CREATE_DUMB,
-                &mut create_dumb as *mut _,
-            );
-            if ret < 0 {
-                return Err(anyhow::anyhow!(
-                    "创建 dumb buffer 失败: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-        }
-
-        info!("创建 dumb buffer 成功，大小: {} 字节", create_dumb.size);
-
-        // 获取内存映射偏移量
-        let mut map_dumb = DrmModeMapDumb {
-            handle: create_dumb.handle,
-            pad: 0,
-            offset: 0,
-        };
-
-        unsafe {
-            let ret = libc::ioctl(
-                file.as_raw_fd(),
-                DRM_IOCTL_MODE_MAP_DUMB,
-                &mut map_dumb as *mut _,
-            );
-            if ret < 0 {
-                return Err(anyhow::anyhow!(
-                    "获取映射偏移量失败: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-        }
-
-        info!("获取映射偏移量成功: 0x{:x}", map_dumb.offset);
-
-        // 映射内存
-        let buffer = unsafe {
-            let ptr = libc::mmap(
-                std::ptr::null_mut(),
-                create_dumb.size as usize,
-                libc::PROT_READ,
-                libc::MAP_SHARED,
-                file.as_raw_fd(),
-                map_dumb.offset as i64,
-            );
-
-            if ptr == libc::MAP_FAILED {
-                return Err(anyhow::anyhow!(
-                    "mmap 失败: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-
-            let slice = std::slice::from_raw_parts(ptr as *const u8, create_dumb.size as usize);
-            let mut buffer = vec![0u8; create_dumb.size as usize];
-            buffer.copy_from_slice(slice);
-
-            // 取消映射
-            libc::munmap(ptr, create_dumb.size as usize);
-
-            buffer
-        };
+        // 读取显示内存
+        let mut buffer = vec![0u8; DISPLAY_MEM_SIZE];
+        file.read_exact(&mut buffer)?;
 
         info!("读取显示内存成功，大小: {} 字节", buffer.len());
 
