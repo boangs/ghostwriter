@@ -105,14 +105,6 @@ pub struct Args {
     /// 使用手写输入模式
     #[arg(long)]
     handwriting_mode: bool,
-
-    /// 有道 OCR 应用 ID
-    #[arg(long)]
-    youdao_app_key: Option<String>,
-
-    /// 有道 OCR 应用密钥
-    #[arg(long)]
-    youdao_app_secret: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -139,12 +131,7 @@ fn main() -> Result<()> {
         options.insert("model".to_string(), args.model.clone());
         
         let engine = Box::new(OpenAI::new(&options));
-        let mut handwriting = HandwritingInput::new(
-            args.no_draw,
-            engine,
-            args.youdao_app_key.clone().unwrap_or_else(|| std::env::var("YOUDAO_APP_KEY").unwrap_or_default()),
-            args.youdao_app_secret.clone().unwrap_or_else(|| std::env::var("YOUDAO_APP_SECRET").unwrap_or_default()),
-        )?;
+        let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
         let mut touch = Touch::new(args.no_draw);
         
         info!("进入手写输入模式");

@@ -10,9 +10,7 @@ use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
 use log;
-use sha2::{Sha256, Digest};
-use serde_json::Value;
-use std::time::{SystemTime, UNIX_EPOCH};
+use tesseract::Tesseract;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -20,16 +18,12 @@ pub struct HandwritingInput {
     is_writing: bool,
     temp_dir: PathBuf,
     engine: Box<dyn LLMEngine>,
-    app_key: String,
-    app_secret: String,
 }
 
 impl HandwritingInput {
     pub fn new(
         no_draw: bool,
         engine: Box<dyn LLMEngine>,
-        app_key: String,
-        app_secret: String,
     ) -> Result<Self> {
         // 创建临时目录
         let temp_dir = std::env::temp_dir().join("ghostwriter");
@@ -41,8 +35,6 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
-            app_key,
-            app_secret,
         })
     }
 
@@ -87,115 +79,61 @@ impl HandwritingInput {
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
-        // 2. 将图像转换为 base64
-        let base64_image = base64::encode(&img_data);
+        // 2. 保存图片到临时文件
+        let temp_file = self.temp_dir.join("screenshot.png");
+        fs::write(&temp_file, &img_data)?;
         
-        // 3. 准备有道 API 参数
-        let salt = uuid::Uuid::new_v4().to_string();
-        let curtime = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs()
-            .to_string();
-            
-        // 计算 input
-        let img_len = base64_image.len().to_string();
-        let input = if base64_image.len() > 20 {
-            format!(
-                "{}{}{}",
-                &base64_image[..10],
-                img_len,
-                &base64_image[base64_image.len()-10..]
-            )
-        } else {
-            base64_image.clone()
-        };
+        // 3. 使用 Tesseract 进行识别
+        let mut tess = Tesseract::new(None, Some("chi_sim"))?;
+        tess.set_image(&temp_file)?;
         
-        // 计算签名
-        let sign_str = format!(
-            "{}{}{}{}{}",
-            self.app_key, input, curtime, salt, self.app_secret
-        );
-        let mut hasher = Sha256::new();
-        hasher.update(sign_str.as_bytes());
-        let sign = format!("{:x}", hasher.finalize());
+        // 设置 PSM 模式为 6 (假设是统一的文本块)
+        tess.set_variable("tessedit_pageseg_mode", "6")?;
         
-        // 4. 发送请求
-        let res = ureq::post("https://openapi.youdao.com/ocr_hand_writing")
-            .send_form(&[
-                ("appKey", self.app_key.as_str()),
-                ("salt", salt.as_str()),
-                ("curtime", curtime.as_str()),
-                ("sign", sign.as_str()),
-                ("signType", "v3"),
-                ("langType", "zh-CHS"),
-                ("imageType", "1"),
-                ("img", base64_image.as_str()),
-            ])?;
-            
-        let json: Value = res.into_json()?;
+        // 设置白名单字符（可选）
+        tess.set_variable("tessedit_char_whitelist", "的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处队南给色光门即保治北造百规热领七海口东导器压志世金增争济阶油思术极交受联什认六共权收证改清己美再采转更单风切打白教速花带安场身车例真务具万每目至达走积示议声报斗完类八离华名确才科张信马节话米整空元况今集温传土许步群广石记需段研界拉林律叫且究观越织装影算低持音众书布复容儿须际商非验连断深难近矿千周委素技备半办青省列习响约支般史感劳便团往酸历市克何除消构府称太准精值号率族维划选标写存候毛亲快效斯院查江型眼王按格养易置派层片始却专状育厂京识适属圆包火住调满县局照参红细引听该铁价严龙飞")?;
         
-        // 5. 解析结果
-        if json["errorCode"].as_str() == Some("0") {
-            // 提取识别文本
-            let mut result = String::new();
-            if let Some(regions) = json["Result"]["regions"].as_array() {
-                for region in regions {
-                    if let Some(lines) = region["lines"].as_array() {
-                        for line in lines {
-                            if let Some(text) = line["text"].as_str() {
-                                result.push_str(text);
-                                result.push('\n');
-                            }
+        // 进行识别
+        let text = tess.get_text()?;
+        
+        // 4. 将识别结果传给 AI 引擎
+        self.engine.clear_content();
+        self.engine.add_text_content(&format!(
+            "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
+            text.trim()
+        ));
+        
+        // 5. 注册回调处理识别结果
+        let response = Arc::new(Mutex::new(String::new()));
+        let response_clone = response.clone();
+        
+        self.engine.register_tool(
+            "write",
+            serde_json::json!({
+                "name": "write",
+                "description": "Write the recognized text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The recognized text"
                         }
-                    }
+                    },
+                    "required": ["text"]
                 }
-            }
-            
-            // 6. 将识别结果传给 AI 引擎
-            self.engine.clear_content();
-            self.engine.add_text_content(&format!(
-                "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
-                result.trim()
-            ));
-            
-            // 7. 注册回调处理识别结果
-            let response = Arc::new(Mutex::new(String::new()));
-            let response_clone = response.clone();
-            
-            self.engine.register_tool(
-                "write",
-                serde_json::json!({
-                    "name": "write",
-                    "description": "Write the recognized text",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "text": {
-                                "type": "string",
-                                "description": "The recognized text"
-                            }
-                        },
-                        "required": ["text"]
-                    }
-                }),
-                Box::new(move |args: serde_json::Value| {
-                    let text = args["text"].as_str().unwrap_or_default();
-                    *response_clone.lock().unwrap() = text.to_string();
-                })
-            );
-            
-            // 8. 执行识别
-            self.engine.execute()?;
-            
-            // 9. 返回识别结果
-            let result = response.lock().unwrap().clone();
-            Ok(result)
-            
-        } else {
-            Err(anyhow::anyhow!(
-                "识别失败: {}",
-                json["errorCode"].as_str().unwrap_or("未知错误")
-            ))
-        }
+            }),
+            Box::new(move |args: serde_json::Value| {
+                let text = args["text"].as_str().unwrap_or_default();
+                *response_clone.lock().unwrap() = text.to_string();
+            })
+        );
+        
+        // 6. 执行识别
+        self.engine.execute()?;
+        
+        // 7. 返回识别结果
+        let result = response.lock().unwrap().clone();
+        Ok(result)
     }
 } 
