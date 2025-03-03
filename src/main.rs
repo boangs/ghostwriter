@@ -132,7 +132,7 @@ fn main() -> Result<()> {
         
         let engine = Box::new(OpenAI::new(&options));
         let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
-        let touch = Touch::new(args.no_draw)?;
+        let touch = Touch::new(args.no_draw);
         
         // 等待用户在右上角触发
         loop {
