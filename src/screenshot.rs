@@ -148,6 +148,10 @@ impl Screenshot {
         let skip = start + offset;
         info!("计算得到偏移量: 0x{:x}", skip);
 
+        // 计算实际的内存大小
+        let count = end - start;
+        info!("实际内存大小: 0x{:x} bytes", count);
+
         // 使用 dd 命令读取内存
         let temp_file = PathBuf::from("/tmp/remarkable_screen.raw");
         let dd_output = Command::new("dd")
@@ -155,7 +159,7 @@ impl Screenshot {
             .arg(format!("of={}", temp_file.display()))
             .arg("iflag=skip_bytes,count_bytes")
             .arg(format!("skip={}", skip))
-            .arg(format!("count={}", WINDOW_BYTES))
+            .arg(format!("count={}", count))
             .output()
             .context("执行 dd 命令失败")?;
 
@@ -180,16 +184,23 @@ impl Screenshot {
         }
 
         // 检查数据大小
-        if raw_data.len() < WINDOW_BYTES {
+        if raw_data.len() < count as usize {
             return Err(anyhow::anyhow!(
                 "读取的数据大小不足，期望 {} 字节，实际 {} 字节",
-                WINDOW_BYTES,
+                count,
                 raw_data.len()
             ));
         }
 
+        // 只取需要的数据部分
+        let data_to_process = if raw_data.len() > WINDOW_BYTES {
+            raw_data[..WINDOW_BYTES].to_vec()
+        } else {
+            raw_data
+        };
+
         // 处理图像数据
-        let processed_data = Self::process_image(raw_data)
+        let processed_data = Self::process_image(data_to_process)
             .context("处理图像数据失败")?;
 
         Ok(processed_data)
