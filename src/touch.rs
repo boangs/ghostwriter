@@ -1,6 +1,6 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::{debug, trace, info};
+use log::{debug, trace, info, error};
 
 use std::thread::sleep;
 use std::time::Duration;
@@ -29,9 +29,23 @@ pub struct Touch {
 impl Touch {
     pub fn new(no_touch: bool) -> Self {
         let device = if no_touch {
+            info!("触摸功能已禁用");
             None
         } else {
-            Some(Device::open("/dev/input/touchscreen0").unwrap())
+            info!("尝试打开触摸设备...");
+            match Device::open("/dev/input/touchscreen0") {
+                Ok(dev) => {
+                    info!("成功打开触摸设备");
+                    Some(dev)
+                }
+                Err(e) => {
+                    error!("无法打开触摸设备 /dev/input/touchscreen0: {}", e);
+                    error!("请检查设备是否存在并且有正确的权限");
+                    error!("可以尝试: ls -l /dev/input/touchscreen0");
+                    error!("或者: ls -l /dev/input/event*");
+                    None
+                }
+            }
         };
 
         Self { device }
@@ -40,24 +54,39 @@ impl Touch {
     pub fn wait_for_trigger(&mut self) -> Result<()> {
         let mut position_x = 0;
         let mut position_y = 0;
+        
+        let device = self.device.as_mut().ok_or_else(|| {
+            anyhow::anyhow!("触摸设备未初始化")
+        })?;
+        
         loop {
-            for event in self.device.as_mut().unwrap().fetch_events().unwrap() {
-                if event.code() == ABS_MT_POSITION_X {
-                    position_x = event.value();
-                }
-                if event.code() == ABS_MT_POSITION_Y {
-                    position_y = event.value();
-                }
-                if event.code() == ABS_MT_TRACKING_ID {
-                    if event.value() == -1 {
-                        info!("触摸释放坐标: ({}, {})", position_x, position_y);
-                        if position_x > 1345 && position_y > 1815 {
-                            info!("触发识别！");
-                            return Ok(());
+            match device.fetch_events() {
+                Ok(events) => {
+                    for event in events {
+                        if event.code() == ABS_MT_POSITION_X {
+                            position_x = event.value();
+                            info!("X坐标: {}", position_x);
                         }
-                    } else {
-                        info!("触摸坐标: ({}, {})", position_x, position_y);
+                        if event.code() == ABS_MT_POSITION_Y {
+                            position_y = event.value();
+                            info!("Y坐标: {}", position_y);
+                        }
+                        if event.code() == ABS_MT_TRACKING_ID {
+                            if event.value() == -1 {
+                                info!("触摸释放坐标: ({}, {})", position_x, position_y);
+                                if position_x > 1345 && position_y > 1815 {
+                                    info!("触发识别！");
+                                    return Ok(());
+                                }
+                            } else {
+                                info!("触摸坐标: ({}, {})", position_x, position_y);
+                            }
+                        }
                     }
+                }
+                Err(e) => {
+                    error!("读取触摸事件失败: {}", e);
+                    return Err(anyhow::anyhow!("读取触摸事件失败: {}", e));
                 }
             }
         }
