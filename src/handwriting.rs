@@ -114,6 +114,7 @@ impl HandwritingInput {
         self.engine.execute()?;
         
         // 7. 返回识别结果
-        Ok(response.lock().unwrap().clone())
+        let result = response.lock().unwrap().clone();
+        Ok(result)
     }
 } 
