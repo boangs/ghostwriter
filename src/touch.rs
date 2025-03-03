@@ -37,9 +37,8 @@ impl Touch {
                 Ok(dev) => {
                     info!("成功打开触摸设备");
                     info!("设备名称: {}", dev.name().unwrap_or("未知"));
-                    info!("设备物理路径: {}", dev.phys().unwrap_or("未知"));
                     info!("支持的事件类型:");
-                    for ev_type in dev.supported_events().event_types() {
+                    for ev_type in dev.supported_events() {
                         info!("  - {:?}", ev_type);
                     }
                     Some(dev)
@@ -60,7 +59,6 @@ impl Touch {
                                     if name.starts_with("event") {
                                         if let Ok(test_dev) = Device::open(entry.path()) {
                                             info!("    设备名称: {}", test_dev.name().unwrap_or("未知"));
-                                            info!("    设备物理路径: {}", test_dev.phys().unwrap_or("未知"));
                                         }
                                     }
                                 }
@@ -89,24 +87,32 @@ impl Touch {
                 Ok(events) => {
                     for event in events {
                         debug!("收到事件: type={:?}, code={}, value={}", event.event_type(), event.code(), event.value());
-                        if event.code() == ABS_MT_POSITION_X {
-                            position_x = event.value();
-                            info!("X坐标: {}", position_x);
-                        }
-                        if event.code() == ABS_MT_POSITION_Y {
-                            position_y = event.value();
-                            info!("Y坐标: {}", position_y);
-                        }
-                        if event.code() == ABS_MT_TRACKING_ID {
-                            if event.value() == -1 {
-                                info!("触摸释放坐标: ({}, {})", position_x, position_y);
-                                if position_x > 1345 && position_y > 1815 {
-                                    info!("触发识别！");
-                                    return Ok(());
+                        match event.event_type() {
+                            EventType::ABSOLUTE => {
+                                match event.code() {
+                                    ABS_MT_POSITION_X => {
+                                        position_x = event.value();
+                                        info!("X坐标: {}", position_x);
+                                    }
+                                    ABS_MT_POSITION_Y => {
+                                        position_y = event.value();
+                                        info!("Y坐标: {}", position_y);
+                                    }
+                                    ABS_MT_TRACKING_ID => {
+                                        if event.value() == -1 {
+                                            info!("触摸释放坐标: ({}, {})", position_x, position_y);
+                                            if position_x > 1345 && position_y > 1815 {
+                                                info!("触发识别！");
+                                                return Ok(());
+                                            }
+                                        } else {
+                                            info!("触摸坐标: ({}, {})", position_x, position_y);
+                                        }
+                                    }
+                                    _ => {}
                                 }
-                            } else {
-                                info!("触摸坐标: ({}, {})", position_x, position_y);
                             }
+                            _ => {}
                         }
                     }
                 }
