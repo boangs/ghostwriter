@@ -1,6 +1,6 @@
 use anyhow::Result;
 use image::GrayImage;
-use log::info;
+use log::{info, error};
 use std::fs::File;
 use std::io::Write;
 use std::process;
@@ -8,6 +8,8 @@ use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_H
 
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
+use drm::control::{Device as DrmDevice, ResourceHandle};
+use drm::Device as _;
 
 const WIDTH: usize = 1872;
 const HEIGHT: usize = 1404;
@@ -30,101 +32,40 @@ impl Screenshot {
     }
 
     fn take_screenshot() -> Result<Vec<u8>> {
-        // Find xochitl's process
-        let pid = Self::find_xochitl_pid()?;
+        // 打开 DRM 设备
+        let card = File::open("/dev/dri/card0")?;
+        info!("成功打开 DRM 设备");
 
-        // Read the framebuffer data (pid 参数现在只是为了保持接口兼容)
-        let screenshot_data = Self::read_framebuffer(&pid, 0)?;
+        // 获取资源句柄
+        let res_handles = card.resource_handles()?;
+        info!("获取到 {} 个 CRTC", res_handles.crtcs.len());
 
-        // Process the image data
-        let processed_data = Self::process_image(screenshot_data)?;
+        if res_handles.crtcs.is_empty() {
+            return Err(anyhow::anyhow!("未找到可用的 CRTC"));
+        }
+
+        // 获取第一个 CRTC 的帧缓冲
+        let crtc = res_handles.crtcs[0];
+        let fb = card.get_framebuffer(crtc)?;
+        info!("获取到帧缓冲，大小: {}x{}", fb.width, fb.height);
+
+        // 读取帧缓冲数据
+        let mut buffer = vec![0u8; WINDOW_BYTES];
+        let mut map_file = File::open("/dev/dri/card0")?;
+        map_file.read_exact(&mut buffer)?;
+        info!("读取帧缓冲数据成功，大小: {} 字节", buffer.len());
+
+        // 处理图像数据
+        let processed_data = Self::process_image(buffer)?;
 
         Ok(processed_data)
     }
 
-    fn find_xochitl_pid() -> Result<String> {
-        let output = process::Command::new("pidof").arg("xochitl").output()?;
-        let pids = String::from_utf8(output.stdout)?;
-        for pid in pids.split_whitespace() {
-            let has_fb = process::Command::new("grep")
-                .args(&["-C1", "/dev/dri/card0", &format!("/proc/{}/maps", pid)])
-                .output()?;
-            if !has_fb.stdout.is_empty() {
-                return Ok(pid.to_string());
-            }
-        }
-        anyhow::bail!("No xochitl process with /dev/dri/card0 found")
-    }
-
-    fn find_framebuffer_address(pid: &str) -> Result<(u64, u64)> {
-        let cmd = format!(
-            "grep '/dev/dri/card0' /proc/{}/maps | head -n1",
-            pid
-        );
-        info!("Executing command: {}", cmd);
-        
-        let output = process::Command::new("sh")
-            .arg("-c")
-            .arg(&cmd)
-            .output()?;
-            
-        let maps_line = String::from_utf8(output.stdout)?.trim().to_string();
-        info!("Found maps line: {}", maps_line);
-        
-        let addresses: Vec<&str> = maps_line.split_whitespace().next()
-            .ok_or_else(|| anyhow::anyhow!("No address range found"))?
-            .split('-')
-            .collect();
-            
-        if addresses.len() != 2 {
-            anyhow::bail!("Invalid address range format");
-        }
-        
-        let start_addr = u64::from_str_radix(addresses[0], 16)?;
-        let end_addr = u64::from_str_radix(addresses[1], 16)?;
-        
-        info!("Memory region: start={}, end={}, size={}", start_addr, end_addr, end_addr - start_addr);
-        
-        Ok((start_addr, end_addr - start_addr))
-    }
-
-    fn read_framebuffer(pid: &str, address: u64) -> Result<Vec<u8>> {
-        let buffer_size = WINDOW_BYTES;
-        let mut buffer = vec![0u8; buffer_size];
-        
-        let mem_path = format!("/proc/{}/mem", pid);
-        info!("Opening {} and reading {} bytes at offset {}", mem_path, buffer_size, address);
-        
-        unsafe {
-            use std::os::unix::io::AsRawFd;
-            let file = std::fs::File::open(mem_path)?;
-            let fd = file.as_raw_fd();
-            
-            let ptr = libc::mmap(
-                std::ptr::null_mut(),
-                buffer_size,
-                libc::PROT_READ,
-                libc::MAP_SHARED,
-                fd,
-                address as i64
-            );
-            
-            if ptr == libc::MAP_FAILED {
-                anyhow::bail!("mmap failed: {}", std::io::Error::last_os_error());
-            }
-            
-            std::ptr::copy_nonoverlapping(ptr as *const u8, buffer.as_mut_ptr(), buffer_size);
-            libc::munmap(ptr, buffer_size);
-        }
-        
-        Ok(buffer)
-    }
-
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
-        // Encode the raw data to PNG
+        // 将原始数据编码为PNG
         let png_data = Self::encode_png(&data)?;
 
-        // Resize the PNG to OUTPUT_WIDTH x OUTPUT_HEIGHT
+        // 将PNG调整为指定大小
         let img = image::load_from_memory(&png_data)?;
         let resized_img = img.resize(
             OUTPUT_WIDTH,
@@ -132,7 +73,7 @@ impl Screenshot {
             image::imageops::FilterType::Lanczos3,
         );
 
-        // Encode the resized image back to PNG
+        // 将调整后的图像重新编码为PNG
         let mut resized_png_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut resized_png_data);
         encoder.write_image(
@@ -163,7 +104,7 @@ impl Screenshot {
         }
 
         let img = GrayImage::from_raw(REMARKABLE_WIDTH as u32, REMARKABLE_HEIGHT as u32, processed)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create image from raw data"))?;
+            .ok_or_else(|| anyhow::anyhow!("无法从原始数据创建图像"))?;
 
         let mut png_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_data);
@@ -192,7 +133,7 @@ impl Screenshot {
     pub fn save_image(&self, filename: &str) -> Result<()> {
         let mut png_file = File::create(filename)?;
         png_file.write_all(&self.data)?;
-        info!("PNG image saved to {}", filename);
+        info!("PNG图像已保存到 {}", filename);
         Ok(())
     }
 
