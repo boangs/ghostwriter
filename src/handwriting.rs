@@ -108,10 +108,7 @@ impl HandwritingInput {
 
         // 5. 将识别结果传给 AI 引擎
         self.engine.clear_content();
-        self.engine.add_text_content(&format!(
-            "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
-            result.trim()
-        ));
+        self.engine.add_text_content(&result.trim());
         
         // 6. 注册回调处理识别结果
         let response = Arc::new(Mutex::new(String::new()));
