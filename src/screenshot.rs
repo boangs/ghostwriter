@@ -11,8 +11,8 @@ use std::mem::size_of;
 use base64::{engine::general_purpose, Engine as _};
 use image::ImageEncoder;
 
-const WIDTH: usize = 2154;  // 更新为正确的屏幕尺寸
-const HEIGHT: usize = 1624;
+const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
+const HEIGHT: usize = 2154;
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
@@ -64,81 +64,73 @@ struct DrmModeMapDumb {
 }
 
 pub struct Screenshot {
-    data: Vec<u8>,
+    width: u32,
+    height: u32,
 }
 
 impl Screenshot {
-    pub fn new() -> Result<Screenshot> {
-        let screenshot_data = Self::take_screenshot()?;
-        Ok(Screenshot {
-            data: screenshot_data,
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            width: 1624,  // remarkable 的实际宽度
+            height: 2154  // remarkable 的实际高度
         })
     }
 
-    fn take_screenshot() -> Result<Vec<u8>> {
-        // 获取 xochitl 进程的 PID
-        let output = Command::new("pidof")
+    pub fn get_image_data(&self) -> Result<Vec<u8>> {
+        // 1. 获取 xochitl 进程 ID
+        let output = Command::new("pgrep")
             .arg("xochitl")
             .output()?;
         let pid = String::from_utf8(output.stdout)?.trim().to_string();
-        info!("找到 xochitl 进程 PID: {}", pid);
-
-        // 读取内存映射
-        let maps_path = format!("/proc/{}/maps", pid);
-        let maps_file = File::open(&maps_path)?;
-        let reader = BufReader::new(maps_file);
-        let mut lines: Vec<String> = reader.lines().collect::<std::io::Result<_>>()?;
-        lines.reverse();
-
-        // 查找 /dev/dri/card0 相关的内存区域
+        
+        // 2. 查找内存映射
+        let maps = std::fs::read_to_string(format!("/proc/{}/maps", pid))?;
         let mut memory_range = None;
-        for i in 0..lines.len() {
-            if lines[i].contains("/dev/dri/card0") {
-                if i > 0 {
-                    let range = lines[i-1].split_whitespace().next().unwrap();
-                    memory_range = Some(range.to_string());
-                    break;
+        
+        for (i, line) in maps.lines().enumerate().rev() {
+            if line.contains("/dev/dri/card0") {
+                if let Some(next_line) = maps.lines().nth(i + 1) {
+                    memory_range = Some(next_line.split_whitespace().next().unwrap().to_string());
                 }
+                break;
             }
         }
-
-        let range = memory_range.ok_or_else(|| anyhow::anyhow!("未找到显示内存区域"))?;
-        let (start_str, end_str) = range.split_once('-').unwrap();
-        let start = u64::from_str_radix(start_str, 16)?;
-        let end = u64::from_str_radix(end_str, 16)?;
         
-        info!("找到内存区域: {} (start: 0x{:x}, end: 0x{:x})", range, start, end);
-
-        // 打开进程内存
-        let mut mem_file = File::open(format!("/proc/{}/mem", pid))?;
+        let memory_range = memory_range.ok_or_else(|| anyhow::anyhow!("Memory range not found"))?;
+        let (start, end) = memory_range.split_once("-").unwrap();
+        let start = u64::from_str_radix(start, 16)?;
         
-        // 查找实际的显示内存位置
-        let mut offset = 0u64;
-        let mut length = 2u64;
+        // 3. 查找实际图像数据的偏移量
+        let mut mem_file = std::fs::File::open(format!("/proc/{}/mem", pid))?;
+        let mut offset = 0;
+        let mut length = 2;
         
-        while length < (WIDTH * HEIGHT * 4) as u64 {
+        while length < self.width * self.height * 4 {
             offset += length - 2;
+            use std::io::{Seek, SeekFrom, Read};
             mem_file.seek(SeekFrom::Start(start + offset + 8))?;
-            
             let mut header = [0u8; 8];
             mem_file.read_exact(&mut header)?;
             length = u64::from_le_bytes(header);
         }
-
+        
+        // 4. 计算正确的读取大小
         let skip = start + offset;
-        info!("找到显示内存偏移量: 0x{:x}", skip);
-
-        // 读取显示内存
-        mem_file.seek(SeekFrom::Start(skip))?;
-        let mut buffer = vec![0u8; WINDOW_BYTES];
-        mem_file.read_exact(&mut buffer)?;
-
-        info!("读取显示内存成功，大小: {} 字节", buffer.len());
-
-        // 处理图像数据
-        let processed_data = Self::process_image(buffer)?;
-
-        Ok(processed_data)
+        let count = self.width * self.height * 4;  // RGBA 格式，每个像素4字节
+        
+        // 5. 使用 dd 和 ffmpeg 获取截图
+        let cmd = format!(
+            "dd if=/proc/{}/mem count={} bs=1024 iflag=skip_bytes,count_bytes skip={} | \
+             ffmpeg -f rawvideo -pixel_format rgba -video_size {}x{} -i pipe:0 -frames:v 1 -f png pipe:1",
+            pid, count, skip, self.width, self.height  // 注意这里使用正确的宽高顺序
+        );
+        
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .output()?;
+            
+        Ok(output.stdout)
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
@@ -266,9 +258,5 @@ impl Screenshot {
     pub fn base64(&self) -> Result<String> {
         let base64_image = general_purpose::STANDARD.encode(&self.data);
         Ok(base64_image)
-    }
-
-    pub fn get_image_data(&self) -> Result<Vec<u8>> {
-        Ok(self.data.clone())
     }
 }
