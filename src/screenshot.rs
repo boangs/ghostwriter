@@ -124,14 +124,38 @@ impl Screenshot {
         
         info!("找到内存区域: {} (start: 0x{:x}, end: 0x{:x})", range, start, end);
 
+        // 计算偏移量
+        let mut offset = 0u64;
+        let mut length = 2u64;
+        let target_size = (WIDTH * HEIGHT * 4) as u64;
+        
+        // 打开进程内存文件来计算正确的偏移量
+        let mut mem_file = File::open(format!("/proc/{}/mem", pid))
+            .context("打开进程内存失败")?;
+            
+        while length < target_size {
+            offset += length - 2;
+            mem_file.seek(SeekFrom::Start(start + offset + 8))
+                .context("seek 失败")?;
+            
+            let mut header = [0u8; 8];
+            mem_file.read_exact(&mut header)
+                .context("读取 header 失败")?;
+            length = u64::from_le_bytes(header);
+            info!("当前长度: {}, 目标大小: {}", length, target_size);
+        }
+
+        let skip = start + offset;
+        info!("计算得到偏移量: 0x{:x}", skip);
+
         // 使用 dd 命令读取内存
         let temp_file = PathBuf::from("/tmp/remarkable_screen.raw");
         let dd_output = Command::new("dd")
             .arg(format!("if=/proc/{}/mem", pid))
             .arg(format!("of={}", temp_file.display()))
-            .arg(format!("bs=1024"))
-            .arg(format!("skip={}", start / 1024))  // 转换为1024字节块
-            .arg(format!("count={}", (end - start) / 1024))
+            .arg("iflag=skip_bytes,count_bytes")
+            .arg(format!("skip={}", skip))
+            .arg(format!("count={}", WINDOW_BYTES))
             .output()
             .context("执行 dd 命令失败")?;
 
@@ -164,11 +188,8 @@ impl Screenshot {
             ));
         }
 
-        // 只取需要的部分
-        let buffer = raw_data[..WINDOW_BYTES].to_vec();
-
         // 处理图像数据
-        let processed_data = Self::process_image(buffer)
+        let processed_data = Self::process_image(raw_data)
             .context("处理图像数据失败")?;
 
         Ok(processed_data)
