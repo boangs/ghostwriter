@@ -1,9 +1,10 @@
-use anyhow::Result;
+use anyhow::{Result, Context};
 use image::{GrayImage, DynamicImage, ImageBuffer, Rgba};
-use log::{info, error};
+use log::{info, error, warn};
 use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom, BufRead, BufReader};
 use std::process::Command;
+use std::path::PathBuf;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::mem::size_of;
 
@@ -69,7 +70,7 @@ pub struct Screenshot {
 
 impl Screenshot {
     pub fn new() -> Result<Screenshot> {
-        let screenshot_data = Self::take_screenshot()?;
+        let screenshot_data = Self::take_screenshot().context("截取屏幕失败")?;
         Ok(Screenshot {
             data: screenshot_data,
         })
@@ -79,23 +80,34 @@ impl Screenshot {
         // 获取 xochitl 进程的 PID
         let output = Command::new("pidof")
             .arg("xochitl")
-            .output()?;
-        let pid = String::from_utf8(output.stdout)?.trim().to_string();
+            .output()
+            .context("执行 pidof 命令失败")?;
+        let pid = String::from_utf8(output.stdout)
+            .context("解析 PID 失败")?
+            .trim()
+            .to_string();
         info!("找到 xochitl 进程 PID: {}", pid);
 
         // 读取内存映射
         let maps_path = format!("/proc/{}/maps", pid);
-        let maps_file = File::open(&maps_path)?;
+        let maps_file = File::open(&maps_path)
+            .context(format!("打开 {} 失败", maps_path))?;
         let reader = BufReader::new(maps_file);
-        let mut lines: Vec<String> = reader.lines().collect::<std::io::Result<_>>()?;
+        let mut lines: Vec<String> = reader.lines()
+            .collect::<std::io::Result<_>>()
+            .context("读取内存映射失败")?;
         lines.reverse();
 
         // 查找 /dev/dri/card0 相关的内存区域
         let mut memory_range = None;
-        for i in 0..lines.len() {
-            if lines[i].contains("/dev/dri/card0") {
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains("/dev/dri/card0") {
+                info!("找到 /dev/dri/card0 行: {}", line);
                 if i + 1 < lines.len() {
-                    let range = lines[i + 1].split_whitespace().next().unwrap();
+                    let next_line = &lines[i + 1];
+                    info!("下一行内容: {}", next_line);
+                    let range = next_line.split_whitespace().next()
+                        .ok_or_else(|| anyhow::anyhow!("无法解析内存范围"))?;
                     memory_range = Some(range.to_string());
                     break;
                 }
@@ -103,40 +115,61 @@ impl Screenshot {
         }
 
         let range = memory_range.ok_or_else(|| anyhow::anyhow!("未找到显示内存区域"))?;
-        let (start_str, end_str) = range.split_once('-').unwrap();
-        let start = u64::from_str_radix(start_str, 16)?;
-        let end = u64::from_str_radix(end_str, 16)?;
+        let (start_str, end_str) = range.split_once('-')
+            .ok_or_else(|| anyhow::anyhow!("无法解析内存范围"))?;
+        let start = u64::from_str_radix(start_str, 16)
+            .context("解析起始地址失败")?;
+        let end = u64::from_str_radix(end_str, 16)
+            .context("解析结束地址失败")?;
         
         info!("找到内存区域: {} (start: 0x{:x}, end: 0x{:x})", range, start, end);
 
-        // 打开进程内存
-        let mut mem_file = File::open(format!("/proc/{}/mem", pid))?;
-        
-        // 查找实际的显示内存位置
-        let mut offset = 0u64;
-        let mut length = 2u64;
-        
-        while length < (WIDTH * HEIGHT * 4) as u64 {
-            offset += length - 2;
-            mem_file.seek(SeekFrom::Start(start + offset + 8))?;
-            
-            let mut header = [0u8; 8];
-            mem_file.read_exact(&mut header)?;
-            length = u64::from_le_bytes(header);
+        // 使用 dd 命令读取内存
+        let temp_file = PathBuf::from("/tmp/remarkable_screen.raw");
+        let dd_output = Command::new("dd")
+            .arg(format!("if=/proc/{}/mem", pid))
+            .arg(format!("of={}", temp_file.display()))
+            .arg(format!("bs=1024"))
+            .arg(format!("skip={}", start / 1024))  // 转换为1024字节块
+            .arg(format!("count={}", (end - start) / 1024))
+            .output()
+            .context("执行 dd 命令失败")?;
+
+        if !dd_output.status.success() {
+            let error = String::from_utf8_lossy(&dd_output.stderr);
+            error!("dd 命令执行失败: {}", error);
+            return Err(anyhow::anyhow!("dd 命令执行失败: {}", error));
         }
 
-        let skip = start + offset;
-        info!("找到显示内存偏移量: 0x{:x}", skip);
+        info!("dd 命令执行成功，读取临时文件");
 
-        // 读取显示内存
-        mem_file.seek(SeekFrom::Start(skip))?;
-        let mut buffer = vec![0u8; WINDOW_BYTES];
-        mem_file.read_exact(&mut buffer)?;
+        // 读取临时文件
+        let mut raw_data = Vec::new();
+        File::open(&temp_file)
+            .context("打开临时文件失败")?
+            .read_to_end(&mut raw_data)
+            .context("读取临时文件失败")?;
 
-        info!("读取显示内存成功，大小: {} 字节", buffer.len());
+        // 删除临时文件
+        if let Err(e) = std::fs::remove_file(&temp_file) {
+            warn!("删除临时文件失败: {}", e);
+        }
+
+        // 检查数据大小
+        if raw_data.len() < WINDOW_BYTES {
+            return Err(anyhow::anyhow!(
+                "读取的数据大小不足，期望 {} 字节，实际 {} 字节",
+                WINDOW_BYTES,
+                raw_data.len()
+            ));
+        }
+
+        // 只取需要的部分
+        let buffer = raw_data[..WINDOW_BYTES].to_vec();
 
         // 处理图像数据
-        let processed_data = Self::process_image(buffer)?;
+        let processed_data = Self::process_image(buffer)
+            .context("处理图像数据失败")?;
 
         Ok(processed_data)
     }
