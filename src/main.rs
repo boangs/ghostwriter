@@ -111,10 +111,10 @@ fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(args.log_level.as_str()),
-    )
-    .init();
+    // 设置日志级别为 info 以确保能看到坐标信息
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp(None)  // 不显示时间戳
+        .init();
 
     if args.handwriting_mode {
         // 手写输入模式

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::{debug, trace};
+use log::{debug, trace, info};
 
 use std::thread::sleep;
 use std::time::Duration;
@@ -50,11 +50,13 @@ impl Touch {
                 }
                 if event.code() == ABS_MT_TRACKING_ID {
                     if event.value() == -1 {
-                        debug!("Touch release detected at ({}, {})", position_x, position_y);
+                        info!("触摸释放坐标: ({}, {})", position_x, position_y);
                         if position_x > 1345 && position_y > 1815 {
-                            debug!("Touch release in target zone!");
+                            info!("触发识别！");
                             return Ok(());
                         }
+                    } else {
+                        info!("触摸坐标: ({}, {})", position_x, position_y);
                     }
                 }
             }
