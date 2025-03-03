@@ -5,21 +5,24 @@ use std::path::PathBuf;
 use base64::prelude::*;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
-use crate::llm_engine::LLMEngine;
+use crate::llm_engine::{LLMEngine, Message, Role};
 use crate::util::OptionMap;
 use std::time::Duration;
 use std::thread::sleep;
+use log::{info, error};
+use std::fs::File;
+use std::io::Write;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
     strokes: Vec<Vec<(i32, i32)>>,
     is_writing: bool,
     temp_dir: PathBuf,
-    engine: Box<dyn LLMEngine>,
+    llm: Box<dyn LLMEngine>,
 }
 
 impl HandwritingInput {
-    pub fn new(no_draw: bool, engine: Box<dyn LLMEngine>) -> Result<Self> {
+    pub fn new(no_draw: bool, llm: Box<dyn LLMEngine>) -> Result<Self> {
         // 创建临时目录
         let temp_dir = std::env::temp_dir().join("ghostwriter");
         fs::create_dir_all(&temp_dir)?;
@@ -29,7 +32,7 @@ impl HandwritingInput {
             strokes: Vec::new(),
             is_writing: false,
             temp_dir,
-            engine,
+            llm,
         })
     }
 
@@ -69,52 +72,47 @@ impl HandwritingInput {
         self.is_writing = false;
     }
 
-    pub fn capture_and_recognize(&mut self) -> Result<String> {
-        // 1. 截取当前屏幕
+    pub async fn capture_and_recognize(&self) -> Result<String> {
+        // 获取屏幕截图
         let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
-        
-        // 2. 将图像转换为 base64
+
+        // 保存截图用于调试
+        let mut debug_file = File::create("debug_screenshot.png")?;
+        debug_file.write_all(&img_data)?;
+        info!("保存截图到 debug_screenshot.png");
+
+        // 将图片转换为 base64
         let base64_image = base64::encode(&img_data);
-        
-        // 3. 清除之前的内容
-        self.engine.clear_content();
-        
-        // 4. 添加提示词和图片
-        self.engine.add_text_content("请识别图片中的手写文字内容。直接输出识别到的文字，不要解释。");
-        self.engine.add_image_content(&base64_image);
-        
-        // 5. 注册回调处理识别结果
-        let response = Arc::new(Mutex::new(String::new()));
-        let response_clone = response.clone();
-        
-        self.engine.register_tool(
-            "write",
-            serde_json::json!({
-                "name": "write",
-                "description": "Write the recognized text",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "text": {
-                            "type": "string",
-                            "description": "The recognized text"
-                        }
-                    },
-                    "required": ["text"]
-                }
-            }),
-            Box::new(move |args: serde_json::Value| {
-                let text = args["text"].as_str().unwrap_or_default();
-                *response_clone.lock().unwrap() = text.to_string();
-            })
-        );
-        
-        // 6. 执行识别
-        self.engine.execute()?;
-        
-        // 7. 返回识别结果
-        let result = response.lock().unwrap().clone();
-        Ok(result)
+        info!("图片大小: {} 字节", img_data.len());
+        info!("Base64 编码大小: {} 字节", base64_image.len());
+        info!("Base64 预览: {}...", &base64_image[..100]);
+
+        // 构建消息
+        let system_message = Message::Text {
+            role: Role::System,
+            content: "你是一个手写文字识别助手。请识别图片中的手写文字内容，直接输出识别结果，不要添加任何额外解释。如果没有看到任何文字，请回复"未检测到文字"。".to_string(),
+        };
+
+        let user_message = Message::Image {
+            role: Role::User,
+            content: "请识别这张图片中的手写文字。".to_string(),
+            image_data: base64_image.clone(),
+        };
+
+        // 输出请求信息
+        info!("API 请求消息:");
+        info!("1. System 消息: {}", match &system_message {
+            Message::Text { content, .. } => content,
+            _ => "",
+        });
+        info!("2. User 消息: 请识别这张图片中的手写文字。");
+        info!("3. 图片数据: data:image/png;base64,{}...", &base64_image[..100]);
+
+        // 发送请求
+        let response = self.llm.chat(vec![system_message, user_message]).await?;
+        info!("API 响应: {}", response);
+
+        Ok(response)
     }
 } 
