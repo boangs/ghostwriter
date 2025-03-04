@@ -27,7 +27,7 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        let start_y = self.last_y.load(Ordering::Relaxed);  // 使用原子操作读取
+        let start_y = self.last_y.load(Ordering::Relaxed)+5;  // 使用原子操作读取
         let char_width: u32 = 32;
         let line_height: u32 = 40;
         let font_size = 30.0;
