@@ -1,6 +1,4 @@
 use anyhow::Result;
-use base64::prelude::*;
-use clap::Parser;
 use dotenv::dotenv;
 use env_logger;
 use log::{debug, info, error};
@@ -10,18 +8,13 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
-use std::env;
 use std::clone::Clone;
-use ghostwriter::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use ghostwriter::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use ghostwriter::{
     keyboard::Keyboard,
-    llm_engine::{anthropic::Anthropic, google::Google, openai::OpenAI, LLMEngine},
+    llm_engine::{openai::OpenAI, LLMEngine},
     pen::Pen,
-    screenshot::Screenshot,
-    segmenter::analyze_image,
-    touch::Touch,
-    handwriting::HandwritingInput,
     util::{svg_to_bitmap, write_bitmap_to_file, OptionMap},
 };
 
@@ -272,12 +265,14 @@ macro_rules! lock {
     };
 }
 
+#[allow(dead_code)]
 fn draw_text(text: &str, keyboard: &mut Keyboard) -> Result<()> {
     info!("Drawing text to the screen.");
     keyboard.write_text(text)?;  // 直接使用 write_text，因为它已经包含了所有必要的功能
     Ok(())
 }
 
+#[allow(dead_code)]
 fn draw_svg(
     svg_data: &str,
     keyboard: &mut Keyboard,
@@ -298,6 +293,7 @@ fn draw_svg(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn load_config(filename: &str) -> String {
     debug!("Loading config from {}", filename);
 
@@ -310,6 +306,7 @@ fn load_config(filename: &str) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn ghostwriter(args: &Args) -> Result<String> {
     let keyboard = shared!(Keyboard::new(false, false, None));
     let pen = shared!(Pen::new(false));
@@ -395,6 +392,7 @@ fn ghostwriter(args: &Args) -> Result<String> {
     }
 }
 
+#[allow(dead_code)]
 fn process_response(response: Result<(), anyhow::Error>) -> Result<()> {
     match response {
         Ok(_) => Ok(()),

@@ -8,27 +8,37 @@ use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use base64::{Engine, engine::general_purpose};
 use image::ImageEncoder;
 
+#[allow(dead_code)]
 const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
+#[allow(dead_code)]
 const HEIGHT: usize = 2154;
+#[allow(dead_code)]
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
+#[allow(dead_code)]
 const WINDOW_BYTES: usize = WIDTH * HEIGHT * BYTES_PER_PIXEL;
 
 // reMarkable 显示内存的可能物理地址
+#[allow(dead_code)]
 const DISPLAY_MEM_ADDRS: [u64; 3] = [
     0x20000000,  // 第一个可能的地址
     0x9C000000,  // 第二个可能的地址
     0x10000000,  // 第三个可能的地址
 ];
+#[allow(dead_code)]
 const DISPLAY_MEM_SIZE: usize = WINDOW_BYTES;
 
+#[allow(dead_code)]
 const OUTPUT_WIDTH: u32 = 768;
+#[allow(dead_code)]
 const OUTPUT_HEIGHT: u32 = 1024;
 
 // DRM ioctl 命令和结构体定义
+#[allow(dead_code)]
 const DRM_IOCTL_MODE_MAP_DUMB: u64 = 0xC01064B2;
+#[allow(dead_code)]
 const DRM_IOCTL_MODE_CREATE_DUMB: u64 = 0xC01064B0;
 
-#[repr(C)]
+#[allow(dead_code)]
 struct DrmModeModeInfo {
     clock: u32,
     hdisplay: u16,
@@ -42,7 +52,7 @@ struct DrmModeModeInfo {
     flags: u32,
 }
 
-#[repr(C)]
+#[allow(dead_code)]
 struct DrmModeCreateDumb {
     height: u32,
     width: u32,
@@ -53,7 +63,7 @@ struct DrmModeCreateDumb {
     size: u64,
 }
 
-#[repr(C)]
+#[allow(dead_code)]
 struct DrmModeMapDumb {
     handle: u32,
     pad: u32,

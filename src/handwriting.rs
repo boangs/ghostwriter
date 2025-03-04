@@ -134,7 +134,7 @@ impl HandwritingInput {
         }
         
         // 检查是否有错误
-        if let Some(error_code) = json.get("error_code") {
+        if let Some(_error_code) = json.get("error_code") {
             error!("百度 OCR API 返回错误: {:?}", json);
             return Err(anyhow::anyhow!("百度 OCR API 错误: {}", json["error_msg"].as_str().unwrap_or("未知错误")));
         }

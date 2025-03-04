@@ -34,7 +34,7 @@ impl Keyboard {
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
         let max_width = REMARKABLE_WIDTH as u32 - 500; // 增加右侧边距
         
-        let mut current_x = start_x;
+        let mut _current_x = start_x;
         let mut current_y = start_y;
         let mut line_start_y = start_y;
         
@@ -52,14 +52,14 @@ impl Keyboard {
             }
             
             if is_new_paragraph {
-                current_x = start_x + paragraph_indent;
+                _current_x = start_x + paragraph_indent;
                 is_new_paragraph = false;
             } else {
-                current_x = start_x;
+                _current_x = start_x;
             }
             
             // 预先计算这一行是否需要换行
-            let mut line_x = current_x;
+            let mut line_x = _current_x;
             let mut line_chars = Vec::new();
             for c in line.chars() {
                 if line_x + char_width > max_width {
@@ -83,17 +83,17 @@ impl Keyboard {
                     // 移动到笔画起点，使用字形提供的基线偏移
                     let (x, y) = stroke[0];
                     pen.pen_up()?;
-                    pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                    pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                     pen.pen_down()?;
                     
                     // 连续绘制笔画
                     for &(x, y) in stroke.iter().skip(1) {
-                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                        pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                         sleep(Duration::from_millis(1));
                     }
                 }
                 
-                current_x += char_width;
+                _current_x += char_width;
                 sleep(Duration::from_millis(10));
             }
             
@@ -102,14 +102,14 @@ impl Keyboard {
                 line_start_y += line_height;
                 current_y = line_start_y;
                 max_y = max_y.max(current_y);  // 更新最大 y 值
-                current_x = start_x;
+                _current_x = start_x;
                 
                 for c in line.chars().skip(line_chars.len()) {
-                    if current_x + char_width > max_width {
+                    if _current_x + char_width > max_width {
                         line_start_y += line_height;
                         current_y = line_start_y;
                         max_y = max_y.max(current_y);  // 更新最大 y 值
-                        current_x = start_x;
+                        _current_x = start_x;
                     }
                     
                     let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
@@ -121,16 +121,16 @@ impl Keyboard {
                         
                         let (x, y) = stroke[0];
                         pen.pen_up()?;
-                        pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                        pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                         pen.pen_down()?;
                         
                         for &(x, y) in stroke.iter().skip(1) {
-                            pen.goto_xy((x + current_x as i32, y + current_y as i32 + glyph_baseline))?;
+                            pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                             sleep(Duration::from_millis(1));
                         }
                     }
                     
-                    current_x += char_width;
+                    _current_x += char_width;
                     sleep(Duration::from_millis(10));
                 }
             }
@@ -139,7 +139,7 @@ impl Keyboard {
             line_start_y += line_height;
             current_y = line_start_y;
             max_y = max_y.max(current_y);  // 更新最大 y 值
-            current_x = start_x;
+            _current_x = start_x;
         }
         
         // 更新最后写入的位置

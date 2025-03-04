@@ -1,4 +1,4 @@
-use freetype::{Library, Face, Vector};
+use freetype::{Library, Face};
 use anyhow::Result;
 use std::rc::Rc;
 use crate::util::Asset;
