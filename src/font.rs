@@ -247,8 +247,8 @@ impl StrokeExtractor {
     }
     
     fn detect_corners(&mut self, outline: &[Point]) {
-        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.15; // 调整角点检测阈值
-        const SAMPLE_DISTANCE: usize = 3; // 增加采样距离
+        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.1; // 降低角点检测阈值
+        const SAMPLE_DISTANCE: usize = 2; // 减小采样距离以检测更多角点
         
         let n = outline.len();
         if n < SAMPLE_DISTANCE * 2 {
@@ -267,15 +267,15 @@ impl StrokeExtractor {
             let len1 = (tangent1.x * tangent1.x + tangent1.y * tangent1.y) as f32;
             let len2 = (tangent2.x * tangent2.x + tangent2.y * tangent2.y) as f32;
             
-            // 忽略太短的切线
-            if len1 < 4.0 || len2 < 4.0 {
+            // 降低切线长度阈值
+            if len1 < 2.0 || len2 < 2.0 {
                 continue;
             }
             
             let corner = Corner::new(*p0, tangent1, tangent2);
             
-            // 使用更严格的角点判断条件
-            if corner.angle > MIN_CORNER_ANGLE && corner.angle < std::f32::consts::PI * 1.85 {
+            // 放宽角点判断条件
+            if corner.angle > MIN_CORNER_ANGLE && corner.angle < std::f32::consts::PI * 1.9 {
                 self.corners.push(corner);
             }
         }
@@ -289,7 +289,7 @@ impl StrokeExtractor {
         while i < self.corners.len() {
             let mut j = i + 1;
             while j < self.corners.len() {
-                if self.corners[i].point.distance(&self.corners[j].point) < 5.0 {
+                if self.corners[i].point.distance(&self.corners[j].point) < 3.0 { // 减小合并距离
                     // 保留角度较大的角点
                     if self.corners[i].angle < self.corners[j].angle {
                         self.corners.swap(i, j);
@@ -309,8 +309,8 @@ impl StrokeExtractor {
             return;
         }
         
-        // 对角点按照x坐标排序
-        self.corners.sort_by_key(|c| c.point.x);
+        // 不再按x坐标排序，而是保持角点的原始顺序
+        // self.corners.sort_by_key(|c| c.point.x);
         
         // 创建笔画
         let mut current_stroke = Vec::new();
@@ -323,10 +323,10 @@ impl StrokeExtractor {
             let dist = prev.point.distance(&curr.point);
             let angle_diff = (prev.angle - curr.angle).abs();
             
-            // 如果两个角点距离较近且角度差不大，认为是同一笔画
-            if dist < 50.0 && angle_diff < std::f32::consts::PI * 0.5 {
-                // 添加中间点
-                let steps = (dist * 0.5) as usize + 1;
+            // 放宽距离和角度条件
+            if dist < 100.0 && angle_diff < std::f32::consts::PI * 0.7 {
+                // 添加更多的中间点
+                let steps = (dist * 0.2) as usize + 1;
                 for t in 1..steps {
                     let t = t as f32 / steps as f32;
                     let x = prev.point.x as f32 * (1.0 - t) + curr.point.x as f32 * t;
