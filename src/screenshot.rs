@@ -206,17 +206,48 @@ impl Screenshot {
         
         // 读取生成的 PNG 文件
         info!("读取生成的 PNG 文件");
-        match std::fs::read(png_file) {
+        let png_data = match std::fs::read(png_file) {
             Ok(data) => {
                 info!("成功读取 PNG 文件，大小: {} 字节", data.len());
-                self.data = data.clone();
-                Ok(data)
+                data
             }
             Err(e) => {
                 error!("读取 PNG 文件失败: {}", e);
-                Err(anyhow::anyhow!("读取 PNG 文件失败"))
+                return Err(anyhow::anyhow!("读取 PNG 文件失败"));
             }
-        }
+        };
+        
+        // 使用 image crate 处理图像
+        let img = image::load_from_memory(&png_data)?;
+        
+        // 1. 转换为灰度图
+        let gray_img = img.into_luma8();
+        
+        // 2. 调整对比度
+        let contrast_img = image::imageops::contrast(&gray_img, 2.0);
+        
+        // 3. 调整大小以优化识别
+        let resized = image::imageops::resize(
+            &contrast_img,
+            self.width / 2,  // 降低分辨率以减小文件大小
+            self.height / 2,
+            image::imageops::FilterType::Lanczos3
+        );
+        
+        // 4. 编码为高质量 PNG
+        let mut final_data = Vec::new();
+        let encoder = image::codecs::png::PngEncoder::new(&mut final_data);
+        encoder.write_image(
+            resized.as_raw(),
+            resized.width(),
+            resized.height(),
+            image::ColorType::L8
+        )?;
+        
+        info!("图像处理完成，最终大小: {} 字节", final_data.len());
+        self.data = final_data.clone();
+        
+        Ok(final_data)
     }
 
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {

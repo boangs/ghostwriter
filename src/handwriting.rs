@@ -99,9 +99,18 @@ impl HandwritingInput {
             access_token
         );
         
+        // 构建请求参数
+        let params = [
+            ("image", img_base64),
+            ("language_type", "CHN_ENG".to_string()),  // 支持中英文混合
+            ("detect_direction", "true".to_string()),   // 检测图像朝向
+            ("probability", "true".to_string()),        // 返回识别结果的置信度
+        ];
+        
         let response = ureq::post(&url)
             .set("Content-Type", "application/x-www-form-urlencoded")
-            .send_string(&format!("image={}", img_base64))?;
+            .send_form(&params)?;
+            
         info!("成功获取 API 响应");
             
         let json: serde_json::Value = response.into_json()?;
@@ -110,6 +119,12 @@ impl HandwritingInput {
         let debug_response_path = self.temp_dir.join("debug_response.json");
         std::fs::write(&debug_response_path, serde_json::to_string_pretty(&json)?)?;
         info!("保存 API 响应到: {}", debug_response_path.display());
+        
+        // 检查是否有错误
+        if let Some(error_code) = json.get("error_code") {
+            error!("百度 OCR API 返回错误: {:?}", json);
+            return Err(anyhow::anyhow!("百度 OCR API 错误: {}", json["error_msg"].as_str().unwrap_or("未知错误")));
+        }
         
         // 4. 解析识别结果
         let mut result = String::new();
