@@ -41,54 +41,95 @@ impl FontRenderer {
         let metrics = glyph.metrics();
         let baseline_offset = -(metrics.horiBearingY >> 6) as i32;
         
-        // 扫描每个像素点，寻找笔画的起点
+        // 首先找到所有的端点（笔画的起点和终点）
+        let mut endpoints = Vec::new();
         for y in 0..height {
             for x in 0..width {
-                let byte = buffer[y * bitmap.pitch() as usize + (x >> 3)];
-                let bit = (byte >> (7 - (x & 7))) & 1;
+                if !is_black_pixel(buffer, x, y, width) {
+                    continue;
+                }
                 
-                if bit == 1 && !visited[y][x] {
-                    // 找到一个未访问的黑色像素，开始追踪笔画
-                    let mut stroke = Vec::new();
-                    let mut stack = vec![(x, y)];
-                    visited[y][x] = true;
-                    
-                    // 使用深度优先搜索找到连续的笔画
-                    while let Some((cx, cy)) = stack.pop() {
-                        stroke.push((cx as i32, cy as i32));
-                        
-                        // 检查8个方向的相邻像素
-                        for (dx, dy) in &[(0, 1), (1, 0), (0, -1), (-1, 0), 
-                                        (1, 1), (-1, 1), (1, -1), (-1, -1)] {
-                            let nx = cx as i32 + dx;
-                            let ny = cy as i32 + dy;
-                            
-                            if nx >= 0 && nx < width as i32 && 
-                               ny >= 0 && ny < height as i32 {
-                                let nx = nx as usize;
-                                let ny = ny as usize;
-                                
-                                if !visited[ny][nx] {
-                                    let byte = buffer[ny * bitmap.pitch() as usize + (nx >> 3)];
-                                    let bit = (byte >> (7 - (nx & 7))) & 1;
-                                    
-                                    if bit == 1 {
-                                        visited[ny][nx] = true;
-                                        stack.push((nx, ny));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 优化笔画路径：使用Douglas-Peucker算法简化路径
-                    if stroke.len() > 2 {
-                        let simplified = simplify_stroke(&stroke);
-                        if !simplified.is_empty() {
-                            strokes.push(simplified);
+                // 计算周围黑色像素的数量
+                let mut black_neighbors = 0;
+                for (dx, dy) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+                    let nx = x as i32 + dx;
+                    let ny = y as i32 + dy;
+                    if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                        if is_black_pixel(buffer, nx as usize, ny as usize, width) {
+                            black_neighbors += 1;
                         }
                     }
                 }
+                
+                // 端点只有一个相邻的黑色像素
+                if black_neighbors == 1 {
+                    endpoints.push((x, y));
+                }
+            }
+        }
+        
+        // 从每个端点开始追踪笔画
+        for &(start_x, start_y) in &endpoints {
+            if visited[start_y][start_x] {
+                continue;
+            }
+            
+            let mut stroke = Vec::new();
+            let mut current = (start_x, start_y);
+            
+            while !visited[current.1][current.0] {
+                visited[current.1][current.0] = true;
+                stroke.push((current.0 as i32, current.1 as i32));
+                
+                // 寻找最佳的下一个点（基于方向连续性）
+                let mut best_next = None;
+                let mut best_direction_diff = std::f32::MAX;
+                let current_direction = if stroke.len() >= 2 {
+                    let prev = stroke[stroke.len() - 2];
+                    let curr = stroke[stroke.len() - 1];
+                    ((curr.0 - prev.0) as f32).atan2((curr.1 - prev.1) as f32)
+                } else {
+                    0.0
+                };
+                
+                // 检查8个方向
+                for (dx, dy) in &[(0, 1), (1, 1), (1, 0), (1, -1), 
+                                (0, -1), (-1, -1), (-1, 0), (-1, 1)] {
+                    let nx = current.0 as i32 + dx;
+                    let ny = current.1 as i32 + dy;
+                    
+                    if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                        let nx = nx as usize;
+                        let ny = ny as usize;
+                        
+                        if !visited[ny][nx] && is_black_pixel(buffer, nx, ny, width) {
+                            let new_direction = (*dx as f32).atan2(*dy as f32);
+                            let direction_diff = (new_direction - current_direction).abs();
+                            let direction_diff = if direction_diff > std::f32::consts::PI {
+                                2.0 * std::f32::consts::PI - direction_diff
+                            } else {
+                                direction_diff
+                            };
+                            
+                            if direction_diff < best_direction_diff {
+                                best_direction_diff = direction_diff;
+                                best_next = Some((nx, ny));
+                            }
+                        }
+                    }
+                }
+                
+                if let Some(next) = best_next {
+                    current = next;
+                } else {
+                    break;
+                }
+            }
+            
+            if stroke.len() > 2 {
+                // 平滑笔画路径
+                let smoothed = smooth_stroke(&stroke);
+                strokes.push(smoothed);
             }
         }
         
@@ -226,4 +267,39 @@ fn perpendicular_distance(point: (i32, i32), line_start: (i32, i32), line_end: (
     let denominator = (((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)) as f32).sqrt();
     
     numerator / denominator
+}
+
+// 辅助函数：检查像素是否为黑色
+fn is_black_pixel(buffer: &[u8], x: usize, y: usize, width: usize) -> bool {
+    let byte = buffer[y * ((width + 7) / 8) + (x >> 3)];
+    (byte >> (7 - (x & 7))) & 1 == 1
+}
+
+// 平滑笔画路径
+fn smooth_stroke(points: &[(i32, i32)]) -> Vec<(i32, i32)> {
+    if points.len() <= 2 {
+        return points.to_vec();
+    }
+    
+    let mut smoothed = Vec::with_capacity(points.len());
+    smoothed.push(points[0]);
+    
+    // 使用移动平均来平滑路径
+    let window_size = 3;
+    for i in 1..points.len() - 1 {
+        let start = i.saturating_sub(window_size / 2);
+        let end = (i + window_size / 2 + 1).min(points.len());
+        let count = end - start;
+        
+        let sum_x: i32 = points[start..end].iter().map(|p| p.0).sum();
+        let sum_y: i32 = points[start..end].iter().map(|p| p.1).sum();
+        
+        smoothed.push((
+            sum_x / count as i32,
+            sum_y / count as i32
+        ));
+    }
+    
+    smoothed.push(*points.last().unwrap());
+    smoothed
 } 
