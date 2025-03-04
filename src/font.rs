@@ -49,12 +49,6 @@ impl FontRenderer {
         let width_scale = size / width as f32;
         let height_scale = size / height as f32;
         
-        // 分别计算x和y的坐标范围，先转换为f32再进行乘法
-        let max_x = (width as f32 * width_scale * 1.2) as i32;
-        let max_y = (height as f32 * height_scale * 1.2) as i32;
-        
-        println!("字形尺寸: {}x{}, x缩放: {}, y缩放: {}", width, height, width_scale, height_scale);
-        
         // 计算基准偏移，使字形居中
         let bearing_x = (metrics.horiBearingX >> 6) as i32;
         let bearing_y = (metrics.horiBearingY >> 6) as i32;
@@ -73,9 +67,9 @@ impl FontRenderer {
                 let p = points[i];
                 let tag = tags[i];
                 
-                // 分别转换x和y坐标，使用不同的缩放比例
-                let x = ((p.x as f32 * width_scale) as i32).min(max_x).max(-max_x);
-                let y = ((p.y as f32 * height_scale) as i32).min(max_y).max(-max_y);
+                // 保持原始坐标的相对关系，只进行缩放
+                let x = (p.x as f32 * width_scale) as i32;
+                let y = (p.y as f32 * height_scale) as i32;
                 let point = Point::new(x, y);
                 
                 if (tag & 0x01) != 0 {  // on-curve point
@@ -85,8 +79,8 @@ impl FontRenderer {
                     let next_i = if i == end_idx { contour_start } else { i + 1 };
                     let next_p = points[next_i];
                     
-                    let next_x = ((next_p.x as f32 * width_scale) as i32).min(max_x).max(-max_x);
-                    let next_y = ((next_p.y as f32 * height_scale) as i32).min(max_y).max(-max_y);
+                    let next_x = (next_p.x as f32 * width_scale) as i32;
+                    let next_y = (next_p.y as f32 * height_scale) as i32;
                     let next_point = Point::new(next_x, next_y);
                     
                     // 在控制点之间插入中间点
@@ -320,38 +314,8 @@ impl StrokeExtractor {
             println!("轮廓 {} 上有 {} 个角点", contour_idx, contour_corners.len());
             
             if contour_corners.is_empty() {
-                // 如果没有角点，使用方向变化点来分割
-                let mut current_stroke = Vec::new();
-                let mut last_direction = None;
-                
-                for i in 0..contour.len() {
-                    let p1 = contour[i];
-                    let p2 = if i + 1 < contour.len() { contour[i + 1] } else { contour[0] };
-                    
-                    let dx = p2.x - p1.x;
-                    let dy = p2.y - p1.y;
-                    
-                    // 使用更精确的方向判断
-                    let angle = (dy as f32).atan2(dx as f32);
-                    let direction = classify_direction(angle);
-                    
-                    if let Some(last_dir) = last_direction {
-                        if direction != last_dir && !current_stroke.is_empty() {
-                            if is_valid_stroke(&current_stroke) {
-                                self.strokes.push(current_stroke);
-                            }
-                            current_stroke = Vec::new();
-                        }
-                    }
-                    
-                    current_stroke.push(p1);
-                    last_direction = Some(direction);
-                }
-                
-                // 处理最后一组点
-                if !current_stroke.is_empty() && is_valid_stroke(&current_stroke) {
-                    self.strokes.push(current_stroke);
-                }
+                // 如果没有角点，整个轮廓作为一个笔画
+                self.strokes.push(contour.clone());
             } else {
                 // 使用角点来分割笔画
                 let mut corner_indices: Vec<usize> = contour_corners.iter()
@@ -368,7 +332,7 @@ impl StrokeExtractor {
                         contour.len()
                     };
                     
-                    let mut stroke: Vec<Point> = contour[start..end].to_vec();
+                    let stroke: Vec<Point> = contour[start..end].to_vec();
                     if !stroke.is_empty() && is_valid_stroke(&stroke) {
                         println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
                             stroke.len(),
