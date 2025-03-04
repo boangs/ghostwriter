@@ -245,8 +245,8 @@ impl StrokeExtractor {
     }
     
     fn detect_corners_for_contour(&mut self, contour: &[Point]) {
-        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.15;
-        const SAMPLE_DISTANCE: usize = 3;
+        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.25;
+        const SAMPLE_DISTANCE: usize = 5;
         
         let n = contour.len();
         if n < SAMPLE_DISTANCE * 2 {
@@ -387,7 +387,6 @@ fn is_valid_stroke(points: &[Point]) -> bool {
         return false;
     }
     
-    // 计算起点和终点的距离
     let start = points[0];
     let end = points[points.len() - 1];
     let dist = start.distance(&end);
@@ -398,8 +397,13 @@ fn is_valid_stroke(points: &[Point]) -> bool {
         path_length += points[i].distance(&points[i + 1]);
     }
     
-    // 如果路径长度远大于起点到终点的距离，可能不是一个有效的笔画
-    if path_length > dist * 2.0 {
+    // 更严格的路径长度判断
+    if path_length > dist * 1.5 { // 从2.0降低到1.5
+        return false;
+    }
+    
+    // 添加最小长度判断
+    if path_length < 5.0 {
         return false;
     }
     
@@ -410,14 +414,16 @@ fn should_merge_strokes(stroke1: &[Point], stroke2: &[Point]) -> bool {
     let end1 = stroke1.last().unwrap();
     let start2 = &stroke2[0];
     
-    // 如果两个笔画的端点足够近，考虑合并
-    if end1.distance(start2) < 5.0 {
-        // 计算两个笔画的方向
+    // 降低合并距离阈值
+    if end1.distance(start2) < 3.0 { // 从5.0降低到3.0
         let dir1 = get_stroke_direction(stroke1);
         let dir2 = get_stroke_direction(stroke2);
         
-        // 如果方向相似，则合并
-        return dir1 == dir2;
+        // 添加角度判断
+        let angle = end1.angle(start2);
+        let angle_diff = (dir1 as i32 - dir2 as i32).abs() as f32;
+        
+        return dir1 == dir2 && angle_diff < std::f32::consts::PI / 4.0;
     }
     
     false
@@ -541,8 +547,8 @@ fn smooth_stroke(points: &[(i32, i32)]) -> Vec<(i32, i32)> {
     let mut smoothed = Vec::with_capacity(points.len());
     smoothed.push(points[0]);
     
-    // 使用移动平均来平滑路径
-    let window_size = 3;
+    // 增加窗口大小
+    let window_size = 5; // 从3增加到5
     for i in 1..points.len() - 1 {
         let start = i.saturating_sub(window_size / 2);
         let end = (i + window_size / 2 + 1).min(points.len());
