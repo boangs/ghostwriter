@@ -199,8 +199,7 @@ impl HandwritingInput {
         info!("执行 AI 引擎");
         self.engine.execute()?;
         
-        // 8. 返回识别结果和位置
-        let result = response.lock().unwrap().clone();
+        // 8. 返回识别结果（而不是 AI 的回复）和位置
         info!("完成识别过程");
         Ok((result, last_y))
     }
