@@ -29,7 +29,7 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y = self.last_y.load(Ordering::Relaxed)+5;  // 使用原子操作读取
         let char_width: u32 = 32;
-        let line_height: u32 = 40;
+        let line_height: u32 = 38;
         let font_size = 30.0;
         let paragraph_indent = 64; // 段落缩进（两个字符宽度）
         let max_width = REMARKABLE_WIDTH as u32 - 500; // 增加右侧边距
@@ -44,7 +44,7 @@ impl Keyboard {
         for line in text.split('\n') {
             if line.trim().is_empty() {
                 // 空行表示段落分隔
-                line_start_y += line_height; // 更新行起始位置
+                // line_start_y += line_height; // 更新行起始位置
                 current_y = line_start_y;
                 max_y = max_y.max(current_y);  // 更新最大 y 值
                 is_new_paragraph = true;
