@@ -2,13 +2,13 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::fs;
 use std::path::PathBuf;
-use base64::prelude::*;
+use base64::engine::general_purpose::STANDARD;
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;
 use std::time::Duration;
 use std::thread::sleep;
-use log::info;
+use log::{info, error};
 use serde_json::json;
 use ureq;
 
@@ -88,7 +88,7 @@ impl HandwritingInput {
         info!("保存原始截图到: {}", debug_image_path.display());
         
         // 2. 转换为 base64
-        let img_base64 = base64::encode(&img_data);
+        let img_base64 = STANDARD.encode(&img_data);
         info!("图片已转换为 base64，长度: {} 字符", img_base64.len());
         
         // 3. 调用百度 OCR API
@@ -101,10 +101,10 @@ impl HandwritingInput {
         
         // 构建请求参数
         let params = [
-            ("image", img_base64),
-            ("language_type", "CHN_ENG".to_string()),  // 支持中英文混合
-            ("detect_direction", "true".to_string()),   // 检测图像朝向
-            ("probability", "true".to_string()),        // 返回识别结果的置信度
+            ("image", img_base64.as_str()),
+            ("language_type", "CHN_ENG"),
+            ("detect_direction", "true"),
+            ("probability", "true"),
         ];
         
         let response = ureq::post(&url)

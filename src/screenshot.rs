@@ -1,14 +1,11 @@
 use anyhow::Result;
-use image::{GrayImage, DynamicImage, ImageBuffer, Luma};
+use image::{GrayImage, DynamicImage};
 use log::{info, error};
 use std::fs::File;
-use std::io::{Write, Read, Seek, SeekFrom, BufRead, BufReader};
-use std::os::unix::io::AsRawFd;
+use std::io::{Write, Read, Seek, SeekFrom};
 use std::process::Command;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
-use std::mem::size_of;
-
-use base64::{engine::general_purpose, Engine as _};
+use base64::engine::general_purpose;
 use image::ImageEncoder;
 
 const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
@@ -241,7 +238,7 @@ impl Screenshot {
             resized.as_raw(),
             resized.width(),
             resized.height(),
-            image::ColorType::L8
+            image::ColorType::L8.into()
         )?;
         
         info!("图像处理完成，最终大小: {} 字节", final_data.len());
