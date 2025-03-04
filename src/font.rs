@@ -42,11 +42,14 @@ impl FontRenderer {
         
         // 计算边界框和缩放比例
         let metrics = glyph.metrics();
-        let width = metrics.width >> 6;
-        let height = metrics.height >> 6;
-        let scale = size / height as f32;  // 根据高度计算缩放比例
+        let bbox = glyph.face().bbox();
+        let em_scale = size / (glyph.face().units_per_em() as f32);
         
-        println!("字形尺寸: {}x{}, 缩放比例: {}", width, height, scale);
+        // 计算字形的边界
+        let width = (metrics.width >> 6) as f32;
+        let height = (metrics.height >> 6) as f32;
+        
+        println!("字形尺寸: {}x{}, em比例: {}", width, height, em_scale);
         
         // 将FreeType的轮廓点转换为我们的Point结构
         let mut outline_points = Vec::new();
@@ -62,9 +65,9 @@ impl FontRenderer {
                 let p = points[i];
                 let tag = tags[i];
                 
-                // 转换坐标
-                let x = ((p.x as f32 * scale) as i32).min(1000).max(-1000);
-                let y = ((p.y as f32 * scale) as i32).min(1000).max(-1000);
+                // 转换坐标，应用em_scale并翻转y轴
+                let x = (p.x as f32 * em_scale) as i32;
+                let y = -(p.y as f32 * em_scale) as i32;  // 翻转y轴
                 let point = Point::new(x, y);
                 
                 if (tag & 0x01) != 0 {  // on-curve point
@@ -73,26 +76,18 @@ impl FontRenderer {
                     // 获取下一个点
                     let next_i = if i == end_idx { contour_start } else { i + 1 };
                     let next_p = points[next_i];
-                    let next_tag = tags[next_i];
                     
-                    let next_x = ((next_p.x as f32 * scale) as i32).min(1000).max(-1000);
-                    let next_y = ((next_p.y as f32 * scale) as i32).min(1000).max(-1000);
+                    let next_x = (next_p.x as f32 * em_scale) as i32;
+                    let next_y = -(next_p.y as f32 * em_scale) as i32;
                     let next_point = Point::new(next_x, next_y);
                     
-                    if (next_tag & 0x01) != 0 {  // next point is on-curve
-                        // 在控制点和端点之间插入中间点
-                        let steps = 10;  // 插入点的数量
-                        for t in 1..steps {
-                            let t = t as f32 / steps as f32;
-                            let mid_x = point.x as f32 * (1.0 - t) + next_point.x as f32 * t;
-                            let mid_y = point.y as f32 * (1.0 - t) + next_point.y as f32 * t;
-                            contour.push(Point::new(mid_x as i32, mid_y as i32));
-                        }
-                    } else {  // next point is also off-curve
-                        // 计算两个控制点之间的虚拟on-curve点
-                        let mid_x = (point.x + next_point.x) / 2;
-                        let mid_y = (point.y + next_point.y) / 2;
-                        contour.push(Point::new(mid_x, mid_y));
+                    // 在控制点之间插入中间点
+                    let steps = 5;  // 减少插入点的数量
+                    for t in 1..steps {
+                        let t = t as f32 / steps as f32;
+                        let mid_x = point.x as f32 * (1.0 - t) + next_point.x as f32 * t;
+                        let mid_y = point.y as f32 * (1.0 - t) + next_point.y as f32 * t;
+                        contour.push(Point::new(mid_x as i32, mid_y as i32));
                     }
                 }
                 i += 1;
@@ -103,10 +98,7 @@ impl FontRenderer {
                 contour.push(contour[0]);
             }
             
-            // 对轮廓点进行简化
-            let simplified = simplify_stroke(&contour.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>());
-            outline_points.extend(simplified.into_iter().map(|(x, y)| Point::new(x, y)));
-            
+            outline_points.extend(contour);
             contour_start = end_idx + 1;
         }
         
@@ -131,7 +123,7 @@ impl FontRenderer {
         let strokes = extractor.strokes.iter()
             .map(|stroke| {
                 stroke.iter()
-                    .map(|p| (p.x + bearing_x, p.y))
+                    .map(|p| (p.x + bearing_x, p.y + baseline_offset))
                     .collect()
             })
             .collect();
