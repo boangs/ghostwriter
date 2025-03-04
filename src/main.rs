@@ -10,6 +10,7 @@ use std::time::Duration;
 use std::collections::HashMap;
 use std::clone::Clone;
 use clap::Parser;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ghostwriter::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use ghostwriter::handwriting::HandwritingInput;
 use ghostwriter::touch::Touch;
@@ -191,7 +192,7 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
     // 如果有输入图片，添加图片内容
     if let Some(png_file) = &args.input_png {
         let image_data = std::fs::read(png_file)?;
-        let base64_image = base64::encode(&image_data);
+        let base64_image = STANDARD.encode(&image_data);
         engine.add_image_content(&base64_image);
     }
     
