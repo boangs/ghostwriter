@@ -222,6 +222,7 @@ impl Screenshot {
         Ok(final_data)
     }
 
+    #[allow(dead_code)]
     fn process_image(data: Vec<u8>) -> Result<Vec<u8>> {
         // 将 RGBA 数据转换为灰度图
         let mut gray_data = vec![0u8; WIDTH * HEIGHT];
@@ -293,6 +294,7 @@ impl Screenshot {
         Ok(png_data)
     }
 
+    #[allow(dead_code)]
     fn encode_png(raw_data: &[u8]) -> Result<Vec<u8>> {
         let raw_u8: Vec<u8> = raw_data
             .chunks_exact(2)
@@ -325,6 +327,7 @@ impl Screenshot {
         Ok(png_data)
     }
 
+    #[allow(dead_code)]
     fn apply_curves(value: u8) -> u8 {
         let normalized = value as f32 / 255.0;
         let adjusted = if normalized < 0.045 {

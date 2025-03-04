@@ -1,8 +1,5 @@
 use anyhow::Result;
 use evdev::{Device, EventType, InputEvent};
-use log::{debug, error, info, trace};
-use std::thread::sleep;
-use std::time::Duration;
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 pub struct Pen {

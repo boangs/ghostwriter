@@ -116,6 +116,7 @@ impl FontRenderer {
     }
 }
 
+#[allow(dead_code)]
 fn optimize_strokes(strokes: Vec<Vec<(i32, i32)>>) -> Vec<Vec<(i32, i32)>> {
     let mut optimized: Vec<Vec<(i32, i32)>> = Vec::new();
     let mut current_stroke: Vec<(i32, i32)> = Vec::new();
