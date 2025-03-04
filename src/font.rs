@@ -11,11 +11,12 @@ impl FontRenderer {
     pub fn new() -> Result<Self> {
         let lib = Library::init()?;
         let font_data = Asset::get("WenQuanYiMicroHei.ttf")
-            .expect("Failed to load font")
+            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 WenQuanYiMicroHei.ttf"))?
             .data;
         
         let font_data = Rc::new(font_data.to_vec());
-        let face = lib.new_memory_face(font_data, 0)?;
+        let face = lib.new_memory_face(font_data, 0)
+            .map_err(|e| anyhow::anyhow!("加载字体失败: {}", e))?;
         
         Ok(FontRenderer { face })
     }
