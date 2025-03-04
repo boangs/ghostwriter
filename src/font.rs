@@ -45,13 +45,15 @@ impl FontRenderer {
         let width = metrics.width >> 6;
         let height = metrics.height >> 6;
         
-        // 使用字形的实际大小计算缩放比例
-        let scale = size / height as f32;
+        // 分别计算x和y的缩放比例
+        let width_scale = size / width as f32;
+        let height_scale = size / height as f32;
         
-        // 计算坐标范围
-        let max_coord = (size * 1.2) as i32;  // 给一些余量
+        // 分别计算x和y的坐标范围
+        let max_x = (width * width_scale * 1.2) as i32;
+        let max_y = (height * height_scale * 1.2) as i32;
         
-        println!("字形尺寸: {}x{}, 缩放比例: {}", width, height, scale);
+        println!("字形尺寸: {}x{}, x缩放: {}, y缩放: {}", width, height, width_scale, height_scale);
         
         // 计算基准偏移，使字形居中
         let bearing_x = (metrics.horiBearingX >> 6) as i32;
@@ -71,9 +73,9 @@ impl FontRenderer {
                 let p = points[i];
                 let tag = tags[i];
                 
-                // 转换坐标，保持原始方向
-                let x = ((p.x as f32 * scale) as i32).min(max_coord).max(-max_coord);
-                let y = ((p.y as f32 * scale) as i32).min(max_coord).max(-max_coord);
+                // 分别转换x和y坐标，使用不同的缩放比例
+                let x = ((p.x as f32 * width_scale) as i32).min(max_x).max(-max_x);
+                let y = ((p.y as f32 * height_scale) as i32).min(max_y).max(-max_y);
                 let point = Point::new(x, y);
                 
                 if (tag & 0x01) != 0 {  // on-curve point
@@ -83,8 +85,8 @@ impl FontRenderer {
                     let next_i = if i == end_idx { contour_start } else { i + 1 };
                     let next_p = points[next_i];
                     
-                    let next_x = ((next_p.x as f32 * scale) as i32).min(max_coord).max(-max_coord);
-                    let next_y = ((next_p.y as f32 * scale) as i32).min(max_coord).max(-max_coord);
+                    let next_x = ((next_p.x as f32 * width_scale) as i32).min(max_x).max(-max_x);
+                    let next_y = ((next_p.y as f32 * height_scale) as i32).min(max_y).max(-max_y);
                     let next_point = Point::new(next_x, next_y);
                     
                     // 在控制点之间插入中间点
