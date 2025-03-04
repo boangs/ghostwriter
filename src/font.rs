@@ -36,15 +36,23 @@ impl FontRenderer {
         let tags = outline.tags();
         let contours = outline.contours();
         
+        println!("字符 '{}' 的轮廓信息:", c);
+        println!("点数量: {}", points.len());
+        println!("轮廓数量: {}", contours.len());
+        
         // 将FreeType的轮廓点转换为我们的Point结构
         let mut outline_points = Vec::new();
         let mut last_point = None;
         
+        // 计算边界框
+        let metrics = glyph.metrics();
+        let scale = size / (metrics.height >> 6) as f32;  // 根据字形高度计算缩放比例
+        
         for (i, p) in points.iter().enumerate() {
             if (tags[i] & 0x01) != 0 {
                 let point = Point::new(
-                    (p.x as f32 * 0.03) as i32,
-                    (p.y as f32 * 0.03) as i32
+                    (p.x as f32 * scale) as i32,
+                    (p.y as f32 * scale) as i32
                 );
                 
                 // 避免重复点
@@ -60,24 +68,28 @@ impl FontRenderer {
             }
         }
         
+        println!("提取的点数量: {}", outline_points.len());
+        
         // 创建笔画提取器
         let mut extractor = StrokeExtractor::new();
         
         // 检测角点
         extractor.detect_corners(&outline_points);
+        println!("检测到的角点数量: {}", extractor.corners.len());
         
         // 提取笔画
         extractor.extract_strokes();
+        println!("提取的笔画数量: {}", extractor.strokes.len());
         
         // 获取基线偏移
-        let metrics = glyph.metrics();
         let baseline_offset = -(metrics.horiBearingY >> 6) as i32;
         
-        // 转换笔画格式
+        // 转换笔画格式并进行平移
+        let bearing_x = (metrics.horiBearingX >> 6) as i32;
         let strokes = extractor.strokes.iter()
             .map(|stroke| {
                 stroke.iter()
-                    .map(|p| (p.x, p.y))
+                    .map(|p| (p.x + bearing_x, p.y))
                     .collect()
             })
             .collect();
@@ -311,7 +323,8 @@ impl StrokeExtractor {
     fn extract_strokes(&mut self) {
         let matches = self.match_corners();
         if matches.is_empty() {
-            return;  // 如果没有找到匹配的角点，直接返回
+            println!("警告：没有找到匹配的角点对");
+            return;
         }
         
         // 根据角点匹配结果构建笔画
@@ -320,8 +333,12 @@ impl StrokeExtractor {
             let c2 = &self.corners[j];
             
             // 如果两个角点距离太远或角度差太大，跳过
-            if c1.point.distance(&c2.point) > 50.0 || 
+            if c1.point.distance(&c2.point) > 100.0 || 
                (c1.angle - c2.angle).abs() > std::f32::consts::PI * 0.5 {
+                println!("跳过不合适的角点对: 距离={}, 角度差={}",
+                    c1.point.distance(&c2.point),
+                    (c1.angle - c2.angle).abs()
+                );
                 continue;
             }
             
@@ -338,6 +355,12 @@ impl StrokeExtractor {
                 stroke.push(Point::new(x as i32, y as i32));
             }
             stroke.push(c2.point);
+            
+            println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                stroke.len(),
+                c1.point.x, c1.point.y,
+                c2.point.x, c2.point.y
+            );
             
             self.strokes.push(stroke);
         }
