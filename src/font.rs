@@ -352,15 +352,16 @@ impl StrokeExtractor {
                 
                 // 在两个角点之间插入更多的点
                 for corner in self.corners.iter().skip(1) {
-                    let start = current_stroke.last().unwrap();
+                    let start_x = current_stroke.last().unwrap().x;
+                    let start_y = current_stroke.last().unwrap().y;
                     let end = &corner.point;
-                    let dist = start.distance(end);
+                    let dist = Point::new(start_x, start_y).distance(end);
                     let steps = (dist * 0.5) as usize + 1;
                     
                     for t in 1..steps {
                         let t = t as f32 / steps as f32;
-                        let x = start.x as f32 * (1.0 - t) + end.x as f32 * t;
-                        let y = start.y as f32 * (1.0 - t) + end.y as f32 * t;
+                        let x = start_x as f32 * (1.0 - t) + end.x as f32 * t;
+                        let y = start_y as f32 * (1.0 - t) + end.y as f32 * t;
                         current_stroke.push(Point::new(x as i32, y as i32));
                     }
                     current_stroke.push(*end);
