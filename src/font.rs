@@ -227,8 +227,8 @@ impl StrokeExtractor {
     
     // 从轮廓点中检测角点
     fn detect_corners(&mut self, outline: &[Point]) {
-        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.3; // 判定为角点的最小角度
-        const SAMPLE_DISTANCE: usize = 3; // 修改为usize类型
+        const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.1; // 降低角点检测阈值
+        const SAMPLE_DISTANCE: usize = 2; // 减小采样距离
         
         let n = outline.len();
         for i in 0..n {
@@ -240,7 +240,7 @@ impl StrokeExtractor {
             let tangent2 = Point::new(p2.x - p0.x, p2.y - p0.y);
             
             let corner = Corner::new(*p0, tangent1, tangent2);
-            if corner.is_concave() && corner.angle > MIN_CORNER_ANGLE {
+            if corner.angle > MIN_CORNER_ANGLE {  // 移除凹角检查
                 self.corners.push(corner);
             }
         }
@@ -342,23 +342,66 @@ impl StrokeExtractor {
     // 提取笔画
     fn extract_strokes(&mut self) {
         let matches = self.match_corners();
-        if matches.is_empty() {
-            println!("警告：没有找到匹配的角点对");
-            // 如果没有找到角点对，使用轮廓点作为笔画
+        
+        // 如果没有找到角点对，或者角点对不足，直接使用轮廓点
+        if matches.is_empty() || self.corners.len() < 2 {
+            println!("使用轮廓点生成笔画");
+            if let Some(first_corner) = self.corners.first() {
+                let mut current_stroke = Vec::new();
+                current_stroke.push(first_corner.point);
+                
+                // 在两个角点之间插入更多的点
+                for corner in self.corners.iter().skip(1) {
+                    let start = current_stroke.last().unwrap();
+                    let end = &corner.point;
+                    let dist = start.distance(end);
+                    let steps = (dist * 0.5) as usize + 1;
+                    
+                    for t in 1..steps {
+                        let t = t as f32 / steps as f32;
+                        let x = start.x as f32 * (1.0 - t) + end.x as f32 * t;
+                        let y = start.y as f32 * (1.0 - t) + end.y as f32 * t;
+                        current_stroke.push(Point::new(x as i32, y as i32));
+                    }
+                    current_stroke.push(*end);
+                    
+                    // 如果距离较大，开始新的笔画
+                    if dist > 50.0 {
+                        if current_stroke.len() > 1 {
+                            println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                                current_stroke.len(),
+                                current_stroke[0].x, current_stroke[0].y,
+                                current_stroke.last().unwrap().x, current_stroke.last().unwrap().y
+                            );
+                            self.strokes.push(current_stroke);
+                        }
+                        current_stroke = Vec::new();
+                        current_stroke.push(*end);
+                    }
+                }
+                
+                // 添加最后一个笔画
+                if current_stroke.len() > 1 {
+                    println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                        current_stroke.len(),
+                        current_stroke[0].x, current_stroke[0].y,
+                        current_stroke.last().unwrap().x, current_stroke.last().unwrap().y
+                    );
+                    self.strokes.push(current_stroke);
+                }
+            }
             return;
         }
         
-        // 根据角点匹配结果构建笔画
+        // 使用角点对生成笔画
         for (i, j) in matches {
             let c1 = &self.corners[i];
             let c2 = &self.corners[j];
             
-            // 如果两个角点距离太远或角度差太大，跳过
-            if c1.point.distance(&c2.point) > 100.0 || 
-               (c1.angle - c2.angle).abs() > std::f32::consts::PI * 0.5 {
-                println!("跳过不合适的角点对: 距离={}, 角度差={}",
-                    c1.point.distance(&c2.point),
-                    (c1.angle - c2.angle).abs()
+            // 放宽距离限制
+            if c1.point.distance(&c2.point) > 200.0 {
+                println!("跳过距离过远的角点对: 距离={}",
+                    c1.point.distance(&c2.point)
                 );
                 continue;
             }
@@ -371,30 +414,23 @@ impl StrokeExtractor {
             let dist = c1.point.distance(&c2.point);
             let steps = (dist * 0.5) as usize + 1;
             
-            if steps > 1 {
-                for t in 1..steps {
-                    let t = t as f32 / steps as f32;
-                    let x = c1.point.x as f32 * (1.0 - t) + c2.point.x as f32 * t;
-                    let y = c1.point.y as f32 * (1.0 - t) + c2.point.y as f32 * t;
-                    stroke.push(Point::new(x as i32, y as i32));
-                }
+            for t in 1..steps {
+                let t = t as f32 / steps as f32;
+                let x = c1.point.x as f32 * (1.0 - t) + c2.point.x as f32 * t;
+                let y = c1.point.y as f32 * (1.0 - t) + c2.point.y as f32 * t;
+                stroke.push(Point::new(x as i32, y as i32));
             }
             
             stroke.push(c2.point);
             
-            println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
-                stroke.len(),
-                c1.point.x, c1.point.y,
-                c2.point.x, c2.point.y
-            );
-            
-            self.strokes.push(stroke);
-        }
-        
-        // 如果没有生成任何笔画，使用原始轮廓
-        if self.strokes.is_empty() {
-            println!("警告：没有生成任何笔画，使用原始轮廓");
-            // TODO: 添加使用原始轮廓的逻辑
+            if stroke.len() > 1 {
+                println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                    stroke.len(),
+                    stroke[0].x, stroke[0].y,
+                    stroke.last().unwrap().x, stroke.last().unwrap().y
+                );
+                self.strokes.push(stroke);
+            }
         }
     }
 }
