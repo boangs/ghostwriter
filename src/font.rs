@@ -49,9 +49,9 @@ impl FontRenderer {
         let width_scale = size / width as f32;
         let height_scale = size / height as f32;
         
-        // 分别计算x和y的坐标范围
-        let max_x = (width * width_scale * 1.2) as i32;
-        let max_y = (height * height_scale * 1.2) as i32;
+        // 分别计算x和y的坐标范围，先转换为f32再进行乘法
+        let max_x = (width as f32 * width_scale * 1.2) as i32;
+        let max_y = (height as f32 * height_scale * 1.2) as i32;
         
         println!("字形尺寸: {}x{}, x缩放: {}, y缩放: {}", width, height, width_scale, height_scale);
         
