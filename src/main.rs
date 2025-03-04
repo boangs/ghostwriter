@@ -2,15 +2,17 @@ use anyhow::Result;
 use dotenv::dotenv;
 use env_logger;
 use log::{debug, info, error};
-use rust_embed::Embed;
+use rust_embed::RustEmbed;
 use serde_json::{json, Value as JsonValue};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::clone::Clone;
+use clap::Parser;
 use ghostwriter::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
-
+use ghostwriter::handwriting::HandwritingInput;
+use ghostwriter::touch::Touch;
 use ghostwriter::{
     keyboard::Keyboard,
     llm_engine::{openai::OpenAI, LLMEngine},
@@ -18,7 +20,7 @@ use ghostwriter::{
     util::{svg_to_bitmap, write_bitmap_to_file, OptionMap},
 };
 
-#[derive(Embed)]
+#[derive(RustEmbed)]
 #[folder = "prompts/"]
 struct Asset;
 
@@ -311,6 +313,7 @@ fn ghostwriter(args: &Args) -> Result<String> {
     let keyboard = shared!(Keyboard::new(false, false, None));
     let pen = shared!(Pen::new(false));
     let touch = shared!(Touch::new(false));
+    let touch_clone: Arc<Mutex<Touch>> = Arc::clone(&touch);
 
     let mut engine_options = OptionMap::new();
 
@@ -324,7 +327,7 @@ fn ghostwriter(args: &Args) -> Result<String> {
     let output_file = args.output_file.clone();
     let no_draw = args.no_draw;
     let keyboard_clone = Arc::clone(&keyboard);
-    let touch_clone = Arc::clone(&touch);
+    let touch_clone = Arc::clone(&touch_clone);
 
     let tool_config_draw_text = load_config("tool_draw_text.json");
 
