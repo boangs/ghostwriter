@@ -10,7 +10,7 @@ pub struct FontRenderer {
 impl FontRenderer {
     pub fn new() -> Result<Self> {
         let lib = Library::init()?;
-        let font_data = Asset::get("LXGWWenKaiScreen-Regular.ttf")
+        let font_data = Asset::get("WenQuanYiMicroHei.ttf")
             .expect("Failed to load font")
             .data;
         
