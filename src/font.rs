@@ -161,7 +161,7 @@ impl FontRenderer {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Point {
     x: i32,
     y: i32,
