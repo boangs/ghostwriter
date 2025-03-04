@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::fs;
 use std::path::PathBuf;
-use base64::engine::general_purpose::STANDARD;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;

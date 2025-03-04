@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom};
 use std::process::Command;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
-use base64::engine::general_purpose;
+use base64::{Engine, engine::general_purpose};
 use image::ImageEncoder;
 
 const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
@@ -370,7 +370,6 @@ impl Screenshot {
     }
 
     pub fn base64(&self) -> Result<String> {
-        let base64_image = base64::encode(&self.data);
-        Ok(base64_image)
+        Ok(general_purpose::STANDARD.encode(&self.data))
     }
 }
