@@ -301,110 +301,180 @@ impl StrokeExtractor {
     }
     
     fn extract_strokes_from_contours(&mut self, contours: &[Vec<Point>]) {
-        if self.corners.len() < 2 {
-            // 如果角点太少，使用轮廓作为笔画
-            for contour in contours {
-                if contour.len() > 2 {
-                    self.strokes.push(contour.clone());
-                }
-            }
-            return;
-        }
-
-        // 对每个轮廓分别处理
-        for contour in contours {
+        // 清空之前的笔画
+        self.strokes.clear();
+        
+        // 第一步：对每个轮廓进行分析
+        for (contour_idx, contour) in contours.iter().enumerate() {
             if contour.len() < 3 {
                 continue;
             }
-
-            // 计算这个轮廓的主要方向
+            
+            println!("处理轮廓 {}: {} 个点", contour_idx, contour.len());
+            
+            // 找出这个轮廓上的角点
+            let mut contour_corners: Vec<(usize, &Corner)> = self.corners.iter()
+                .enumerate()
+                .filter(|(_, c)| contour.contains(&c.point))
+                .collect();
+            
+            println!("轮廓 {} 上有 {} 个角点", contour_idx, contour_corners.len());
+            
+            if contour_corners.is_empty() {
+                // 如果没有角点，整个轮廓作为一个笔画
+                self.strokes.push(contour.clone());
+                continue;
+            }
+            
+            // 计算轮廓的主要方向
             let mut dx_sum = 0;
             let mut dy_sum = 0;
             for i in 0..(contour.len() - 1) {
                 dx_sum += contour[i + 1].x - contour[i].x;
                 dy_sum += contour[i + 1].y - contour[i].y;
             }
-            let main_direction = (dy_sum as f32).atan2(dx_sum as f32);
-
-            // 找出属于这个轮廓的角点
-            let mut contour_corners: Vec<&Corner> = self.corners.iter()
-                .filter(|c| contour.contains(&c.point))
-                .collect();
-
-            // 如果轮廓上没有足够的角点，直接使用轮廓点
-            if contour_corners.len() < 2 {
-                self.strokes.push(contour.clone());
-                continue;
-            }
-
-            // 根据主要方向对角点排序
-            if main_direction.abs() < std::f32::consts::PI / 4.0 {
-                // 水平方向优先
-                contour_corners.sort_by_key(|c| c.point.x);
-            } else {
-                // 垂直方向优先
-                contour_corners.sort_by_key(|c| -c.point.y);
-            }
-
-            // 创建笔画
-            let mut current_stroke = Vec::new();
-            let mut last_point = contour_corners[0].point;
-            current_stroke.push(last_point);
-
-            // 在角点之间寻找合适的路径点
-            for corner in contour_corners.iter().skip(1) {
-                let mut path_points = Vec::new();
-                let mut found = false;
-
-                // 在轮廓点中寻找连接路径
-                for i in 0..contour.len() {
-                    if contour[i] == last_point {
-                        found = true;
-                        path_points.push(contour[i]);
-                        continue;
-                    }
-                    if found {
-                        path_points.push(contour[i]);
-                        if contour[i] == corner.point {
-                            break;
-                        }
-                    }
-                }
-
-                // 如果没找到路径，使用直线连接
-                if path_points.is_empty() {
-                    let dist = last_point.distance(&corner.point);
-                    let steps = (dist * 0.2) as usize + 1;
-                    for t in 1..steps {
-                        let t = t as f32 / steps as f32;
-                        let x = last_point.x as f32 * (1.0 - t) + corner.point.x as f32 * t;
-                        let y = last_point.y as f32 * (1.0 - t) + corner.point.y as f32 * t;
-                        current_stroke.push(Point::new(x as i32, y as i32));
-                    }
+            
+            // 根据方向特征对角点进行分组
+            let mut stroke_groups = Vec::new();
+            let mut current_group = Vec::new();
+            let mut last_direction = None;
+            
+            for i in 0..contour.len() {
+                let p1 = contour[i];
+                let p2 = contour[(i + 1) % contour.len()];
+                
+                let dx = p2.x - p1.x;
+                let dy = p2.y - p1.y;
+                
+                // 计算当前线段的方向
+                let direction = if dx.abs() > dy.abs() {
+                    if dx > 0 { Direction::Right } else { Direction::Left }
                 } else {
-                    // 使用找到的路径点
-                    current_stroke.extend(path_points);
+                    if dy > 0 { Direction::Up } else { Direction::Down }
+                };
+                
+                // 如果方向改变，可能是新的笔画
+                if let Some(last_dir) = last_direction {
+                    if direction != last_dir && !current_group.is_empty() {
+                        // 检查是否是有效的笔画
+                        if is_valid_stroke(&current_group) {
+                            stroke_groups.push(current_group);
+                        }
+                        current_group = Vec::new();
+                    }
                 }
-
-                last_point = corner.point;
+                
+                current_group.push(p1);
+                last_direction = Some(direction);
             }
-
-            // 添加笔画
-            if current_stroke.len() > 1 {
-                println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
-                    current_stroke.len(),
-                    current_stroke[0].x, current_stroke[0].y,
-                    current_stroke.last().unwrap().x, current_stroke.last().unwrap().y
-                );
-                self.strokes.push(current_stroke);
+            
+            // 处理最后一组
+            if !current_group.is_empty() && is_valid_stroke(&current_group) {
+                stroke_groups.push(current_group);
+            }
+            
+            // 将分组添加到笔画中
+            for group in stroke_groups {
+                if group.len() >= 2 {
+                    println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                        group.len(),
+                        group[0].x, group[0].y,
+                        group.last().unwrap().x, group.last().unwrap().y
+                    );
+                    self.strokes.push(group);
+                }
             }
         }
-
+        
+        // 合并相近的笔画
+        self.merge_close_strokes();
+        
         // 对所有笔画进行平滑处理
         for stroke in &mut self.strokes {
             let smoothed = smooth_stroke(&stroke.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>());
             *stroke = smoothed.into_iter().map(|(x, y)| Point::new(x, y)).collect();
         }
+    }
+    
+    fn merge_close_strokes(&mut self) {
+        let mut i = 0;
+        while i < self.strokes.len() {
+            let mut j = i + 1;
+            while j < self.strokes.len() {
+                if should_merge_strokes(&self.strokes[i], &self.strokes[j]) {
+                    let mut merged = self.strokes[i].clone();
+                    merged.extend(self.strokes[j].iter());
+                    self.strokes[i] = merged;
+                    self.strokes.remove(j);
+                } else {
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+fn is_valid_stroke(points: &[Point]) -> bool {
+    if points.len() < 2 {
+        return false;
+    }
+    
+    // 计算起点和终点的距离
+    let start = points[0];
+    let end = points[points.len() - 1];
+    let dist = start.distance(&end);
+    
+    // 计算路径的总长度
+    let mut path_length = 0.0;
+    for i in 0..(points.len() - 1) {
+        path_length += points[i].distance(&points[i + 1]);
+    }
+    
+    // 如果路径长度远大于起点到终点的距离，可能不是一个有效的笔画
+    if path_length > dist * 2.0 {
+        return false;
+    }
+    
+    true
+}
+
+fn should_merge_strokes(stroke1: &[Point], stroke2: &[Point]) -> bool {
+    let end1 = stroke1.last().unwrap();
+    let start2 = &stroke2[0];
+    
+    // 如果两个笔画的端点足够近，考虑合并
+    if end1.distance(start2) < 5.0 {
+        // 计算两个笔画的方向
+        let dir1 = get_stroke_direction(stroke1);
+        let dir2 = get_stroke_direction(stroke2);
+        
+        // 如果方向相似，则合并
+        return dir1 == dir2;
+    }
+    
+    false
+}
+
+fn get_stroke_direction(stroke: &[Point]) -> Direction {
+    let start = stroke[0];
+    let end = stroke[stroke.len() - 1];
+    
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    
+    if dx.abs() > dy.abs() {
+        if dx > 0 { Direction::Right } else { Direction::Left }
+    } else {
+        if dy > 0 { Direction::Up } else { Direction::Down }
     }
 }
 
