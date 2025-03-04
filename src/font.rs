@@ -42,8 +42,8 @@ impl FontRenderer {
         
         // 计算边界框和缩放比例
         let metrics = glyph.metrics();
-        let units_per_em = self.face.units_per_em as f32;
-        let em_scale = size / units_per_em;
+        let size_metrics = self.face.size_metrics().unwrap();
+        let em_scale = size / (size_metrics.height >> 6) as f32;
         
         // 计算字形的边界
         let width = (metrics.width >> 6) as f32;
