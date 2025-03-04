@@ -11,6 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::env;
+use std::clone::Clone;
 use ghostwriter::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 
 use ghostwriter::{
@@ -273,11 +274,7 @@ macro_rules! lock {
 
 fn draw_text(text: &str, keyboard: &mut Keyboard) -> Result<()> {
     info!("Drawing text to the screen.");
-    keyboard.progress()?;
-    keyboard.progress_end()?;
-    keyboard.key_cmd_body()?;
-    keyboard.string_to_keypresses(text)?;
-    keyboard.string_to_keypresses("\n\n")?;
+    keyboard.write_text(text)?;  // 直接使用 write_text，因为它已经包含了所有必要的功能
     Ok(())
 }
 
