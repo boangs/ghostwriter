@@ -105,6 +105,10 @@ pub struct Args {
     /// 使用手写输入模式
     #[arg(long)]
     handwriting_mode: bool,
+
+    /// Last content y coordinate
+    #[arg(long)]
+    last_content_y: Option<i32>,
 }
 
 fn main() -> Result<()> {
@@ -146,9 +150,11 @@ fn main() -> Result<()> {
                 info!("检测到触发手势，开始识别...");
                 // 触发识别
                 match handwriting.capture_and_recognize() {
-                    Ok(prompt) => {
+                    Ok((prompt, last_y)) => {
                         info!("识别到的提示词: {}", prompt);
-                        // 使用识别到的文本作为提示词
+                        // 使用识别到的文本作为提示词，并传递最后一行的 y 坐标
+                        let mut args = args.clone();
+                        args.last_content_y = Some(last_y);
                         process_with_prompt(&args, &prompt)?;
                     }
                     Err(e) => {
@@ -168,10 +174,7 @@ fn main() -> Result<()> {
 }
 
 fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
-    // 创建键盘实例
-    let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress)?;
-    
-    // 获取 AI 回复
+    // 创建 AI 引擎实例
     let mut options = HashMap::new();
     if let Some(engine) = &args.engine {
         options.insert("engine".to_string(), engine.clone());
@@ -237,6 +240,15 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
     if let Some(output_file) = &args.model_output_file {
         std::fs::write(output_file, &response_text)?;
     }
+
+    // 创建键盘实例，使用最后一行的 y 坐标加上一些间距
+    let last_y = if let Some(y) = args.last_content_y {
+        y as u32 + 50  // 添加 50 像素的间距
+    } else {
+        100  // 默认值
+    };
+    
+    let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
 
     // 绘制 AI 回复的文字
     if !args.no_draw {

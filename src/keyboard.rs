@@ -14,11 +14,11 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new(no_draw: bool, _no_draw_progress: bool) -> Result<Self> {
+    pub fn new(no_draw: bool, _no_draw_progress: bool, initial_y: Option<u32>) -> Result<Self> {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
-            last_y: AtomicU32::new(100),
+            last_y: AtomicU32::new(initial_y.unwrap_or(100)),
         })
     }
 

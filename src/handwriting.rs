@@ -74,13 +74,16 @@ impl HandwritingInput {
         self.is_writing = false;
     }
 
-    pub fn capture_and_recognize(&mut self) -> Result<String> {
+    pub fn capture_and_recognize(&mut self) -> Result<(String, i32)> {
         info!("开始截图和识别过程");
         
         // 1. 截取当前屏幕
         let mut screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
-        info!("成功获取截图数据，大小: {} 字节", img_data.len());
+        
+        // 获取最后一行内容的 y 坐标
+        let last_y = screenshot.find_last_content_y();
+        info!("找到最后一行内容的 y 坐标: {}", last_y);
         
         // 仅为调试目的保存图片
         if cfg!(debug_assertions) {
@@ -196,10 +199,10 @@ impl HandwritingInput {
         info!("执行 AI 引擎");
         self.engine.execute()?;
         
-        // 8. 返回识别结果
+        // 8. 返回识别结果和位置
         let result = response.lock().unwrap().clone();
         info!("完成识别过程");
-        Ok(result)
+        Ok((result, last_y))
     }
     
     fn get_baidu_access_token(&self) -> Result<String> {
