@@ -42,14 +42,20 @@ impl FontRenderer {
         
         // 计算边界框和缩放比例
         let metrics = glyph.metrics();
-        let size_metrics = self.face.size_metrics().unwrap();
-        let em_scale = size / (size_metrics.height >> 6) as f32;
+        let width = metrics.width >> 6;
+        let height = metrics.height >> 6;
         
-        // 计算字形的边界
-        let width = (metrics.width >> 6) as f32;
-        let height = (metrics.height >> 6) as f32;
+        // 使用字形的实际大小计算缩放比例
+        let scale = size / height as f32;
         
-        println!("字形尺寸: {}x{}, em比例: {}", width, height, em_scale);
+        // 计算坐标范围
+        let max_coord = (size * 1.2) as i32;  // 给一些余量
+        
+        println!("字形尺寸: {}x{}, 缩放比例: {}", width, height, scale);
+        
+        // 计算基准偏移，使字形居中
+        let bearing_x = (metrics.horiBearingX >> 6) as i32;
+        let bearing_y = (metrics.horiBearingY >> 6) as i32;
         
         // 将FreeType的轮廓点转换为我们的Point结构
         let mut outline_points = Vec::new();
@@ -65,9 +71,9 @@ impl FontRenderer {
                 let p = points[i];
                 let tag = tags[i];
                 
-                // 转换坐标，应用em_scale并翻转y轴
-                let x = (p.x as f32 * em_scale) as i32;
-                let y = -(p.y as f32 * em_scale) as i32;  // 翻转y轴
+                // 转换坐标，保持原始方向
+                let x = ((p.x as f32 * scale) as i32).min(max_coord).max(-max_coord);
+                let y = ((p.y as f32 * scale) as i32).min(max_coord).max(-max_coord);
                 let point = Point::new(x, y);
                 
                 if (tag & 0x01) != 0 {  // on-curve point
@@ -77,8 +83,8 @@ impl FontRenderer {
                     let next_i = if i == end_idx { contour_start } else { i + 1 };
                     let next_p = points[next_i];
                     
-                    let next_x = (next_p.x as f32 * em_scale) as i32;
-                    let next_y = -(next_p.y as f32 * em_scale) as i32;
+                    let next_x = ((next_p.x as f32 * scale) as i32).min(max_coord).max(-max_coord);
+                    let next_y = ((next_p.y as f32 * scale) as i32).min(max_coord).max(-max_coord);
                     let next_point = Point::new(next_x, next_y);
                     
                     // 在控制点之间插入中间点
@@ -115,20 +121,21 @@ impl FontRenderer {
         extractor.extract_strokes();
         println!("提取的笔画数量: {}", extractor.strokes.len());
         
-        // 获取基线偏移
-        let baseline_offset = -(metrics.horiBearingY >> 6) as i32;
-        
         // 转换笔画格式并进行平移
-        let bearing_x = (metrics.horiBearingX >> 6) as i32;
         let strokes = extractor.strokes.iter()
             .map(|stroke| {
                 stroke.iter()
-                    .map(|p| (p.x + bearing_x, p.y + baseline_offset))
+                    .map(|p| {
+                        // 在最终输出时进行坐标系转换
+                        let screen_x = p.x + bearing_x;
+                        let screen_y = -p.y + bearing_y; // 翻转y轴并应用偏移
+                        (screen_x, screen_y)
+                    })
                     .collect()
             })
             .collect();
         
-        Ok((strokes, baseline_offset))
+        Ok((strokes, bearing_y))
     }
 
     pub fn char_to_svg(&self, c: char, size: f32, x: i32, y: i32) -> Result<String> {
