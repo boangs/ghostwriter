@@ -147,7 +147,7 @@ impl HandwritingInput {
         info!("开始处理 AI 引擎响应");
         self.engine.clear_content();
         self.engine.add_text_content(&format!(
-            "识别到的手写文字内容是:\n{}\n请对这段文字进行分析和回应。",
+            "{}\n",
             result.trim()
         ));
         
