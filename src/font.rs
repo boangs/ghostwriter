@@ -303,10 +303,8 @@ impl StrokeExtractor {
     }
     
     fn extract_strokes_from_contours(&mut self, contours: &[Vec<Point>]) {
-        // 清空之前的笔画
         self.strokes.clear();
         
-        // 第一步：对每个轮廓进行分析
         for (contour_idx, contour) in contours.iter().enumerate() {
             if contour.len() < 3 {
                 continue;
@@ -315,75 +313,70 @@ impl StrokeExtractor {
             println!("处理轮廓 {}: {} 个点", contour_idx, contour.len());
             
             // 找出这个轮廓上的角点
-            let mut contour_corners: Vec<(usize, &Corner)> = self.corners.iter()
-                .enumerate()
-                .filter(|(_, c)| contour.contains(&c.point))
+            let contour_corners: Vec<&Corner> = self.corners.iter()
+                .filter(|c| contour.contains(&c.point))
                 .collect();
             
             println!("轮廓 {} 上有 {} 个角点", contour_idx, contour_corners.len());
             
             if contour_corners.is_empty() {
-                // 如果没有角点，整个轮廓作为一个笔画
-                self.strokes.push(contour.clone());
-                continue;
-            }
-            
-            // 计算轮廓的主要方向
-            let mut dx_sum = 0;
-            let mut dy_sum = 0;
-            for i in 0..(contour.len() - 1) {
-                dx_sum += contour[i + 1].x - contour[i].x;
-                dy_sum += contour[i + 1].y - contour[i].y;
-            }
-            
-            // 根据方向特征对角点进行分组
-            let mut stroke_groups = Vec::new();
-            let mut current_group = Vec::new();
-            let mut last_direction = None;
-            
-            for i in 0..contour.len() {
-                let p1 = contour[i];
-                let p2 = contour[(i + 1) % contour.len()];
+                // 如果没有角点，使用方向变化点来分割
+                let mut current_stroke = Vec::new();
+                let mut last_direction = None;
                 
-                let dx = p2.x - p1.x;
-                let dy = p2.y - p1.y;
-                
-                // 计算当前线段的方向
-                let direction = if dx.abs() > dy.abs() {
-                    if dx > 0 { Direction::Right } else { Direction::Left }
-                } else {
-                    if dy > 0 { Direction::Up } else { Direction::Down }
-                };
-                
-                // 如果方向改变，可能是新的笔画
-                if let Some(last_dir) = last_direction {
-                    if direction != last_dir && !current_group.is_empty() {
-                        // 检查是否是有效的笔画
-                        if is_valid_stroke(&current_group) {
-                            stroke_groups.push(current_group);
+                for i in 0..contour.len() {
+                    let p1 = contour[i];
+                    let p2 = if i + 1 < contour.len() { contour[i + 1] } else { contour[0] };
+                    
+                    let dx = p2.x - p1.x;
+                    let dy = p2.y - p1.y;
+                    
+                    // 使用更精确的方向判断
+                    let angle = (dy as f32).atan2(dx as f32);
+                    let direction = classify_direction(angle);
+                    
+                    if let Some(last_dir) = last_direction {
+                        if direction != last_dir && !current_stroke.is_empty() {
+                            if is_valid_stroke(&current_stroke) {
+                                self.strokes.push(current_stroke);
+                            }
+                            current_stroke = Vec::new();
                         }
-                        current_group = Vec::new();
                     }
+                    
+                    current_stroke.push(p1);
+                    last_direction = Some(direction);
                 }
                 
-                current_group.push(p1);
-                last_direction = Some(direction);
-            }
-            
-            // 处理最后一组
-            if !current_group.is_empty() && is_valid_stroke(&current_group) {
-                stroke_groups.push(current_group);
-            }
-            
-            // 将分组添加到笔画中
-            for group in stroke_groups {
-                if group.len() >= 2 {
-                    println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
-                        group.len(),
-                        group[0].x, group[0].y,
-                        group.last().unwrap().x, group.last().unwrap().y
-                    );
-                    self.strokes.push(group);
+                // 处理最后一组点
+                if !current_stroke.is_empty() && is_valid_stroke(&current_stroke) {
+                    self.strokes.push(current_stroke);
+                }
+            } else {
+                // 使用角点来分割笔画
+                let mut corner_indices: Vec<usize> = contour_corners.iter()
+                    .filter_map(|c| contour.iter().position(|p| p == &c.point))
+                    .collect();
+                corner_indices.sort_unstable();
+                
+                // 在角点之间提取笔画
+                for i in 0..corner_indices.len() {
+                    let start = corner_indices[i];
+                    let end = if i + 1 < corner_indices.len() {
+                        corner_indices[i + 1]
+                    } else {
+                        contour.len()
+                    };
+                    
+                    let mut stroke: Vec<Point> = contour[start..end].to_vec();
+                    if !stroke.is_empty() && is_valid_stroke(&stroke) {
+                        println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                            stroke.len(),
+                            stroke[0].x, stroke[0].y,
+                            stroke.last().unwrap().x, stroke.last().unwrap().y
+                        );
+                        self.strokes.push(stroke);
+                    }
                 }
             }
         }
@@ -602,4 +595,21 @@ fn smooth_stroke(points: &[(i32, i32)]) -> Vec<(i32, i32)> {
     
     smoothed.push(*points.last().unwrap());
     smoothed
+}
+
+fn classify_direction(angle: f32) -> Direction {
+    use std::f32::consts::PI;
+    let angle = if angle < 0.0 { angle + 2.0 * PI } else { angle };
+    
+    if angle < PI / 4.0 || angle >= 7.0 * PI / 4.0 {
+        Direction::Right
+    } else if angle < 3.0 * PI / 4.0 {
+        Direction::Up
+    } else if angle < 5.0 * PI / 4.0 {
+        Direction::Left
+    } else if angle < 7.0 * PI / 4.0 {
+        Direction::Down
+    } else {
+        Direction::Right
+    }
 } 
