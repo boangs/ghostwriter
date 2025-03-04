@@ -82,12 +82,17 @@ impl HandwritingInput {
         let img_data = screenshot.get_image_data()?;
         info!("成功获取截图数据，大小: {} 字节", img_data.len());
         
-        // 保存原始截图用于调试
-        let debug_image_path = self.temp_dir.join("debug_screenshot.png");
-        std::fs::write(&debug_image_path, &img_data)?;
-        info!("保存原始截图到: {}", debug_image_path.display());
+        // 仅为调试目的保存图片
+        if cfg!(debug_assertions) {
+            let debug_image_path = self.temp_dir.join("debug_screenshot.png");
+            if let Err(e) = std::fs::write(&debug_image_path, &img_data) {
+                error!("保存调试截图失败: {}", e);
+            } else {
+                info!("保存调试截图到: {}", debug_image_path.display());
+            }
+        }
         
-        // 2. 转换为 base64
+        // 2. 直接使用内存中的图片数据转换为 base64
         let img_base64 = STANDARD.encode(&img_data);
         info!("图片已转换为 base64，长度: {} 字符", img_base64.len());
         
@@ -115,10 +120,15 @@ impl HandwritingInput {
             
         let json: serde_json::Value = response.into_json()?;
         
-        // 保存 API 响应用于调试
-        let debug_response_path = self.temp_dir.join("debug_response.json");
-        std::fs::write(&debug_response_path, serde_json::to_string_pretty(&json)?)?;
-        info!("保存 API 响应到: {}", debug_response_path.display());
+        // 仅为调试目的保存 API 响应
+        if cfg!(debug_assertions) {
+            let debug_response_path = self.temp_dir.join("debug_response.json");
+            if let Err(e) = std::fs::write(&debug_response_path, serde_json::to_string_pretty(&json)?) {
+                error!("保存 API 响应失败: {}", e);
+            } else {
+                info!("保存 API 响应到: {}", debug_response_path.display());
+            }
+        }
         
         // 检查是否有错误
         if let Some(error_code) = json.get("error_code") {
@@ -138,10 +148,15 @@ impl HandwritingInput {
         }
         info!("识别结果: {}", result);
 
-        // 保存识别结果用于调试
-        let debug_text_path = self.temp_dir.join("debug_result.txt");
-        std::fs::write(&debug_text_path, &result)?;
-        info!("保存识别结果到: {}", debug_text_path.display());
+        // 仅为调试目的保存识别结果
+        if cfg!(debug_assertions) {
+            let debug_text_path = self.temp_dir.join("debug_result.txt");
+            if let Err(e) = std::fs::write(&debug_text_path, &result) {
+                error!("保存识别结果失败: {}", e);
+            } else {
+                info!("保存识别结果到: {}", debug_text_path.display());
+            }
+        }
 
         // 5. 将识别结果传给 AI 引擎
         info!("开始处理 AI 引擎响应");
