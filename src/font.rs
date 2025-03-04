@@ -244,7 +244,7 @@ impl StrokeExtractor {
         }
         
         // 匈牙利算法实现
-        let mut matches = Vec::new();
+        let mut matches = vec![usize::MAX; n];  // 初始化matches数组
         let mut visited = vec![false; n];
         let mut lx = vec![0.0; n];
         let mut ly = vec![0.0; n];
@@ -257,11 +257,21 @@ impl StrokeExtractor {
             lx[i] = cost_matrix[i].iter().fold(f32::MIN, |a, &b| a.max(b));
         }
         
+        // 为每个点找到匹配
         for i in 0..n {
             loop {
                 visited.fill(false);
+                slack.fill(f32::MAX);
                 if self.find_path(i, &cost_matrix, &mut matches, &mut visited, 
                                 &lx, &mut ly, &mut slack, &mut slackx, &mut prev) {
+                    // 更新匹配
+                    let mut j = i;
+                    while j != usize::MAX {
+                        let t = prev[j];
+                        let next = matches[j];
+                        matches[j] = t;
+                        j = next;
+                    }
                     break;
                 }
                 
@@ -307,31 +317,23 @@ impl StrokeExtractor {
         
         while let Some(i) = q.pop_front() {
             for j in 0..n {
-                if matches[j] == usize::MAX {
+                if !visited[j] {
                     let cur_slack = lx[i] + ly[j] - cost_matrix[i][j];
                     if cur_slack == 0.0 {
-                        if !visited[j] {
-                            visited[j] = true;
+                        visited[j] = true;
+                        if matches[j] == usize::MAX {
+                            // 找到增广路径
                             prev[j] = i;
                             return true;
                         }
+                        // 继续寻找
+                        q.push_back(matches[j]);
+                        prev[j] = i;
                     } else if slack[j] > cur_slack {
+                        // 更新slack值
                         slack[j] = cur_slack;
                         slackx[j] = i;
                     }
-                }
-            }
-            
-            for j in 0..n {
-                if !visited[j] && slack[j] == 0.0 {
-                    visited[j] = true;
-                    let k = matches[j];
-                    if k == usize::MAX {
-                        prev[j] = slackx[j];
-                        return true;
-                    }
-                    q.push_back(k);
-                    prev[j] = slackx[j];
                 }
             }
         }
