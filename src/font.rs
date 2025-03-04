@@ -41,7 +41,7 @@ impl FontRenderer {
         let mut last_point = None;
         
         for (i, p) in points.iter().enumerate() {
-            if tags[i].is_on_curve() {
+            if (tags[i] & 0x01) != 0 {
                 let point = Point::new(
                     (p.x as f32 * 0.03) as i32,
                     (p.y as f32 * 0.03) as i32
@@ -149,7 +149,7 @@ impl Point {
     fn angle(&self, other: &Point) -> f32 {
         let dx = other.x - self.x;
         let dy = other.y - self.y;
-        dy as f32.atan2(dx as f32)
+        (dy as f32).atan2(dx as f32)
     }
 }
 
@@ -196,7 +196,7 @@ impl StrokeExtractor {
     // 从轮廓点中检测角点
     fn detect_corners(&mut self, outline: &[Point]) {
         const MIN_CORNER_ANGLE: f32 = std::f32::consts::PI * 0.3; // 判定为角点的最小角度
-        const SAMPLE_DISTANCE: i32 = 3; // 采样距离
+        const SAMPLE_DISTANCE: usize = 3; // 修改为usize类型
         
         let n = outline.len();
         for i in 0..n {
