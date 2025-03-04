@@ -158,72 +158,30 @@ impl Screenshot {
             info!("当前偏移量: 0x{:x}, 数据长度: {} 字节", offset, length);
         }
         
-        // 4. 计算正确的读取参数
+        // 4. 直接读取内存数据
         let skip = start + offset;
         let count = target_size;
         info!("最终读取参数: skip=0x{:x}, count={}", skip, count);
         
-        // 5. 使用 dd 获取原始数据，然后用 ffmpeg 转换
-        let raw_file = "/tmp/ghostwriter/raw_capture.rgba";
-        let png_file = "/tmp/ghostwriter/capture.png";
+        // 直接从内存读取原始数据
+        mem_file.seek(SeekFrom::Start(skip))?;
+        let mut raw_data = vec![0u8; count as usize];
+        mem_file.read_exact(&mut raw_data)?;
         
-        // 首先用 dd 获取原始数据
-        let dd_cmd = format!(
-            "dd if=/proc/{}/mem of={} count={} bs=1024 iflag=skip_bytes,count_bytes skip={}",
-            pid, raw_file, count, skip
-        );
+        // 创建 RGBA 图像
+        let img = image::RgbaImage::from_raw(
+            self.width,
+            self.height,
+            raw_data
+        ).ok_or_else(|| anyhow::anyhow!("无法创建 RGBA 图像"))?;
         
-        info!("执行 dd 命令: {}", dd_cmd);
-        let dd_output = Command::new("sh")
-            .arg("-c")
-            .arg(&dd_cmd)
-            .output()?;
-            
-        if !dd_output.status.success() {
-            error!("dd 命令执行失败: {}", String::from_utf8_lossy(&dd_output.stderr));
-            return Err(anyhow::anyhow!("dd 命令执行失败"));
-        }
+        // 转换为灰度图
+        let gray_img = image::DynamicImage::ImageRgba8(img).into_luma8();
         
-        // 然后用 ffmpeg 转换为 PNG
-        let ffmpeg_cmd = format!(
-            "ffmpeg -f rawvideo -pixel_format rgba -video_size {}x{} -i {} -frames:v 1 {}",
-            self.width, self.height, raw_file, png_file
-        );
-        
-        info!("执行 ffmpeg 命令: {}", ffmpeg_cmd);
-        let ffmpeg_output = Command::new("sh")
-            .arg("-c")
-            .arg(&ffmpeg_cmd)
-            .output()?;
-            
-        if !ffmpeg_output.status.success() {
-            error!("ffmpeg 命令执行失败: {}", String::from_utf8_lossy(&ffmpeg_output.stderr));
-            return Err(anyhow::anyhow!("ffmpeg 命令执行失败"));
-        }
-        
-        // 读取生成的 PNG 文件
-        info!("读取生成的 PNG 文件");
-        let png_data = match std::fs::read(png_file) {
-            Ok(data) => {
-                info!("成功读取 PNG 文件，大小: {} 字节", data.len());
-                data
-            }
-            Err(e) => {
-                error!("读取 PNG 文件失败: {}", e);
-                return Err(anyhow::anyhow!("读取 PNG 文件失败"));
-            }
-        };
-        
-        // 使用 image crate 处理图像
-        let img = image::load_from_memory(&png_data)?;
-        
-        // 1. 转换为灰度图
-        let gray_img = img.into_luma8();
-        
-        // 2. 调整对比度
+        // 调整对比度
         let contrast_img = image::imageops::contrast(&gray_img, 2.0);
         
-        // 3. 调整大小以优化识别
+        // 调整大小以优化识别
         let resized = image::imageops::resize(
             &contrast_img,
             self.width / 2,  // 降低分辨率以减小文件大小
@@ -231,7 +189,7 @@ impl Screenshot {
             image::imageops::FilterType::Lanczos3
         );
         
-        // 4. 编码为高质量 PNG
+        // 编码为高质量 PNG
         let mut final_data = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut final_data);
         encoder.write_image(
@@ -242,8 +200,15 @@ impl Screenshot {
         )?;
         
         info!("图像处理完成，最终大小: {} 字节", final_data.len());
-        self.data = final_data.clone();
         
+        // 仅为调试目的保存图片
+        if cfg!(debug_assertions) {
+            if let Err(e) = std::fs::write("/tmp/ghostwriter/debug_capture.png", &final_data) {
+                error!("保存调试图片失败: {}", e);
+            }
+        }
+        
+        self.data = final_data.clone();
         Ok(final_data)
     }
 
