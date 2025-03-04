@@ -10,8 +10,8 @@ pub struct FontRenderer {
 impl FontRenderer {
     pub fn new() -> Result<Self> {
         let lib = Library::init()?;
-        let font_data = Asset::get("WenQuanYiMicroHei.ttf")
-            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 WenQuanYiMicroHei.ttf"))?
+        let font_data = Asset::get("LXGWWenKaiGBScreen.ttf")
+            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 LXGWWenKaiGBScreen.ttf"))?
             .data;
         
         let font_data = Rc::new(font_data.to_vec());

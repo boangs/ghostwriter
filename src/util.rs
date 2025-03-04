@@ -20,7 +20,7 @@ pub fn svg_to_bitmap(svg_data: &str, width: u32, height: u32) -> Result<Vec<Vec<
     let mut fontdb = fontdb::Database::new();
     
     // 加载嵌入的字体
-    if let Some(font_data) = Asset::get("WenQuanYiMicroHei.ttf") {
+    if let Some(font_data) = Asset::get("LXGWWenKaiGBScreen.ttf") {
         fontdb.load_font_data(font_data.data.to_vec());
     }
     
