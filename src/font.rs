@@ -310,66 +310,100 @@ impl StrokeExtractor {
             }
             return;
         }
-        
-        // 对角点按照y坐标排序，从上到下处理
-        self.corners.sort_by_key(|c| -c.point.y);
-        
-        let mut used_corners = vec![false; self.corners.len()];
-        
-        // 寻找笔画
-        for i in 0..self.corners.len() {
-            if used_corners[i] {
+
+        // 对每个轮廓分别处理
+        for contour in contours {
+            if contour.len() < 3 {
                 continue;
             }
-            
+
+            // 计算这个轮廓的主要方向
+            let mut dx_sum = 0;
+            let mut dy_sum = 0;
+            for i in 0..(contour.len() - 1) {
+                dx_sum += contour[i + 1].x - contour[i].x;
+                dy_sum += contour[i + 1].y - contour[i].y;
+            }
+            let main_direction = (dy_sum as f32).atan2(dx_sum as f32);
+
+            // 找出属于这个轮廓的角点
+            let mut contour_corners: Vec<&Corner> = self.corners.iter()
+                .filter(|c| contour.contains(&c.point))
+                .collect();
+
+            // 如果轮廓上没有足够的角点，直接使用轮廓点
+            if contour_corners.len() < 2 {
+                self.strokes.push(contour.clone());
+                continue;
+            }
+
+            // 根据主要方向对角点排序
+            if main_direction.abs() < std::f32::consts::PI / 4.0 {
+                // 水平方向优先
+                contour_corners.sort_by_key(|c| c.point.x);
+            } else {
+                // 垂直方向优先
+                contour_corners.sort_by_key(|c| -c.point.y);
+            }
+
+            // 创建笔画
             let mut current_stroke = Vec::new();
-            current_stroke.push(self.corners[i].point);
-            used_corners[i] = true;
-            
-            let mut current_point = self.corners[i].point;
-            let mut found_next;
-            
-            loop {
-                found_next = false;
-                let mut best_dist = f32::MAX;
-                let mut best_idx = 0;
-                
-                // 寻找最近的未使用角点
-                for j in 0..self.corners.len() {
-                    if used_corners[j] {
+            let mut last_point = contour_corners[0].point;
+            current_stroke.push(last_point);
+
+            // 在角点之间寻找合适的路径点
+            for corner in contour_corners.iter().skip(1) {
+                let mut path_points = Vec::new();
+                let mut found = false;
+
+                // 在轮廓点中寻找连接路径
+                for i in 0..contour.len() {
+                    if contour[i] == last_point {
+                        found = true;
+                        path_points.push(contour[i]);
                         continue;
                     }
-                    
-                    let dist = current_point.distance(&self.corners[j].point);
-                    if dist < best_dist && dist < 50.0 {
-                        best_dist = dist;
-                        best_idx = j;
-                        found_next = true;
+                    if found {
+                        path_points.push(contour[i]);
+                        if contour[i] == corner.point {
+                            break;
+                        }
                     }
                 }
-                
-                if !found_next {
-                    break;
+
+                // 如果没找到路径，使用直线连接
+                if path_points.is_empty() {
+                    let dist = last_point.distance(&corner.point);
+                    let steps = (dist * 0.2) as usize + 1;
+                    for t in 1..steps {
+                        let t = t as f32 / steps as f32;
+                        let x = last_point.x as f32 * (1.0 - t) + corner.point.x as f32 * t;
+                        let y = last_point.y as f32 * (1.0 - t) + corner.point.y as f32 * t;
+                        current_stroke.push(Point::new(x as i32, y as i32));
+                    }
+                } else {
+                    // 使用找到的路径点
+                    current_stroke.extend(path_points);
                 }
-                
-                // 添加中间点
-                let next_point = self.corners[best_idx].point;
-                let steps = (best_dist * 0.2) as usize + 1;
-                for t in 1..steps {
-                    let t = t as f32 / steps as f32;
-                    let x = current_point.x as f32 * (1.0 - t) + next_point.x as f32 * t;
-                    let y = current_point.y as f32 * (1.0 - t) + next_point.y as f32 * t;
-                    current_stroke.push(Point::new(x as i32, y as i32));
-                }
-                
-                current_stroke.push(next_point);
-                current_point = next_point;
-                used_corners[best_idx] = true;
+
+                last_point = corner.point;
             }
-            
+
+            // 添加笔画
             if current_stroke.len() > 1 {
+                println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
+                    current_stroke.len(),
+                    current_stroke[0].x, current_stroke[0].y,
+                    current_stroke.last().unwrap().x, current_stroke.last().unwrap().y
+                );
                 self.strokes.push(current_stroke);
             }
+        }
+
+        // 对所有笔画进行平滑处理
+        for stroke in &mut self.strokes {
+            let smoothed = smooth_stroke(&stroke.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>());
+            *stroke = smoothed.into_iter().map(|(x, y)| Point::new(x, y)).collect();
         }
     }
 }
