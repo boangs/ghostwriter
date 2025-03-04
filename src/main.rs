@@ -28,7 +28,7 @@ use ghostwriter::{
 #[folder = "prompts/"]
 struct Asset;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     /// Sets the engine to use (openai, anthropic);
@@ -314,7 +314,7 @@ fn load_config(filename: &str) -> String {
 }
 
 fn ghostwriter(args: &Args) -> Result<String> {
-    let keyboard = shared!(Keyboard::new(false, false));
+    let keyboard = shared!(Keyboard::new(false, false, None));
     let pen = shared!(Pen::new(false));
     let touch = shared!(Touch::new(false));
 
