@@ -244,114 +244,84 @@ impl StrokeExtractor {
         }
         
         // 匈牙利算法实现
-        let mut matches = vec![usize::MAX; n];  // 初始化matches数组
+        let mut matches = vec![usize::MAX; n];
         let mut visited = vec![false; n];
         let mut lx = vec![0.0; n];
         let mut ly = vec![0.0; n];
-        let mut slack = vec![f32::MAX; n];
-        let mut slackx = vec![0; n];
-        let mut prev = vec![0; n];
         
         // 初始化顶标
         for i in 0..n {
-            lx[i] = cost_matrix[i].iter().fold(f32::MIN, |a, &b| a.max(b));
+            lx[i] = (0..n).map(|j| cost_matrix[i][j])
+                         .fold(f32::MIN, f32::max);
         }
+        ly.fill(0.0);
         
         // 为每个点找到匹配
-        for i in 0..n {
-            loop {
-                visited.fill(false);
-                slack.fill(f32::MAX);
-                if self.find_path(i, &cost_matrix, &mut matches, &mut visited, 
-                                &lx, &mut ly, &mut slack, &mut slackx, &mut prev) {
-                    // 更新匹配
-                    let mut j = i;
-                    while j != usize::MAX {
-                        let t = prev[j];
-                        let next = matches[j];
-                        matches[j] = t;
-                        j = next;
-                    }
+        for root in 0..n {
+            visited.fill(false);
+            
+            // 使用简单的贪心匹配
+            let mut found = false;
+            for j in 0..n {
+                if matches[j] == usize::MAX && 
+                   (cost_matrix[root][j] - lx[root] - ly[j]).abs() < 1e-6 {
+                    matches[j] = root;
+                    found = true;
                     break;
                 }
-                
-                // 更新顶标
-                let mut delta = f32::MAX;
-                for j in 0..n {
-                    if !visited[j] {
-                        delta = delta.min(slack[j]);
-                    }
+            }
+            
+            if found {
+                continue;
+            }
+            
+            // 如果没有找到匹配，调整顶标
+            let mut min_delta = f32::MAX;
+            for j in 0..n {
+                if matches[j] == usize::MAX {
+                    let delta = cost_matrix[root][j] - lx[root] - ly[j];
+                    min_delta = min_delta.min(delta);
                 }
-                
-                for j in 0..n {
-                    if visited[j] {
-                        lx[j] -= delta;
-                        ly[j] += delta;
-                    }
-                    slack[j] -= delta;
+            }
+            
+            if min_delta == f32::MAX {
+                continue;  // 无法找到更多匹配
+            }
+            
+            lx[root] += min_delta;
+            for j in 0..n {
+                if matches[j] != usize::MAX {
+                    ly[j] -= min_delta;
                 }
             }
         }
         
         // 收集匹配结果
         let mut result = Vec::new();
-        for i in 0..n {
-            if matches[i] != usize::MAX {
-                result.push((matches[i], i));
+        for j in 0..n {
+            if matches[j] != usize::MAX {
+                result.push((matches[j], j));
             }
         }
         
         result
     }
     
-    fn find_path(&self, start: usize, cost_matrix: &[Vec<f32>], 
-                 matches: &mut Vec<usize>, visited: &mut Vec<bool>,
-                 lx: &[f32], ly: &mut Vec<f32>, 
-                 slack: &mut Vec<f32>, slackx: &mut Vec<usize>,
-                 prev: &mut Vec<usize>) -> bool {
-        let n = cost_matrix.len();
-        let mut q = std::collections::VecDeque::new();
-        q.push_back(start);
-        visited[start] = true;
-        prev[start] = usize::MAX;
-        
-        while let Some(i) = q.pop_front() {
-            for j in 0..n {
-                if !visited[j] {
-                    let cur_slack = lx[i] + ly[j] - cost_matrix[i][j];
-                    if cur_slack == 0.0 {
-                        visited[j] = true;
-                        if matches[j] == usize::MAX {
-                            // 找到增广路径
-                            prev[j] = i;
-                            return true;
-                        }
-                        // 继续寻找
-                        q.push_back(matches[j]);
-                        prev[j] = i;
-                    } else if slack[j] > cur_slack {
-                        // 更新slack值
-                        slack[j] = cur_slack;
-                        slackx[j] = i;
-                    }
-                }
-            }
-        }
-        
-        false
-    }
-    
     // 提取笔画
     fn extract_strokes(&mut self) {
         let matches = self.match_corners();
+        if matches.is_empty() {
+            return;  // 如果没有找到匹配的角点，直接返回
+        }
         
         // 根据角点匹配结果构建笔画
         for (i, j) in matches {
             let c1 = &self.corners[i];
             let c2 = &self.corners[j];
             
-            // 如果两个角点距离太远，跳过
-            if c1.point.distance(&c2.point) > 100.0 {
+            // 如果两个角点距离太远或角度差太大，跳过
+            if c1.point.distance(&c2.point) > 50.0 || 
+               (c1.angle - c2.angle).abs() > std::f32::consts::PI * 0.5 {
                 continue;
             }
             
@@ -359,9 +329,8 @@ impl StrokeExtractor {
             let mut stroke = Vec::new();
             stroke.push(c1.point);
             
-            // TODO: 使用 Voronoi 图算法计算中心线
-            // 临时使用直线连接
-            let steps = (c1.point.distance(&c2.point) / 2.0) as usize;
+            // 使用更密集的采样点
+            let steps = (c1.point.distance(&c2.point) * 0.5) as usize + 1;
             for t in 1..steps {
                 let t = t as f32 / steps as f32;
                 let x = c1.point.x as f32 * (1.0 - t) + c2.point.x as f32 * t;
