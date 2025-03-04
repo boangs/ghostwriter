@@ -40,32 +40,52 @@ impl FontRenderer {
         println!("点数量: {}", points.len());
         println!("轮廓数量: {}", contours.len());
         
+        // 计算边界框和缩放比例
+        let metrics = glyph.metrics();
+        let width = metrics.width >> 6;
+        let height = metrics.height >> 6;
+        let scale = size / height as f32;  // 根据高度计算缩放比例
+        
+        println!("字形尺寸: {}x{}, 缩放比例: {}", width, height, scale);
+        
         // 将FreeType的轮廓点转换为我们的Point结构
         let mut outline_points = Vec::new();
         let mut last_point = None;
         
-        // 计算边界框
-        let metrics = glyph.metrics();
-        let scale = size / (metrics.height >> 6) as f32;  // 根据字形高度计算缩放比例
-        
-        for (i, p) in points.iter().enumerate() {
-            if (tags[i] & 0x01) != 0 {
-                let point = Point::new(
-                    (p.x as f32 * scale) as i32,
-                    (p.y as f32 * scale) as i32
-                );
-                
-                // 避免重复点
-                if let Some(last) = last_point {
-                    if point.distance(&last) > 1.0 {
-                        outline_points.push(point);
+        // 跟踪轮廓的起点
+        let mut contour_start = 0;
+        for (i, &end_idx) in contours.iter().enumerate() {
+            let end_idx = end_idx as usize;
+            let mut contour = Vec::new();
+            
+            // 处理当前轮廓的所有点
+            for j in contour_start..=end_idx {
+                if (tags[j] & 0x01) != 0 {  // on-curve point
+                    let x = ((points[j].x as f32 * scale) as i32).min(1000).max(-1000);
+                    let y = ((points[j].y as f32 * scale) as i32).min(1000).max(-1000);
+                    let point = Point::new(x, y);
+                    
+                    if let Some(last) = last_point {
+                        if point.distance(&last) > 1.0 {
+                            contour.push(point);
+                            last_point = Some(point);
+                        }
+                    } else {
+                        contour.push(point);
                         last_point = Some(point);
                     }
-                } else {
-                    outline_points.push(point);
-                    last_point = Some(point);
                 }
             }
+            
+            // 确保轮廓闭合
+            if !contour.is_empty() {
+                if contour[0] != *contour.last().unwrap() {
+                    contour.push(contour[0]);
+                }
+                outline_points.extend(contour);
+            }
+            
+            contour_start = end_idx + 1;
         }
         
         println!("提取的点数量: {}", outline_points.len());
@@ -324,6 +344,7 @@ impl StrokeExtractor {
         let matches = self.match_corners();
         if matches.is_empty() {
             println!("警告：没有找到匹配的角点对");
+            // 如果没有找到角点对，使用轮廓点作为笔画
             return;
         }
         
@@ -347,13 +368,18 @@ impl StrokeExtractor {
             stroke.push(c1.point);
             
             // 使用更密集的采样点
-            let steps = (c1.point.distance(&c2.point) * 0.5) as usize + 1;
-            for t in 1..steps {
-                let t = t as f32 / steps as f32;
-                let x = c1.point.x as f32 * (1.0 - t) + c2.point.x as f32 * t;
-                let y = c1.point.y as f32 * (1.0 - t) + c2.point.y as f32 * t;
-                stroke.push(Point::new(x as i32, y as i32));
+            let dist = c1.point.distance(&c2.point);
+            let steps = (dist * 0.5) as usize + 1;
+            
+            if steps > 1 {
+                for t in 1..steps {
+                    let t = t as f32 / steps as f32;
+                    let x = c1.point.x as f32 * (1.0 - t) + c2.point.x as f32 * t;
+                    let y = c1.point.y as f32 * (1.0 - t) + c2.point.y as f32 * t;
+                    stroke.push(Point::new(x as i32, y as i32));
+                }
             }
+            
             stroke.push(c2.point);
             
             println!("添加笔画: 长度={}, 起点=({},{}), 终点=({},{})",
@@ -363,6 +389,12 @@ impl StrokeExtractor {
             );
             
             self.strokes.push(stroke);
+        }
+        
+        // 如果没有生成任何笔画，使用原始轮廓
+        if self.strokes.is_empty() {
+            println!("警告：没有生成任何笔画，使用原始轮廓");
+            // TODO: 添加使用原始轮廓的逻辑
         }
     }
 }
