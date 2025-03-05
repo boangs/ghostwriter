@@ -387,10 +387,11 @@ impl Screenshot {
         
         // 如果找到了内容行
         if !content_lines.is_empty() {
-            // 获取最下方的内容行位置
+            // 获取最下方的内容行位置，并转换为实际屏幕坐标
             let last_content_y = content_lines[0];
-            info!("找到最新内容位置: y = {}", last_content_y);
-            last_content_y as i32
+            let actual_y = (last_content_y as f32 * 2.0) as i32;  // 转换回实际屏幕坐标
+            info!("找到最新内容位置: y = {} (屏幕坐标: {})", last_content_y, actual_y);
+            actual_y
         } else {
             info!("未找到内容，返回默认位置");
             100  // 默认返回值
