@@ -238,18 +238,13 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         std::fs::write(output_file, &response_text)?;
     }
 
-    // 获取最新的手写位置
-    let last_y = if args.handwriting_mode {
-        // 在手写模式下，重新获取最新位置
-        let mut screenshot = Screenshot::new()?;
-        screenshot.find_last_content_y() as u32
-    } else if let Some(y) = args.last_content_y {
+    // 创建键盘实例，使用最后一行的 y 坐标加上一些间距
+    let last_y = if let Some(y) = args.last_content_y {
         y as u32 + 50  // 添加 50 像素的间距
     } else {
         100  // 默认值
     };
     
-    info!("使用绘制起始位置 y = {}", last_y);
     let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
 
     // 绘制 AI 回复的文字

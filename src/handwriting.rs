@@ -78,15 +78,12 @@ impl HandwritingInput {
         info!("开始截图和识别过程");
         
         // 1. 截取当前屏幕
-        let screenshot = Screenshot::new()?;
+        let mut screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
         // 获取最后一行内容的 y 坐标
         let last_y = screenshot.find_last_content_y();
         info!("找到最后一行内容的 y 坐标: {}", last_y);
-        
-        // 清除之前的笔画数据，确保不会影响下次位置检测
-        self.clear();
         
         // 仅为调试目的保存图片
         if cfg!(debug_assertions) {
