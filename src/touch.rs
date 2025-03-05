@@ -92,21 +92,21 @@ impl Touch {
                                 match event.code() {
                                     ABS_MT_POSITION_X => {
                                         position_x = event.value();
-                                        info!("X坐标: {}", position_x);
+                                        trace!("X坐标: {}", position_x);
                                     }
                                     ABS_MT_POSITION_Y => {
                                         position_y = event.value();
-                                        info!("Y坐标: {}", position_y);
+                                        trace!("Y坐标: {}", position_y);
                                     }
                                     ABS_MT_TRACKING_ID => {
                                         if event.value() == -1 {
-                                            info!("触摸释放坐标: ({}, {})", position_x, position_y);
+                                            trace!("触摸释放坐标: ({}, {})", position_x, position_y);
                                             if position_x > 1345 && position_y > 1815 {
                                                 info!("触发识别！");
                                                 return Ok(());
                                             }
                                         } else {
-                                            info!("触摸坐标: ({}, {})", position_x, position_y);
+                                            trace!("触摸坐标: ({}, {})", position_x, position_y);
                                         }
                                     }
                                     _ => {}
