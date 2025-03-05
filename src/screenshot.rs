@@ -9,9 +9,9 @@ use base64::{Engine, engine::general_purpose};
 use image::ImageEncoder;
 
 #[allow(dead_code)]
-const WIDTH: usize = 1620;  // 更新为正确的屏幕尺寸
+const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
 #[allow(dead_code)]
-const HEIGHT: usize = 2160;
+const HEIGHT: usize = 2154;
 #[allow(dead_code)]
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 #[allow(dead_code)]
@@ -79,8 +79,8 @@ pub struct Screenshot {
 impl Screenshot {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            width: 1620,  // remarkable 的实际宽度
-            height: 2160, // remarkable 的实际高度
+            width: 1624,  // remarkable 的实际宽度
+            height: 2154, // remarkable 的实际高度
             data: Vec::new(),
         })
     }
@@ -358,43 +358,54 @@ impl Screenshot {
         let gray_img = img.into_luma8();
         let (width, height) = gray_img.dimensions();
         
-        // 增加采样密度和降低暗像素阈值以提高检测精度
-        let sample_interval = 10;  // 每隔10个像素采样一次
-        let min_dark_pixels = 5;   // 至少需要5个暗像素才认为该行有内容
-        let dark_threshold = 180;  // 降低暗像素阈值，使检测更敏感
+        // 定义采样间隔和阈值
+        let sample_interval = 20;  // 每隔20个像素采样一次
+        let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
+        let dark_threshold = 200;  // 暗像素的阈值
         
-        // 扫描区域范围（从左到右）
-        let scan_start_x = width / 8;        // 从左边1/8处开始
-        let scan_end_x = width * 7 / 8;      // 到右边7/8处结束
+        // 记录找到的所有内容位置
+        let mut content_positions = Vec::new();
         
         // 从底部向上扫描
-        let mut content_lines = Vec::new();
         for y in (0..height).rev() {
             let mut dark_pixel_count = 0;
+            let mut total_pixels = 0;
             
-            // 在每一行采样检查，只在有效扫描区域内
-            for x in (scan_start_x..scan_end_x).step_by(sample_interval) {
+            // 在每一行采样检查
+            for x in (0..width).step_by(sample_interval) {
                 let pixel = gray_img.get_pixel(x, y);
+                total_pixels += 1;
                 if pixel[0] < dark_threshold {
                     dark_pixel_count += 1;
-                    if dark_pixel_count >= min_dark_pixels {
-                        content_lines.push(y);
-                        break;
-                    }
                 }
+            }
+            
+            // 如果这一行的暗像素比例超过阈值，记录位置
+            if dark_pixel_count >= min_dark_pixels {
+                content_positions.push(y);
             }
         }
         
-        // 如果找到了内容行
-        if !content_lines.is_empty() {
-            // 获取最下方的内容行位置，并转换为实际屏幕坐标
-            let last_content_y = content_lines[0];
-            let actual_y = (last_content_y as f32 * 2.0) as i32;  // 转换回实际屏幕坐标
-            info!("找到最新内容位置: y = {} (屏幕坐标: {})", last_content_y, actual_y);
-            actual_y
-        } else {
+        if content_positions.is_empty() {
             info!("未找到内容，返回默认位置");
-            100  // 默认返回值
+            return 100;  // 默认返回值
         }
+        
+        // 分析内容位置，找到最合适的位置
+        let mut last_pos = content_positions[0];
+        let mut max_gap = 0;
+        let mut best_pos = last_pos;
+        
+        for &pos in &content_positions[1..] {
+            let gap = last_pos - pos;
+            if gap > max_gap {
+                max_gap = gap;
+                best_pos = last_pos;
+            }
+            last_pos = pos;
+        }
+        
+        info!("找到最合适的内容位置: y = {}", best_pos);
+        best_pos as i32
     }
 }
