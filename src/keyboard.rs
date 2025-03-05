@@ -32,9 +32,8 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        // 获取上次写入的底部位置，并添加额外间距
-        let last_bottom = self.last_write_bottom.load(Ordering::Relaxed);
-        let start_y = last_bottom + 10;  // 添加50像素的间距
+        // 使用 last_y 作为基准位置
+        let start_y = self.last_y.load(Ordering::Relaxed);
         
         // 记录写入开始位置
         self.last_write_top.store(start_y, Ordering::Relaxed);
@@ -153,9 +152,10 @@ impl Keyboard {
             _current_x = start_x;
         }
         
-        // 更新最后写入的位置
-        self.last_y.store(max_y + line_height, Ordering::Relaxed);
-        self.last_write_bottom.store(max_y + line_height, Ordering::Relaxed);  // 更新为包含行高的位置
+        // 更新最后写入的位置，包括额外的间距
+        let final_y = max_y + line_height + 50;  // 添加50像素的额外间距
+        self.last_y.store(final_y, Ordering::Relaxed);
+        self.last_write_bottom.store(max_y + line_height, Ordering::Relaxed);
         
         pen.pen_up()?;
         Ok(())
