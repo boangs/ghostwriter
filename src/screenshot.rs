@@ -185,8 +185,11 @@ impl Screenshot {
             raw_data
         ).ok_or_else(|| anyhow::anyhow!("无法创建 RGBA 图像"))?;
         
+        info!("原始 RGBA 图像尺寸: {}x{}", self.width, self.height);
+        
         // 转换为灰度图
         let gray_img = image::DynamicImage::ImageRgba8(img).into_luma8();
+        info!("灰度图尺寸: {}x{}", gray_img.width(), gray_img.height());
         
         // 调整对比度
         let contrast_img = image::imageops::contrast(&gray_img, 2.0);
@@ -198,6 +201,7 @@ impl Screenshot {
             self.height / 2,
             image::imageops::FilterType::Lanczos3
         );
+        info!("缩放后图像尺寸: {}x{}", resized.width(), resized.height());
         
         // 编码为高质量 PNG
         let mut final_data = Vec::new();
@@ -357,6 +361,7 @@ impl Screenshot {
         
         let gray_img = img.into_luma8();
         let (width, height) = gray_img.dimensions();
+        info!("分析内容位置的图像尺寸: {}x{}", width, height);
         
         // 定义采样间隔和阈值
         let sample_interval = 10;  // 由于图像是原始大小的一半，我们减小采样间隔
