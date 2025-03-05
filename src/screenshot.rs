@@ -1,5 +1,5 @@
 use anyhow::Result;
-use image::{GrayImage, DynamicImage};
+use image::{GrayImage, DynamicImage, ImageEncoder};
 use log::{info, error};
 use std::fs::File;
 use std::io::{Write, Read, Seek, SeekFrom};
@@ -96,14 +96,15 @@ impl Screenshot {
     }
     
     pub fn get_image_data(&self) -> Result<Vec<u8>> {
+        // 将原始缓冲区转换为PNG格式
         let mut png_data = Vec::new();
-        let encoder = png::PngEncoder::new(&mut png_data);
-        encoder.encode(
-            &self.buffer,
-            self.width as u32,
-            self.height as u32,
-            png::ColorType::Grayscale,
-        )?;
+        {
+            let mut encoder = png::PngEncoder::new(&mut png_data);
+            encoder.set_color(image::ColorType::L8);
+            encoder.set_depth(png::BitDepth::Eight);
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(&self.buffer)?;
+        }
         Ok(png_data)
     }
     
