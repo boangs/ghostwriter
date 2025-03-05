@@ -78,7 +78,7 @@ impl HandwritingInput {
         info!("开始截图和识别过程");
         
         // 1. 截取当前屏幕
-        let mut screenshot = Screenshot::new()?;
+        let screenshot = Screenshot::new()?;
         let img_data = screenshot.get_image_data()?;
         
         // 获取最后一行内容的 y 坐标

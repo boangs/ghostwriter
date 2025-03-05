@@ -6,8 +6,7 @@ use std::io::{Write, Read, Seek, SeekFrom};
 use std::process::Command;
 use crate::constants::{REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use base64::{Engine, engine::general_purpose};
-use image::ImageEncoder;
-use png;
+use image::codecs::png;
 
 #[allow(dead_code)]
 const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
@@ -97,15 +96,14 @@ impl Screenshot {
     }
     
     pub fn get_image_data(&self) -> Result<Vec<u8>> {
-        // 将原始缓冲区转换为PNG格式
         let mut png_data = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(&mut png_data, self.width as u32, self.height as u32);
-            encoder.set_color(png::ColorType::Grayscale);
-            encoder.set_depth(png::BitDepth::One);
-            let mut writer = encoder.write_header()?;
-            writer.write_image_data(&self.buffer)?;
-        }
+        let encoder = png::PngEncoder::new(&mut png_data);
+        encoder.encode(
+            &self.buffer,
+            self.width as u32,
+            self.height as u32,
+            png::ColorType::Grayscale,
+        )?;
         Ok(png_data)
     }
     
