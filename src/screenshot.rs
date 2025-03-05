@@ -358,30 +358,42 @@ impl Screenshot {
         let gray_img = img.into_luma8();
         let (width, height) = gray_img.dimensions();
         
-        // 定义采样间隔和阈值
-        let sample_interval = 20;  // 每隔20个像素采样一次
-        let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
-        let dark_threshold = 200;  // 暗像素的阈值
+        // 增加采样密度和降低暗像素阈值以提高检测精度
+        let sample_interval = 10;  // 每隔10个像素采样一次
+        let min_dark_pixels = 5;   // 至少需要5个暗像素才认为该行有内容
+        let dark_threshold = 180;  // 降低暗像素阈值，使检测更敏感
         
-        // 从底部向上扫描，找到第一个有内容的位置
+        // 扫描区域范围（从左到右）
+        let scan_start_x = width / 8;        // 从左边1/8处开始
+        let scan_end_x = width * 7 / 8;      // 到右边7/8处结束
+        
+        // 从底部向上扫描
+        let mut content_lines = Vec::new();
         for y in (0..height).rev() {
             let mut dark_pixel_count = 0;
             
-            // 在每一行采样检查
-            for x in (0..width).step_by(sample_interval) {
+            // 在每一行采样检查，只在有效扫描区域内
+            for x in (scan_start_x..scan_end_x).step_by(sample_interval) {
                 let pixel = gray_img.get_pixel(x, y);
                 if pixel[0] < dark_threshold {
                     dark_pixel_count += 1;
                     if dark_pixel_count >= min_dark_pixels {
-                        info!("找到最新内容位置: y = {}", y);
-                        // 直接返回找到的第一个位置（最下方的内容）
-                        return y as i32;
+                        content_lines.push(y);
+                        break;
                     }
                 }
             }
         }
         
-        info!("未找到内容，返回默认位置");
-        100  // 默认返回值
+        // 如果找到了内容行
+        if !content_lines.is_empty() {
+            // 获取最下方的内容行位置
+            let last_content_y = content_lines[0];
+            info!("找到最新内容位置: y = {}", last_content_y);
+            last_content_y as i32
+        } else {
+            info!("未找到内容，返回默认位置");
+            100  // 默认返回值
+        }
     }
 }

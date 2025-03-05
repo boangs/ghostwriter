@@ -32,9 +32,9 @@ impl Keyboard {
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        // 获取上次写入的底部位置，并添加额外间距
+        // 获取上次写入的底部位置，并添加更大的间距
         let last_bottom = self.last_write_bottom.load(Ordering::Relaxed);
-        let start_y = last_bottom + 50;  // 添加50像素的间距
+        let start_y = last_bottom + 100;  // 增加到100像素的间距
         
         // 记录写入开始位置
         self.last_write_top.store(start_y, Ordering::Relaxed);
@@ -42,15 +42,15 @@ impl Keyboard {
         let char_width: u32 = 32;
         let line_height: u32 = 38;
         let font_size = 30.0;
-        let paragraph_indent = 64; // 段落缩进（两个字符宽度）
-        let max_width = REMARKABLE_WIDTH as u32 - 500; // 增加右侧边距
+        let paragraph_indent = 64;
+        let max_width = REMARKABLE_WIDTH as u32 - 500;
         
         let mut _current_x = start_x;
         let mut current_y = start_y;
         let mut line_start_y = start_y;
         
         let mut is_new_paragraph = true;
-        let mut max_y = current_y;  // 跟踪最大的 y 值
+        let mut max_y = current_y;
         
         for line in text.split('\n') {
             if line.trim().is_empty() {
@@ -153,9 +153,10 @@ impl Keyboard {
             _current_x = start_x;
         }
         
-        // 更新最后写入的位置
-        self.last_y.store(max_y + line_height, Ordering::Relaxed);
-        self.last_write_bottom.store(max_y + line_height, Ordering::Relaxed);  // 更新为包含行高的位置
+        // 更新最后写入的位置，增加额外的底部间距
+        let final_y = max_y + line_height;
+        self.last_y.store(final_y, Ordering::Relaxed);
+        self.last_write_bottom.store(final_y + 50, Ordering::Relaxed);  // 增加50像素的底部保护区
         
         pen.pen_up()?;
         Ok(())
