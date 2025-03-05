@@ -71,20 +71,20 @@ struct DrmModeMapDumb {
 }
 
 #[allow(dead_code)]
-const DISPLAY_WIDTH: usize = 1620;  // reMarkable Paper Pro 实际显示分辨率
+pub const DISPLAY_WIDTH: usize = 1620;  // reMarkable Paper Pro 实际显示分辨率
 #[allow(dead_code)]
-const DISPLAY_HEIGHT: usize = 2160;
+pub const DISPLAY_HEIGHT: usize = 2160;
 
 #[allow(dead_code)]
-const TOUCH_WIDTH: usize = 2064;   // 触摸坐标系统最大值
+pub const TOUCH_WIDTH: usize = 2064;   // 触摸坐标系统最大值
 #[allow(dead_code)]
-const TOUCH_HEIGHT: usize = 2832;
+pub const TOUCH_HEIGHT: usize = 2832;
 
 // 计算显示坐标和触摸坐标之间的缩放比例
 #[allow(dead_code)]
-const SCALE_X: f32 = TOUCH_WIDTH as f32 / DISPLAY_WIDTH as f32;   // ≈ 1.27407
+pub const SCALE_X: f32 = TOUCH_WIDTH as f32 / DISPLAY_WIDTH as f32;   // ≈ 1.27407
 #[allow(dead_code)]
-const SCALE_Y: f32 = TOUCH_HEIGHT as f32 / DISPLAY_HEIGHT as f32; // ≈ 1.30833
+pub const SCALE_Y: f32 = TOUCH_HEIGHT as f32 / DISPLAY_HEIGHT as f32; // ≈ 1.30833
 
 pub struct Screenshot {
     width: u32,

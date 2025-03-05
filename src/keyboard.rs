@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::sleep;
 use std::time::Duration;
-use crate::constants::REMARKABLE_WIDTH;
 use crate::font::FontRenderer;
 use crate::screenshot::{DISPLAY_WIDTH, DISPLAY_HEIGHT, SCALE_X, SCALE_Y};
 
