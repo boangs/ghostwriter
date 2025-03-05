@@ -8,8 +8,8 @@ use std::time::Duration;
 // Device to virtual coordinate conversion
 const INPUT_WIDTH: u16 = 1404;
 const INPUT_HEIGHT: u16 = 1872;
-const REMARKABLE_WIDTH: u16 = 768;
-const REMARKABLE_HEIGHT: u16 = 1024;
+const REMARKABLE_WIDTH: u16 = 1620;
+const REMARKABLE_HEIGHT: u16 = 2160;
 
 // Event codes
 const ABS_MT_SLOT: u16 = 47;
