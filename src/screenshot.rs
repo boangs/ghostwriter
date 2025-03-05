@@ -375,7 +375,7 @@ impl Screenshot {
                     if dark_pixel_count >= min_dark_pixels {
                         info!("找到最新内容位置（缩放后）: y = {}", y);
                         // 将坐标转换回原始图像的坐标系
-                        let original_y = (y as f32 * 2.0) as i32;  // 因为图像缩小了一半
+                        let original_y = (y as f32 ) as i32;  // 因为图像缩小了一半
                         info!("转换回原始坐标: y = {}", original_y);
                         return original_y;
                     }
