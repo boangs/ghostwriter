@@ -359,7 +359,7 @@ impl Screenshot {
         let (width, height) = gray_img.dimensions();
         
         // 定义采样间隔和阈值
-        let sample_interval = 20;  // 每隔20个像素采样一次
+        let sample_interval = 10;  // 由于图像是原始大小的一半，我们减小采样间隔
         let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
         let dark_threshold = 200;  // 暗像素的阈值
         
@@ -373,9 +373,11 @@ impl Screenshot {
                 if pixel[0] < dark_threshold {
                     dark_pixel_count += 1;
                     if dark_pixel_count >= min_dark_pixels {
-                        info!("找到最新内容位置: y = {}", y);
-                        // 直接返回找到的第一个位置（最下方的内容）
-                        return y as i32;
+                        info!("找到最新内容位置（缩放后）: y = {}", y);
+                        // 将坐标转换回原始图像的坐标系
+                        let original_y = (y as f32 * 2.0) as i32;  // 因为图像缩小了一半
+                        info!("转换回原始坐标: y = {}", original_y);
+                        return original_y;
                     }
                 }
             }
