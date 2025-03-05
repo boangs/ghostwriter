@@ -34,7 +34,7 @@ impl Keyboard {
         let start_x: u32 = 100;
         // 获取上次写入的底部位置，并添加额外间距
         let last_bottom = self.last_write_bottom.load(Ordering::Relaxed);
-        let start_y = last_bottom + 50;  // 添加50像素的间距
+        let start_y = last_bottom + 10;  // 添加50像素的间距
         
         // 记录写入开始位置
         self.last_write_top.store(start_y, Ordering::Relaxed);
