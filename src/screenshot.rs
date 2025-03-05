@@ -70,22 +70,6 @@ struct DrmModeMapDumb {
     offset: u64,
 }
 
-#[allow(dead_code)]
-pub const DISPLAY_WIDTH: usize = 1620;  // reMarkable Paper Pro 实际显示分辨率
-#[allow(dead_code)]
-pub const DISPLAY_HEIGHT: usize = 2160;
-
-#[allow(dead_code)]
-pub const TOUCH_WIDTH: usize = 2064;   // 触摸坐标系统最大值
-#[allow(dead_code)]
-pub const TOUCH_HEIGHT: usize = 2832;
-
-// 计算显示坐标和触摸坐标之间的缩放比例
-#[allow(dead_code)]
-pub const SCALE_X: f32 = TOUCH_WIDTH as f32 / DISPLAY_WIDTH as f32;   // ≈ 1.27407
-#[allow(dead_code)]
-pub const SCALE_Y: f32 = TOUCH_HEIGHT as f32 / DISPLAY_HEIGHT as f32; // ≈ 1.30833
-
 pub struct Screenshot {
     width: u32,
     height: u32,
@@ -95,8 +79,8 @@ pub struct Screenshot {
 impl Screenshot {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            width: DISPLAY_WIDTH as u32,   // 使用实际显示分辨率
-            height: DISPLAY_HEIGHT as u32,
+            width: 1624,  // remarkable 的实际宽度
+            height: 2154, // remarkable 的实际高度
             data: Vec::new(),
         })
     }
@@ -411,18 +395,5 @@ impl Screenshot {
             info!("未找到内容，返回默认位置");
             100  // 默认返回值
         }
-    }
-
-    // 添加坐标转换辅助方法
-    pub fn touch_to_display_coords(&self, touch_x: i32, touch_y: i32) -> (i32, i32) {
-        let display_x = (touch_x as f32 / SCALE_X) as i32;
-        let display_y = (touch_y as f32 / SCALE_Y) as i32;
-        (display_x, display_y)
-    }
-    
-    pub fn display_to_touch_coords(&self, display_x: i32, display_y: i32) -> (i32, i32) {
-        let touch_x = (display_x as f32 * SCALE_X) as i32;
-        let touch_y = (display_y as f32 * SCALE_Y) as i32;
-        (touch_x, touch_y)
     }
 }
