@@ -83,7 +83,7 @@ impl HandwritingInput {
         
         // 获取最后一行内容的 y 坐标
         let last_y = screenshot.find_last_content_y();
-        info!("找到最后一行内容的 y 坐标: {}", last_y * 2);
+        info!("找到最后一行内容的 y 坐标: {}", last_y * 2.1);
         
         // 仅为调试目的保存图片
         if cfg!(debug_assertions) {
