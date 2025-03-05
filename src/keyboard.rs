@@ -6,6 +6,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use crate::constants::REMARKABLE_WIDTH;
 use crate::font::FontRenderer;
+use crate::screenshot::{DISPLAY_WIDTH, DISPLAY_HEIGHT, SCALE_X, SCALE_Y};
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
@@ -36,14 +37,15 @@ impl Keyboard {
         let last_bottom = self.last_write_bottom.load(Ordering::Relaxed);
         let start_y = last_bottom + 100;  // 增加到100像素的间距
         
-        // 记录写入开始位置
-        self.last_write_top.store(start_y, Ordering::Relaxed);
+        // 记录写入开始位置（转换为触摸坐标系统）
+        let touch_y = (start_y as f32 * SCALE_Y) as u32;
+        self.last_write_top.store(touch_y, Ordering::Relaxed);
         
-        let char_width: u32 = 32;
-        let line_height: u32 = 38;
+        let char_width: u32 = (32.0 * SCALE_X) as u32;  // 调整字符宽度
+        let line_height: u32 = (38.0 * SCALE_Y) as u32; // 调整行高
         let font_size = 30.0;
-        let paragraph_indent = 64;
-        let max_width = REMARKABLE_WIDTH as u32 - 500;
+        let paragraph_indent = (64.0 * SCALE_X) as u32;  // 调整段落缩进
+        let max_width = (DISPLAY_WIDTH as f32 * SCALE_X * 0.8) as u32; // 调整最大宽度
         
         let mut _current_x = start_x;
         let mut current_y = start_y;
@@ -153,10 +155,10 @@ impl Keyboard {
             _current_x = start_x;
         }
         
-        // 更新最后写入的位置，增加额外的底部间距
-        let final_y = max_y + line_height;
+        // 更新最后写入的位置，增加额外的底部间距（使用触摸坐标系统）
+        let final_y = (max_y as f32 * SCALE_Y) as u32 + line_height;
         self.last_y.store(final_y, Ordering::Relaxed);
-        self.last_write_bottom.store(final_y + 50, Ordering::Relaxed);  // 增加50像素的底部保护区
+        self.last_write_bottom.store(final_y + (50.0 * SCALE_Y) as u32, Ordering::Relaxed);
         
         pen.pen_up()?;
         Ok(())
