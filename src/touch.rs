@@ -92,21 +92,21 @@ impl Touch {
                                 match event.code() {
                                     ABS_MT_POSITION_X => {
                                         position_x = event.value();
-                                        trace!("X坐标: {}", position_x);
+                                        info!("X坐标: {}", position_x);
                                     }
                                     ABS_MT_POSITION_Y => {
                                         position_y = event.value();
-                                        trace!("Y坐标: {}", position_y);
+                                        info!("Y坐标: {}", position_y);
                                     }
                                     ABS_MT_TRACKING_ID => {
                                         if event.value() == -1 {
-                                            trace!("触摸释放坐标: ({}, {})", position_x, position_y);
+                                            info!("触摸释放坐标: ({}, {})", position_x, position_y);
                                             if position_x > 1345 && position_y > 1815 {
                                                 info!("触发识别！");
                                                 return Ok(());
                                             }
                                         } else {
-                                            trace!("触摸坐标: ({}, {})", position_x, position_y);
+                                            info!("触摸坐标: ({}, {})", position_x, position_y);
                                         }
                                     }
                                     _ => {}
@@ -127,7 +127,7 @@ impl Touch {
     pub fn touch_start(&mut self, xy: (i32, i32)) -> Result<()> {
         let (x, y) = screen_to_input(xy);
         if let Some(device) = &mut self.device {
-            trace!("touch_start at ({}, {})", x, y);
+            info!("touch_start at ({}, {})", x, y);
             sleep(Duration::from_millis(100));
             device.send_events(&[
                 InputEvent::new(EventType::ABSOLUTE, ABS_MT_SLOT, 0),
@@ -147,7 +147,7 @@ impl Touch {
 
     pub fn touch_stop(&mut self) -> Result<()> {
         if let Some(device) = &mut self.device {
-            trace!("touch_stop");
+            info!("touch_stop");
             device.send_events(&[
                 InputEvent::new(EventType::ABSOLUTE, ABS_MT_SLOT, 0),
                 InputEvent::new(EventType::ABSOLUTE, ABS_MT_TRACKING_ID, -1),
