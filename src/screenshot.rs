@@ -358,27 +358,54 @@ impl Screenshot {
         let gray_img = img.into_luma8();
         let (width, height) = gray_img.dimensions();
         
-        // 定义采样间隔
+        // 定义采样间隔和阈值
         let sample_interval = 20;  // 每隔20个像素采样一次
         let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
+        let dark_threshold = 200;  // 暗像素的阈值
+        
+        // 记录找到的所有内容位置
+        let mut content_positions = Vec::new();
         
         // 从底部向上扫描
         for y in (0..height).rev() {
             let mut dark_pixel_count = 0;
+            let mut total_pixels = 0;
             
             // 在每一行采样检查
             for x in (0..width).step_by(sample_interval) {
                 let pixel = gray_img.get_pixel(x, y);
-                if pixel[0] < 200 {
+                total_pixels += 1;
+                if pixel[0] < dark_threshold {
                     dark_pixel_count += 1;
-                    if dark_pixel_count >= min_dark_pixels {
-                        info!("找到最后的内容位置: y = {}, 暗像素数: {}", y, dark_pixel_count);
-                        return y as i32;
-                    }
                 }
+            }
+            
+            // 如果这一行的暗像素比例超过阈值，记录位置
+            if dark_pixel_count >= min_dark_pixels {
+                content_positions.push(y);
             }
         }
         
-        100  // 默认返回值
+        if content_positions.is_empty() {
+            info!("未找到内容，返回默认位置");
+            return 100;  // 默认返回值
+        }
+        
+        // 分析内容位置，找到最合适的位置
+        let mut last_pos = content_positions[0];
+        let mut max_gap = 0;
+        let mut best_pos = last_pos;
+        
+        for &pos in &content_positions[1..] {
+            let gap = last_pos - pos;
+            if gap > max_gap {
+                max_gap = gap;
+                best_pos = last_pos;
+            }
+            last_pos = pos;
+        }
+        
+        info!("找到最合适的内容位置: y = {}", best_pos);
+        best_pos as i32
     }
 }

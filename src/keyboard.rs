@@ -11,14 +11,19 @@ pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
     font_renderer: FontRenderer,
     last_y: AtomicU32,
+    last_write_top: AtomicU32,    // 记录上次写入的顶部位置
+    last_write_bottom: AtomicU32, // 记录上次写入的底部位置
 }
 
 impl Keyboard {
     pub fn new(no_draw: bool, _no_draw_progress: bool, initial_y: Option<u32>) -> Result<Self> {
+        let initial_y = initial_y.unwrap_or(100);
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
-            last_y: AtomicU32::new(initial_y.unwrap_or(100)),
+            last_y: AtomicU32::new(initial_y),
+            last_write_top: AtomicU32::new(initial_y),
+            last_write_bottom: AtomicU32::new(initial_y),
         })
     }
 
@@ -28,6 +33,10 @@ impl Keyboard {
         
         let start_x: u32 = 100;
         let start_y = self.last_y.load(Ordering::Relaxed)+5;  // 使用原子操作读取
+        
+        // 记录写入开始位置
+        self.last_write_top.store(start_y, Ordering::Relaxed);
+        
         let char_width: u32 = 32;
         let line_height: u32 = 38;
         let font_size = 30.0;
@@ -144,6 +153,7 @@ impl Keyboard {
         
         // 更新最后写入的位置
         self.last_y.store(max_y + line_height, Ordering::Relaxed);  // 使用原子操作存储
+        self.last_write_bottom.store(max_y, Ordering::Relaxed);  // 记录写入结束位置
         
         pen.pen_up()?;
         Ok(())
