@@ -355,24 +355,30 @@ impl Screenshot {
         let img = image::load_from_memory(&self.data)
             .expect("Failed to load image data");
         
-        // 转换为灰度图像
         let gray_img = img.into_luma8();
         let (width, height) = gray_img.dimensions();
         
-        // 从底部向上扫描，找到第一个非空白像素
+        // 定义采样间隔
+        let sample_interval = 20;  // 每隔20个像素采样一次
+        let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
+        
+        // 从底部向上扫描
         for y in (0..height).rev() {
-            for x in 0..width {
-                // 获取像素值，0 是黑色，255 是白色
+            let mut dark_pixel_count = 0;
+            
+            // 在每一行采样检查
+            for x in (0..width).step_by(sample_interval) {
                 let pixel = gray_img.get_pixel(x, y);
-                // 如果像素足够暗（阈值可以调整）
                 if pixel[0] < 200 {
-                    info!("找到最后的内容位置: y = {}", y);
-                    return y as i32;
+                    dark_pixel_count += 1;
+                    if dark_pixel_count >= min_dark_pixels {
+                        info!("找到最后的内容位置: y = {}, 暗像素数: {}", y, dark_pixel_count);
+                        return y as i32;
+                    }
                 }
             }
         }
         
-        // 如果没找到任何内容，返回一个默认值
-        100
+        100  // 默认返回值
     }
 }
