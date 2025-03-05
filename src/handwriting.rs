@@ -85,6 +85,9 @@ impl HandwritingInput {
         let last_y = screenshot.find_last_content_y();
         info!("找到最后一行内容的 y 坐标: {}", last_y);
         
+        // 清除之前的笔画数据，确保不会影响下次位置检测
+        self.clear();
+        
         // 仅为调试目的保存图片
         if cfg!(debug_assertions) {
             let debug_image_path = self.temp_dir.join("debug_screenshot.png");
