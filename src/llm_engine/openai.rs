@@ -100,19 +100,30 @@ impl LLMEngine for OpenAI {
 
         debug!("Request: {}", body);
         
-        // 根据 base_url 判断是 OpenAI 还是 Ollama
-        let api_url = if self.base_url.contains("localhost") || self.base_url.contains("192.168.1.170") {
+        // 根据 base_url 判断是哪种 API
+        let api_url = if self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1") {
             // Ollama API
             format!("{}/api/chat", self.base_url)
+        } else if self.base_url.contains("volcengine.com") {
+            // 火山引擎 API
+            format!("{}/v1/chat/completions", self.base_url)
         } else {
             // OpenAI API
             format!("{}/v1/chat/completions", self.base_url)
         };
 
-        let raw_response = ureq::post(&api_url)
-            .set("Authorization", &format!("Bearer {}", self.api_key))
-            .set("Content-Type", "application/json")
-            .send_json(&body);
+        let mut request = ureq::post(&api_url)
+            .set("Content-Type", "application/json");
+
+        // 根据不同的 API 设置不同的认证头
+        if self.base_url.contains("volcengine.com") {
+            request = request.set("Authorization", &format!("Bearer {}", self.api_key))
+                           .set("X-VolcEngineAPI-Version", "2024-01-01");
+        } else {
+            request = request.set("Authorization", &format!("Bearer {}", self.api_key));
+        }
+
+        let raw_response = request.send_json(&body);
 
         let response = match raw_response {
             Ok(response) => response,
@@ -128,10 +139,13 @@ impl LLMEngine for OpenAI {
         let json: json = response.into_json().unwrap();
         debug!("Response: {}", json);
 
-        // 处理 Ollama 和 OpenAI 的不同响应格式
+        // 处理不同 API 的响应格式
         let tool_calls = if self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1") {
             // Ollama 格式
             &json["message"]["tool_calls"]
+        } else if self.base_url.contains("volcengine.com") {
+            // 火山引擎格式 (与 OpenAI 相同)
+            &json["choices"][0]["message"]["tool_calls"]
         } else {
             // OpenAI 格式
             &json["choices"][0]["message"]["tool_calls"]
