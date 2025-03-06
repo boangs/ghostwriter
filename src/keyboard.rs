@@ -38,12 +38,12 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y = self.last_y.load(Ordering::Relaxed);
         
-        let cjk_char_width: u32 = 32;     // 中文字符宽度
-        let ascii_char_width: u32 = 16;    // 英文字符宽度
-        let line_height: u32 = 38;
-        let font_size = 30.0;
-        let paragraph_indent = 64;
-        let max_width = REMARKABLE_WIDTH as u32 - 500;
+        let cjk_char_width: u32 = 38;     // 中文字符宽度
+        let ascii_char_width: u32 = 19;    // 英文字符宽度
+        let line_height: u32 = 42;
+        let font_size = 36.0;
+        let paragraph_indent = 76;
+        let max_width = REMARKABLE_WIDTH as u32 - 100;
         
         let mut _current_x = start_x;
         let mut current_y = start_y;
