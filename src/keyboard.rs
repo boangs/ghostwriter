@@ -27,33 +27,35 @@ impl Keyboard {
         })
     }
 
+    fn is_ascii_char(c: char) -> bool {
+        c.is_ascii_alphanumeric() || c.is_ascii_punctuation() || c.is_ascii_whitespace()
+    }
+
     pub fn write_text(&self, text: &str) -> Result<()> {
         debug!("模拟笔书写文本: {}", text);
         let mut pen = self.pen.lock().unwrap();
         
         let start_x: u32 = 100;
-        // 始终使用 last_y 作为基准位置
         let start_y = self.last_y.load(Ordering::Relaxed);
         
-        let char_width: u32 = 38;
-        let line_height: u32 = 42;
-        let font_size = 35.0;
-        let paragraph_indent = 76; // 段落缩进（两个字符宽度）
-        let max_width = REMARKABLE_WIDTH as u32 - 100; // 增加右侧边距
+        let cjk_char_width: u32 = 32;     // 中文字符宽度
+        let ascii_char_width: u32 = 16;    // 英文字符宽度
+        let line_height: u32 = 38;
+        let font_size = 30.0;
+        let paragraph_indent = 64;
+        let max_width = REMARKABLE_WIDTH as u32 - 500;
         
         let mut _current_x = start_x;
         let mut current_y = start_y;
         let mut line_start_y = start_y;
         
         let mut is_new_paragraph = true;
-        let mut max_y = current_y;  // 跟踪最大的 y 值
+        let mut max_y = current_y;
         
         for line in text.split('\n') {
             if line.trim().is_empty() {
-                // 空行表示段落分隔
-                // line_start_y += line_height; // 更新行起始位置
                 current_y = line_start_y;
-                max_y = max_y.max(current_y);  // 更新最大 y 值
+                max_y = max_y.max(current_y);
                 is_new_paragraph = true;
                 continue;
             }
@@ -69,31 +71,28 @@ impl Keyboard {
             let mut line_x = _current_x;
             let mut line_chars = Vec::new();
             for c in line.chars() {
+                let char_width = if Self::is_ascii_char(c) { ascii_char_width } else { cjk_char_width };
                 if line_x + char_width > max_width {
                     break;
                 }
-                line_chars.push(c);
+                line_chars.push((c, char_width));
                 line_x += char_width;
             }
             
             // 绘制这一行的字符
-            for &c in line_chars.iter() {
-                // 获取字符的笔画数据和基线偏移
+            for &(c, char_width) in line_chars.iter() {
                 let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
                 
-                // 绘制每个笔画
                 for stroke in strokes {
                     if stroke.len() < 2 {
                         continue;
                     }
                     
-                    // 移动到笔画起点，使用字形提供的基线偏移
                     let (x, y) = stroke[0];
                     pen.pen_up()?;
                     pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                     pen.pen_down()?;
                     
-                    // 连续绘制笔画
                     for &(x, y) in stroke.iter().skip(1) {
                         pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
                         sleep(Duration::from_millis(1));
@@ -101,21 +100,22 @@ impl Keyboard {
                 }
                 
                 _current_x += char_width;
-                sleep(Duration::from_millis(2));
+                sleep(Duration::from_millis(10));
             }
             
             // 处理剩余的字符（如果有的话）
             if line_chars.len() < line.chars().count() {
                 line_start_y += line_height;
                 current_y = line_start_y;
-                max_y = max_y.max(current_y);  // 更新最大 y 值
+                max_y = max_y.max(current_y);
                 _current_x = start_x;
                 
                 for c in line.chars().skip(line_chars.len()) {
+                    let char_width = if Self::is_ascii_char(c) { ascii_char_width } else { cjk_char_width };
                     if _current_x + char_width > max_width {
                         line_start_y += line_height;
                         current_y = line_start_y;
-                        max_y = max_y.max(current_y);  // 更新最大 y 值
+                        max_y = max_y.max(current_y);
                         _current_x = start_x;
                     }
                     
@@ -138,19 +138,16 @@ impl Keyboard {
                     }
                     
                     _current_x += char_width;
-                    sleep(Duration::from_millis(2));
+                    sleep(Duration::from_millis(10));
                 }
             }
             
-            // 更新到下一行的起始位置
             line_start_y += line_height;
             current_y = line_start_y;
-            max_y = max_y.max(current_y);  // 更新最大 y 值
+            max_y = max_y.max(current_y);
             _current_x = start_x;
         }
         
-        // 不更新 last_y，保持其作为基准位置
-        // 只更新 last_write_bottom 用于记录实际写入的位置
         self.last_write_bottom.store(max_y + line_height, Ordering::Relaxed);
         
         pen.pen_up()?;
