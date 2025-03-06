@@ -35,10 +35,10 @@ impl Keyboard {
         // 始终使用 last_y 作为基准位置
         let start_y = self.last_y.load(Ordering::Relaxed);
         
-        let char_width: u32 = 32;
-        let line_height: u32 = 38;
-        let font_size = 30.0;
-        let paragraph_indent = 64; // 段落缩进（两个字符宽度）
+        let char_width: u32 = 38;
+        let line_height: u32 = 42;
+        let font_size = 35.0;
+        let paragraph_indent = 76; // 段落缩进（两个字符宽度）
         let max_width = REMARKABLE_WIDTH as u32 - 100; // 增加右侧边距
         
         let mut _current_x = start_x;

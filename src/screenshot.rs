@@ -233,7 +233,7 @@ impl Screenshot {
         
         // 定义采样间隔和阈值
         let sample_interval = 10;  // 在原始大小的图像上可以用更大的间隔
-        let min_dark_pixels = 10;   // 由于是原始大小，需要更多的暗像素才能确认是内容
+        let min_dark_pixels = 5;   // 由于是原始大小，需要更多的暗像素才能确认是内容
         let dark_threshold = 200;  // 暗像素的阈值
         
         // 从底部向上扫描，找到第一个有内容的位置
@@ -247,7 +247,7 @@ impl Screenshot {
                     dark_pixel_count += 1;
                     if dark_pixel_count >= min_dark_pixels {
                         info!("在原始图像中找到内容位置: y = {}", y);
-                        return (y + 20) as i32;
+                        return (y + 25) as i32;
                     }
                 }
             }
