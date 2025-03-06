@@ -112,10 +112,17 @@ fn main() -> Result<()> {
     dotenv().ok();
     let args = Args::parse();
 
-    // 设置日志级别为 info 以确保能看到坐标信息
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)  // 不显示时间戳
+    // 设置日志级别
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_level))
+        .format_timestamp(None)
         .init();
+
+    // 创建键盘实例并绘制坐标系
+    let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, None)?;
+    if !args.no_draw {
+        info!("绘制坐标系");
+        keyboard.draw_coordinate_system()?;
+    }
 
     if args.handwriting_mode {
         // 手写输入模式
