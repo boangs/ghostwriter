@@ -138,7 +138,7 @@ impl Keyboard {
                     }
                     
                     _current_x += char_width;
-                    sleep(Duration::from_millis(10));
+                    sleep(Duration::from_millis(2));
                 }
             }
             
