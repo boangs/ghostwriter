@@ -169,7 +169,6 @@ impl HandwritingInput {
             result.trim()
         ));
         
-        // 6. 注册回调处理识别结果
         let response = Arc::new(Mutex::new(String::new()));
         let response_clone = response.clone();
         
