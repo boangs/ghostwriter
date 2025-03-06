@@ -178,23 +178,38 @@ impl Keyboard {
     }
 
     pub fn draw_coordinate_system(&self) -> Result<()> {
+        debug!("开始绘制坐标系");
         let mut pen = self.pen.lock().unwrap();
         
         // 画竖线（屏幕中线）
         let center_x = 810;  // 屏幕中心x坐标
+        debug!("绘制中心竖线 x={}", center_x);
+        
         pen.pen_up()?;
         pen.goto_xy((center_x, 0))?;  // 从顶部开始
         pen.pen_down()?;
         pen.goto_xy((center_x, 2160))?;  // 画到底部
+        pen.pen_up()?;
         
-        // 每隔500像素标注一次y坐标
-        for y in (0..=2000).step_by(200) {
+        debug!("竖线绘制完成，开始标注刻度");
+        
+        // 只标注几个关键位置
+        let positions = [(0, "顶部"), (500, "1/4"), (1080, "中点"), (1620, "3/4"), (2000, "底部")];
+        for &(y, label) in positions.iter() {
+            debug!("标注位置 y={}, 标签={}", y, label);
             pen.pen_up()?;
-            // 在竖线右侧标注坐标
-            pen.goto_xy((center_x + 20, y))?;
-            self.write_text(&format!("y={}", y))?;
+            // 画一个小的刻度线
+            pen.goto_xy((center_x - 10, y))?;
+            pen.pen_down()?;
+            pen.goto_xy((center_x + 10, y))?;
+            pen.pen_up()?;
+            
+            // 写坐标值
+            pen.goto_xy((center_x + 30, y))?;
+            self.write_text(&format!("{}", y))?;
         }
         
+        debug!("坐标系绘制完成");
         pen.pen_up()?;
         Ok(())
     }
