@@ -201,7 +201,7 @@ impl Keyboard {
             
             // 绘制数字
             for c in y_str.chars() {
-                let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
+                let (strokes, glyph_baseline, _) = self.font_renderer.get_char_strokes(c, font_size)?;
                 
                 for stroke in strokes {
                     if stroke.len() < 2 {
