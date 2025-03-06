@@ -101,12 +101,12 @@ impl LLMEngine for OpenAI {
         debug!("Request: {}", body);
         
         // 根据 base_url 判断是哪种 API
-        let api_url = if self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1") {
+        let api_url = if self.base_url.contains("localhost") || self.base_url.contains("192.168.1.170") {
             // Ollama API
             format!("{}/api/chat", self.base_url)
-        } else if self.base_url.contains("volcengine.com") {
-            // 火山引擎 API
-            format!("{}/v1/chat/completions", self.base_url)
+        } else if self.base_url.contains("volcengine.com") || self.base_url.contains("volces.com") {
+            // 火山引擎 API V3
+            format!("{}/api/v3/chat/completions", self.base_url)
         } else {
             // OpenAI API
             format!("{}/v1/chat/completions", self.base_url)
@@ -116,9 +116,8 @@ impl LLMEngine for OpenAI {
             .set("Content-Type", "application/json");
 
         // 根据不同的 API 设置不同的认证头
-        if self.base_url.contains("volcengine.com") {
-            request = request.set("Authorization", &format!("Bearer {}", self.api_key))
-                           .set("X-VolcEngineAPI-Version", "2024-01-01");
+        if self.base_url.contains("volcengine.com") || self.base_url.contains("volces.com") {
+            request = request.set("Authorization", &format!("Bearer {}", self.api_key));
         } else {
             request = request.set("Authorization", &format!("Bearer {}", self.api_key));
         }
