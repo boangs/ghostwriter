@@ -40,7 +40,7 @@ impl OpenAI {
 
 impl LLMEngine for OpenAI {
     fn new(options: &OptionMap) -> Self {
-        let api_key = option_or_env(&options, "api_key", "OPENAI_API_KEY" ,"Bearer");
+        let api_key = option_or_env(&options, "api_key", "OPENAI_API_KEY");
         let base_url = option_or_env_fallback(
             &options,
             "base_url",
