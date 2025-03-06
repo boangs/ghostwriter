@@ -247,7 +247,7 @@ impl Screenshot {
                     dark_pixel_count += 1;
                     if dark_pixel_count >= min_dark_pixels {
                         info!("在原始图像中找到内容位置: y = {}", y);
-                        return (y + 20.0) as i32;
+                        return (y + 20) as i32;
                     }
                 }
             }
