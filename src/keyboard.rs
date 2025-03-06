@@ -39,7 +39,7 @@ impl Keyboard {
         let start_y = self.last_y.load(Ordering::Relaxed);
         
         let cjk_char_width: u32 = 38;     // 中文字符宽度
-        let ascii_char_width: u32 = 19;    // 英文字符宽度
+        let ascii_char_width: u32 = 22;    // 英文字符宽度
         let line_height: u32 = 42;
         let font_size = 36.0;
         let paragraph_indent = 76;
