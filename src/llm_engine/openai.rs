@@ -98,10 +98,18 @@ impl LLMEngine for OpenAI {
             "parallel_tool_calls": false
         });
 
-        // print body for debugging
         debug!("Request: {}", body);
-        // let raw_response = ureq::post(format!("{}/v1/chat/completions", self.base_url).as_str())
-        let raw_response = ureq::post(format!("{}", self.base_url).as_str())
+        
+        // 根据 base_url 判断是 OpenAI 还是 Ollama
+        let api_url = if self.base_url.contains("localhost") || self.base_url.contains("192.168.1.170") {
+            // Ollama API
+            format!("{}/api/chat", self.base_url)
+        } else {
+            // OpenAI API
+            format!("{}/v1/chat/completions", self.base_url)
+        };
+
+        let raw_response = ureq::post(&api_url)
             .set("Authorization", &format!("Bearer {}", self.api_key))
             .set("Content-Type", "application/json")
             .send_json(&body);
@@ -112,15 +120,22 @@ impl LLMEngine for OpenAI {
                 info!("Error: {}", code);
                 let json: json = response.into_json()?;
                 debug!("Response: {}", json);
-                return Err(anyhow::anyhow!("API ERROR"));
+                return Err(anyhow::anyhow!("API ERROR: {}", json));
             }
-            Err(_) => return Err(anyhow::anyhow!("OTHER API ERROR")),
+            Err(e) => return Err(anyhow::anyhow!("OTHER API ERROR: {}", e)),
         };
 
         let json: json = response.into_json().unwrap();
         debug!("Response: {}", json);
 
-        let tool_calls = &json["choices"][0]["message"]["tool_calls"];
+        // 处理 Ollama 和 OpenAI 的不同响应格式
+        let tool_calls = if self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1") {
+            // Ollama 格式
+            &json["message"]["tool_calls"]
+        } else {
+            // OpenAI 格式
+            &json["choices"][0]["message"]["tool_calls"]
+        };
 
         if let Some(tool_call) = tool_calls.get(0) {
             let function_name = tool_call["function"]["name"].as_str().unwrap();
