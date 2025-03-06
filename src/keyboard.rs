@@ -179,67 +179,21 @@ impl Keyboard {
 
     pub fn draw_coordinate_system(&self) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
-        let font_size = 20.0;
-        let step = 200;  // 每隔200像素画一个刻度，避免太密集
         
-        // 画设备边界
+        // 画竖线（屏幕中线）
+        let center_x = 810;  // 屏幕中心x坐标
         pen.pen_up()?;
-        pen.goto_xy((0, 0))?;  // 左上角
+        pen.goto_xy((center_x, 0))?;  // 从顶部开始
         pen.pen_down()?;
-        pen.goto_xy((1620, 0))?;  // 右上角
-        pen.goto_xy((1620, 2160))?;  // 右下角
-        pen.goto_xy((0, 2160))?;  // 左下角
-        pen.goto_xy((0, 0))?;  // 回到左上角
-        pen.pen_up()?;
+        pen.goto_xy((center_x, 2160))?;  // 画到底部
         
-        // 画十字线
-        // 横线（设备中心水平线）
-        pen.pen_up()?;
-        pen.goto_xy((0, 1080))?;  // 从左边开始
-        pen.pen_down()?;
-        pen.goto_xy((1620, 1080))?;  // 画到右边
-        
-        // 竖线（设备中心垂直线）
-        pen.pen_up()?;
-        pen.goto_xy((810, 0))?;  // 从上面开始
-        pen.pen_down()?;
-        pen.goto_xy((810, 2160))?;  // 画到下面
-        
-        // 在横线上标记刻度和坐标
-        for x in (0..=1620).step_by(step) {
+        // 每隔500像素标注一次y坐标
+        for y in (0..=2000).step_by(200) {
             pen.pen_up()?;
-            pen.goto_xy((x, 1070))?;  // 刻度线起点
-            pen.pen_down()?;
-            pen.goto_xy((x, 1090))?;  // 刻度线终点
-            
-            // 写坐标值
-            pen.pen_up()?;
-            pen.goto_xy((x, 1100))?;
-            self.write_text(&format!("{}", x))?;
+            // 在竖线右侧标注坐标
+            pen.goto_xy((center_x + 20, y))?;
+            self.write_text(&format!("y={}", y))?;
         }
-        
-        // 在竖线上标记刻度和坐标
-        for y in (0..=2160).step_by(step) {
-            pen.pen_up()?;
-            pen.goto_xy((800, y))?;  // 刻度线起点
-            pen.pen_down()?;
-            pen.goto_xy((820, y))?;  // 刻度线终点
-            
-            // 写坐标值
-            pen.pen_up()?;
-            pen.goto_xy((830, y))?;
-            self.write_text(&format!("{}", y))?;
-        }
-        
-        // 在中心点写上坐标
-        pen.pen_up()?;
-        pen.goto_xy((820, 1100))?;
-        self.write_text("(810,1080)")?;
-        
-        // 标注设备尺寸
-        pen.pen_up()?;
-        pen.goto_xy((10, 30))?;
-        self.write_text("设备实际尺寸: 1620x2160")?;
         
         pen.pen_up()?;
         Ok(())
