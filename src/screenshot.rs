@@ -74,6 +74,7 @@ pub struct Screenshot {
     width: u32,
     height: u32,
     data: Vec<u8>,  // 添加 data 字段存储图像数据
+    last_content_y: i32,
 }
 
 impl Screenshot {
@@ -82,6 +83,7 @@ impl Screenshot {
             width: 1624,  // remarkable 的实际宽度
             height: 2154, // remarkable 的实际高度
             data: Vec::new(),
+            last_content_y: 50,  // 修改初始值为靠近顶部的位置
         })
     }
 
@@ -194,10 +196,14 @@ impl Screenshot {
         // 调整对比度
         let contrast_img = image::imageops::contrast(&gray_img, 2.0);
         
-        // 调整大小以优化识别
+        // 在这里先分析内容位置
+        let last_content_y = self.find_content_y_in_image(&contrast_img);
+        info!("在原始尺寸图像中找到的内容位置: y = {}", last_content_y);
+        
+        // 然后再调整大小以优化存储
         let resized = image::imageops::resize(
             &contrast_img,
-            self.width / 2,  // 降低分辨率以减小文件大小
+            self.width / 2,
             self.height / 2,
             image::imageops::FilterType::Lanczos3
         );
@@ -213,17 +219,42 @@ impl Screenshot {
             image::ColorType::L8.into()
         )?;
         
-        info!("图像处理完成，最终大小: {} 字节", final_data.len());
-        
-        // 仅为调试目的保存图片
-        if cfg!(debug_assertions) {
-            if let Err(e) = std::fs::write("/tmp/ghostwriter/debug_capture.png", &final_data) {
-                error!("保存调试图片失败: {}", e);
-            }
-        }
+        // 保存最后找到的内容位置
+        self.last_content_y = last_content_y;
         
         self.data = final_data.clone();
         Ok(final_data)
+    }
+
+    // 新增一个方法在原始大小的图像上查找内容位置
+    fn find_content_y_in_image(&self, img: &GrayImage) -> i32 {
+        let (width, height) = img.dimensions();
+        info!("在原始尺寸图像中查找内容位置，图像尺寸: {}x{}", width, height);
+        
+        // 定义采样间隔和阈值
+        let sample_interval = 20;  // 在原始大小的图像上可以用更大的间隔
+        let min_dark_pixels = 5;   // 由于是原始大小，需要更多的暗像素才能确认是内容
+        let dark_threshold = 200;  // 暗像素的阈值
+        
+        // 从底部向上扫描，找到第一个有内容的位置
+        for y in (0..height).rev() {
+            let mut dark_pixel_count = 0;
+            
+            // 在每一行采样检查
+            for x in (0..width).step_by(sample_interval) {
+                let pixel = img.get_pixel(x, y);
+                if pixel[0] < dark_threshold {
+                    dark_pixel_count += 1;
+                    if dark_pixel_count >= min_dark_pixels {
+                        info!("在原始图像中找到内容位置: y = {}", y);
+                        return y as i32;
+                    }
+                }
+            }
+        }
+        
+        info!("未找到内容，返回顶部位置");
+        50  // 返回靠近顶部的位置，给第一行内容留出一些空间
     }
 
     #[allow(dead_code)]
@@ -356,39 +387,6 @@ impl Screenshot {
     }
 
     pub fn find_last_content_y(&self) -> i32 {
-        let img = image::load_from_memory(&self.data)
-            .expect("Failed to load image data");
-        
-        let gray_img = img.into_luma8();
-        let (width, height) = gray_img.dimensions();
-        info!("分析内容位置的图像尺寸: {}x{}", width, height);
-        
-        // 定义采样间隔和阈值
-        let sample_interval = 10;  // 由于图像是原始大小的一半，我们减小采样间隔
-        let min_dark_pixels = 3;   // 至少需要3个暗像素才认为该行有内容
-        let dark_threshold = 200;  // 暗像素的阈值
-        
-        // 从底部向上扫描，找到第一个有内容的位置
-        for y in (0..height).rev() {
-            let mut dark_pixel_count = 0;
-            
-            // 在每一行采样检查
-            for x in (0..width).step_by(sample_interval) {
-                let pixel = gray_img.get_pixel(x, y);
-                if pixel[0] < dark_threshold {
-                    dark_pixel_count += 1;
-                    if dark_pixel_count >= min_dark_pixels {
-                        info!("找到最新内容位置（缩放后）: y = {}", y);
-                        // 将坐标转换回原始图像的坐标系
-                        let original_y = (y as f32 * 2.0 ) as i32;  // 因为图像缩小了一半
-                        info!("转换回原始坐标: y = {}", original_y);
-                        return original_y;
-                    }
-                }
-            }
-        }
-        
-        info!("未找到内容，返回默认位置");
-        100  // 默认返回值
+        self.last_content_y  // 直接返回之前保存的位置
     }
 }
