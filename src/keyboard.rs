@@ -176,44 +176,4 @@ impl Keyboard {
     pub fn write_progress(&self, _progress: f32) -> Result<()> {
         Ok(())
     }
-
-    pub fn draw_coordinate_system(&self) -> Result<()> {
-        debug!("开始绘制坐标系");
-        let mut pen = self.pen.lock().unwrap();
-        
-        // 计算实际可用区域的中线
-        let start_x = 100;  // 左边距
-        let right_margin = 500;  // 右边距
-        let usable_width = REMARKABLE_WIDTH as u32 - start_x - right_margin;
-        let center_x = start_x + (usable_width / 2);
-        debug!("绘制中心竖线 x={}", center_x);
-        
-        pen.pen_up()?;
-        pen.goto_xy((center_x, 0))?;  // 从顶部开始
-        pen.pen_down()?;
-        pen.goto_xy((center_x, 2160))?;  // 画到底部
-        pen.pen_up()?;
-        
-        debug!("竖线绘制完成，开始标注刻度");
-        
-        // 只标注几个关键位置
-        let positions = [(0, "0"), (500, "500"), (1000, "1000"), (1500, "1500"), (2000, "2000")];
-        for &(y, label) in positions.iter() {
-            debug!("标注位置 y={}, 标签={}", y, label);
-            pen.pen_up()?;
-            // 画一个小的刻度线
-            pen.goto_xy((center_x - 10, y))?;
-            pen.pen_down()?;
-            pen.goto_xy((center_x + 10, y))?;
-            pen.pen_up()?;
-            
-            // 写坐标值
-            pen.goto_xy((center_x + 20, y - 10))?;  // 稍微向上偏移一点，避免刻度线重叠
-            self.write_text(label)?;
-        }
-        
-        debug!("坐标系绘制完成");
-        pen.pen_up()?;
-        Ok(())
-    }
 }
