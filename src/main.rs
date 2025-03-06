@@ -103,6 +103,10 @@ pub struct Args {
     #[arg(long)]
     handwriting_mode: bool,
 
+    /// 显示坐标刻度
+    #[arg(long)]
+    show_coordinates: bool,
+
     /// Last content y coordinate
     #[arg(long)]
     last_content_y: Option<i32>,
@@ -246,6 +250,12 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
     };
     
     let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
+
+    // 如果需要显示坐标刻度
+    if args.show_coordinates {
+        info!("显示坐标刻度");
+        keyboard.write_coordinates()?;
+    }
 
     // 绘制 AI 回复的文字
     if !args.no_draw {
