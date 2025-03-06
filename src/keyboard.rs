@@ -38,8 +38,8 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y = self.last_y.load(Ordering::Relaxed);
         
-        let cjk_char_width: u32 = 40;     // 中文字符宽度
-        let ascii_char_width: u32 = 24;    // 英文字符宽度
+        let min_cjk_width: u32 = 40;     // 中文字符最小宽度
+        let min_ascii_width: u32 = 24;    // 英文字符最小宽度
         let line_height: u32 = 45;
         let font_size = 40.0;
         let paragraph_indent = 80;
@@ -71,17 +71,24 @@ impl Keyboard {
             let mut line_x = _current_x;
             let mut line_chars = Vec::new();
             for c in line.chars() {
-                let char_width = if Self::is_ascii_char(c) { ascii_char_width } else { cjk_char_width };
-                if line_x + char_width > max_width {
+                let (_, _, char_width) = self.font_renderer.get_char_strokes(c, font_size)?;
+                // 确保字符宽度不小于最小宽度
+                let actual_width = if Self::is_ascii_char(c) {
+                    char_width.max(min_ascii_width as i32) as u32
+                } else {
+                    char_width.max(min_cjk_width as i32) as u32
+                };
+                
+                if line_x + actual_width > max_width {
                     break;
                 }
-                line_chars.push((c, char_width));
-                line_x += char_width;
+                line_chars.push((c, actual_width));
+                line_x += actual_width;
             }
             
             // 绘制这一行的字符
             for &(c, char_width) in line_chars.iter() {
-                let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
+                let (strokes, glyph_baseline, _) = self.font_renderer.get_char_strokes(c, font_size)?;
                 
                 for stroke in strokes {
                     if stroke.len() < 2 {
@@ -111,15 +118,21 @@ impl Keyboard {
                 _current_x = start_x;
                 
                 for c in line.chars().skip(line_chars.len()) {
-                    let char_width = if Self::is_ascii_char(c) { ascii_char_width } else { cjk_char_width };
-                    if _current_x + char_width > max_width {
+                    let (_, _, char_width) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    let actual_width = if Self::is_ascii_char(c) {
+                        char_width.max(min_ascii_width as i32) as u32
+                    } else {
+                        char_width.max(min_cjk_width as i32) as u32
+                    };
+                    
+                    if _current_x + actual_width > max_width {
                         line_start_y += line_height;
                         current_y = line_start_y;
                         max_y = max_y.max(current_y);
                         _current_x = start_x;
                     }
                     
-                    let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    let (strokes, glyph_baseline, _) = self.font_renderer.get_char_strokes(c, font_size)?;
                     
                     for stroke in strokes {
                         if stroke.len() < 2 {
@@ -137,7 +150,7 @@ impl Keyboard {
                         }
                     }
                     
-                    _current_x += char_width;
+                    _current_x += actual_width;
                     sleep(Duration::from_millis(10));
                 }
             }

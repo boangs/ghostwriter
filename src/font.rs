@@ -21,7 +21,7 @@ impl FontRenderer {
         Ok(FontRenderer { face })
     }
 
-    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32)> {
+    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
         self.face.set_pixel_sizes(0, size as u32)?;
         self.face.load_char(
             c as usize, 
@@ -38,9 +38,10 @@ impl FontRenderer {
         let mut current_stroke = Vec::new();
         let scale = 1.0;
         
-        // 获取字形的基线偏移
+        // 获取字形的基线偏移和实际宽度
         let metrics = glyph.metrics();
         let baseline_offset = -(metrics.horiBearingY >> 6) as i32;  // 转换为像素
+        let char_width = (metrics.horiAdvance >> 6) as i32;  // 转换为像素
         
         for y in 0..height {
             let mut in_stroke = false;
@@ -70,7 +71,7 @@ impl FontRenderer {
             strokes.push(current_stroke);
         }
         
-        Ok((strokes, baseline_offset))
+        Ok((strokes, baseline_offset, char_width))
     }
 
     pub fn char_to_svg(&self, c: char, size: f32, x: i32, y: i32) -> Result<String> {
