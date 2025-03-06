@@ -181,8 +181,11 @@ impl Keyboard {
         debug!("开始绘制坐标系");
         let mut pen = self.pen.lock().unwrap();
         
-        // 画竖线（屏幕中线）
-        let center_x = 810;  // 屏幕中心x坐标
+        // 计算实际可用区域的中线
+        let start_x = 100;  // 左边距
+        let right_margin = 500;  // 右边距
+        let usable_width = REMARKABLE_WIDTH as u32 - start_x - right_margin;
+        let center_x = start_x + (usable_width / 2);
         debug!("绘制中心竖线 x={}", center_x);
         
         pen.pen_up()?;
@@ -194,7 +197,7 @@ impl Keyboard {
         debug!("竖线绘制完成，开始标注刻度");
         
         // 只标注几个关键位置
-        let positions = [(0, "顶部"), (500, "1/4"), (1080, "中点"), (1620, "3/4"), (2000, "底部")];
+        let positions = [(0, "0"), (500, "500"), (1000, "1000"), (1500, "1500"), (2000, "2000")];
         for &(y, label) in positions.iter() {
             debug!("标注位置 y={}, 标签={}", y, label);
             pen.pen_up()?;
@@ -205,8 +208,8 @@ impl Keyboard {
             pen.pen_up()?;
             
             // 写坐标值
-            pen.goto_xy((center_x + 30, y))?;
-            self.write_text(&format!("{}", y))?;
+            pen.goto_xy((center_x + 20, y - 10))?;  // 稍微向上偏移一点，避免刻度线重叠
+            self.write_text(label)?;
         }
         
         debug!("坐标系绘制完成");
