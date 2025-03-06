@@ -176,4 +176,45 @@ impl Keyboard {
     pub fn write_progress(&self, _progress: f32) -> Result<()> {
         Ok(())
     }
+
+    pub fn write_coordinates(&self) -> Result<()> {
+        debug!("开始标记坐标位置");
+        let mut pen = self.pen.lock().unwrap();
+        
+        let start_x: u32 = 800;  // 固定的 x 坐标
+        let font_size = 20.0;    // 使用小一点的字体
+        
+        // 从 20 开始，每隔 20 像素标记一个坐标
+        for y in (20..2100).step_by(20) {
+            let y_str = y.to_string();
+            let mut current_x = start_x;
+            
+            // 绘制数字
+            for c in y_str.chars() {
+                let (strokes, glyph_baseline) = self.font_renderer.get_char_strokes(c, font_size)?;
+                
+                for stroke in strokes {
+                    if stroke.len() < 2 {
+                        continue;
+                    }
+                    
+                    let (x, y_pos) = stroke[0];
+                    pen.pen_up()?;
+                    pen.goto_xy((x + current_x as i32, y_pos + y as i32 + glyph_baseline))?;
+                    pen.pen_down()?;
+                    
+                    for &(x, y_pos) in stroke.iter().skip(1) {
+                        pen.goto_xy((x + current_x as i32, y_pos + y as i32 + glyph_baseline))?;
+                        sleep(Duration::from_millis(1));
+                    }
+                }
+                
+                current_x += 16;  // 使用更小的字符间距
+                sleep(Duration::from_millis(5));
+            }
+        }
+        
+        pen.pen_up()?;
+        Ok(())
+    }
 }
