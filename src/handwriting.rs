@@ -246,11 +246,30 @@ impl HandwritingInput {
                 continue;
             }
             
-            // 获取字符的笔画数据
-            let strokes = self.hershey_font.get_char_strokes_json(c)?;
+            // 尝试获取字符的笔画数据，如果失败则回退到 FreeType
+            let (strokes, char_width) = match self.hershey_font.get_char_strokes_json(c) {
+                Ok(json_strokes) => {
+                    // JSON 格式的笔画数据，字符宽度设为固定值
+                    // 增加字符宽度，让字符之间有更多间距
+                    (json_strokes, (font_size * 1.5) as i32)
+                },
+                Err(_) => {
+                    // 回退到 FreeType
+                    let (ft_strokes, _, width) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    // 将 FreeType 的笔画数据转换为 f32 格式
+                    let strokes = ft_strokes.into_iter()
+                        .map(|stroke| {
+                            stroke.into_iter()
+                                .map(|(x, y)| (x as f32 / font_size, y as f32 / font_size))
+                                .collect()
+                        })
+                        .collect();
+                    (strokes, width)
+                }
+            };
             
             // 如果字符宽度超出屏幕边界，自动换行
-            if current_x + font_size as i32 > (REMARKABLE_WIDTH as i32) - 100 {
+            if current_x + char_width > (REMARKABLE_WIDTH as i32) - 100 {
                 current_x = x;
                 current_y += line_spacing;
             }
@@ -264,7 +283,7 @@ impl HandwritingInput {
                 // 移动到笔画起点
                 pen.pen_up()?;
                 let (start_x, start_y) = stroke[0];
-                // 将 0.0-1.0 的坐标映射到实际大小
+                // 将 0.0-1.0 的坐标映射到实际大小，并添加一些水平间距
                 let px = current_x + (start_x * font_size) as i32;
                 let py = current_y + (start_y * font_size) as i32;
                 pen.goto_xy((px, py))?;
@@ -279,8 +298,8 @@ impl HandwritingInput {
                 }
             }
             
-            // 移动到下一个字符
-            current_x += font_size as i32 + 5; // 字符宽度加5像素的间距
+            // 移动到下一个字符，增加额外的间距
+            current_x += char_width + 10; // 增加字符间距
             sleep(Duration::from_millis(10));
         }
         
