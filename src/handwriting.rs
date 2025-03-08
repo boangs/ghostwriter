@@ -12,6 +12,7 @@ use std::thread::sleep;
 use log::{info, error};
 use serde_json::json;
 use ureq;
+use crate::constants::REMARKABLE_WIDTH;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -232,17 +233,31 @@ impl HandwritingInput {
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 40.0;
+        let line_spacing = font_size as i32 + 20; // 行距为字体大小加20像素
         
         let mut current_x = x;
         let mut current_y = y;
         
         for c in text.chars() {
+            if c == '\n' {
+                // 处理换行
+                current_x = x;
+                current_y += line_spacing;
+                continue;
+            }
+            
             // 优先使用 Hershey 字体，如果字符不存在则回退到 FreeType
             let (strokes, glyph_baseline, char_width) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
                 result
             } else {
                 self.font_renderer.get_char_strokes(c, font_size)?
             };
+            
+            // 如果字符宽度超出屏幕边界，自动换行
+            if current_x + char_width > REMARKABLE_WIDTH - 100 {
+                current_x = x;
+                current_y += line_spacing;
+            }
             
             for stroke in strokes {
                 if stroke.len() < 2 {
@@ -260,7 +275,8 @@ impl HandwritingInput {
                 }
             }
             
-            current_x += char_width;
+            // 添加字符间距
+            current_x += char_width + 5; // 每个字符后添加5像素的间距
             sleep(Duration::from_millis(10));
         }
         
