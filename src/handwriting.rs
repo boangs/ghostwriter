@@ -254,7 +254,7 @@ impl HandwritingInput {
             };
             
             // 如果字符宽度超出屏幕边界，自动换行
-            if current_x + char_width > REMARKABLE_WIDTH - 100 {
+            if current_x + char_width > (REMARKABLE_WIDTH as i32) - 100 {
                 current_x = x;
                 current_y += line_spacing;
             }
