@@ -290,9 +290,9 @@ impl HersheyFont {
         
         // 根据字符类型调整基线偏移
         let baseline_offset = if is_fullwidth_punct {
-            (size * 0.3) as i32  // 标点符号向下偏移
+            (size * 0.8) as i32  // 标点符号向下偏移
         } else if c.is_ascii_punctuation() {
-            (size * 0.3) as i32  // ASCII 标点向下偏移
+            (size * 0.8) as i32  // ASCII 标点向下偏移
         } else {
             0  // 汉字和英文字母保持原位
         };
