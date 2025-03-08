@@ -150,61 +150,65 @@ fn optimize_strokes(strokes: Vec<Vec<(i32, i32)>>) -> Vec<Vec<(i32, i32)>> {
 }
 
 pub struct HersheyFont {
-    json_glyphs: HashMap<char, Vec<Vec<(f32, f32)>>>,
+    json_glyphs: HashMap<char, (Vec<(f32, f32)>, Vec<i32>)>, // (coords, pointTypes)
 }
 
 impl HersheyFont {
     pub fn new() -> Result<Self> {
         // 加载 JSON 格式的笔画数据
-        let json_data = Asset::get("strokes.json")
-            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 strokes.json"))?
+        let json_data = Asset::get("handstrokes.json")
+            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 handstrokes.json"))?
             .data;
             
         let json_str = String::from_utf8_lossy(&json_data);
         let json_map: serde_json::Value = serde_json::from_str(&json_str)?;
         let mut json_glyphs = HashMap::new();
         
-        for (unicode, strokes) in json_map.as_object().unwrap() {
-            // 解析 Unicode 码点
-            let hex = unicode.trim_start_matches("U+");
-            let code_point = u32::from_str_radix(hex, 16)?;
-            let ch = char::from_u32(code_point)
-                .ok_or_else(|| anyhow::anyhow!("无效的 Unicode 码点"))?;
+        if let Some(obj) = json_map.as_object() {
+            for (char_str, data) in obj {
+                // 解析 Unicode 字符
+                let ch = if let Some(first_char) = char_str.chars().next() {
+                    first_char
+                } else {
+                    continue;
+                };
                 
-            // 解析笔画数据
-            let strokes = strokes.as_array()
-                .ok_or_else(|| anyhow::anyhow!("无效的笔画数据"))?
-                .iter()
-                .map(|stroke| {
-                    stroke.as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|point| {
-                            let point = point.as_array().unwrap();
-                            (
-                                point[0].as_f64().unwrap() as f32,
-                                point[1].as_f64().unwrap() as f32
-                            )
+                // 解析坐标和点类型
+                if let (Some(coords), Some(point_types)) = (
+                    data.get("coord").and_then(|c| c.as_array()),
+                    data.get("pointType").and_then(|p| p.as_array())
+                ) {
+                    let coords: Vec<(f32, f32)> = coords.chunks(2)
+                        .filter_map(|chunk| {
+                            if chunk.len() == 2 {
+                                Some((
+                                    chunk[0].as_f64()? as f32,
+                                    chunk[1].as_f64()? as f32
+                                ))
+                            } else {
+                                None
+                            }
                         })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-                
-            json_glyphs.insert(ch, strokes);
+                        .collect();
+                        
+                    let point_types: Vec<i32> = point_types.iter()
+                        .filter_map(|pt| pt.as_i64().map(|n| n as i32))
+                        .collect();
+                        
+                    if coords.len() == point_types.len() {
+                        json_glyphs.insert(ch, (coords, point_types));
+                    }
+                }
+            }
         }
         
         Ok(HersheyFont { json_glyphs })
     }
 
-    pub fn get_char_strokes_json(&self, c: char) -> Result<Vec<Vec<(f32, f32)>>> {
-        self.json_glyphs.get(&c)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("字符 {} 不在 JSON 字体数据中", c))
-    }
-
-    // 添加与 FontRenderer 兼容的方法
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
-        let json_strokes = self.get_char_strokes_json(c)?;
+        let (coords, point_types) = self.json_glyphs.get(&c)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("字符 {} 不在字体数据中", c))?;
         
         // 计算字符的边界框
         let mut min_x = f32::MAX;
@@ -212,47 +216,48 @@ impl HersheyFont {
         let mut min_y = f32::MAX;
         let mut max_y = f32::MIN;
         
-        for stroke in &json_strokes {
-            for &(x, y) in stroke {
-                min_x = min_x.min(x);
-                max_x = max_x.max(x);
-                min_y = min_y.min(y);
-                max_y = max_y.max(y);
-            }
+        for &(x, y) in &coords {
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
         }
         
-        // 计算原始尺寸和目标缩放
+        // 计算缩放比例
         let original_width = max_x - min_x;
         let original_height = max_y - min_y;
-        let target_size = size * 0.8; // 留出一些边距
+        let scale = size / original_height.max(original_width);
         
-        // 计算缩放比例，保持宽高比
-        let scale = if original_width > original_height {
-            target_size / original_width
-        } else {
-            target_size / original_height
-        };
+        // 将坐标点按笔画分组
+        let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
+        let mut current_stroke = Vec::new();
         
-        // 计算基线偏移，使字符垂直居中
-        let baseline_offset = -(min_y * scale) as i32;
+        for (i, (&(x, y), &point_type)) in coords.iter().zip(point_types.iter()).enumerate() {
+            // 如果是起点或者是第一个点，开始新的笔画
+            if point_type == 0 || i == 0 {
+                if !current_stroke.is_empty() {
+                    strokes.push(current_stroke);
+                }
+                current_stroke = Vec::new();
+            }
+            
+            // 添加坐标点
+            current_stroke.push((
+                (x * scale) as i32,
+                (y * scale) as i32
+            ));
+        }
         
-        // 转换坐标
-        let strokes: Vec<Vec<(i32, i32)>> = json_strokes
-            .into_iter()
-            .map(|stroke| {
-                stroke.into_iter()
-                    .map(|(x, y)| {
-                        (
-                            (x * scale) as i32,
-                            (y * scale) as i32
-                        )
-                    })
-                    .collect()
-            })
-            .collect();
+        // 添加最后一个笔画
+        if !current_stroke.is_empty() {
+            strokes.push(current_stroke);
+        }
         
-        // 计算字符宽度，考虑实际笔画宽度
-        let char_width = ((max_x - min_x) * scale) as i32 + (size * 0.2) as i32; // 添加20%的间距
+        // 基线偏移（Y轴中心对齐）
+        let baseline_offset = -((max_y + min_y) * scale / 2.0) as i32;
+        
+        // 字符宽度
+        let char_width = (original_width * scale) as i32 + (size * 0.2) as i32;
         
         Ok((strokes, baseline_offset, char_width))
     }
