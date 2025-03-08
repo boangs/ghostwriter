@@ -201,4 +201,33 @@ impl HersheyFont {
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("字符 {} 不在 JSON 字体数据中", c))
     }
+
+    // 添加与 FontRenderer 兼容的方法
+    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
+        let json_strokes = self.get_char_strokes_json(c)?;
+        
+        // 将 f32 坐标转换为 i32，并应用缩放
+        let scale = size / 100.0; // 假设原始数据基于 100 单位大小
+        let strokes: Vec<Vec<(i32, i32)>> = json_strokes
+            .into_iter()
+            .map(|stroke| {
+                stroke.into_iter()
+                    .map(|(x, y)| {
+                        (
+                            (x * scale) as i32,
+                            (y * scale) as i32
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+            
+        // 计算字符宽度（使用固定值或从笔画数据计算）
+        let char_width = (size as i32) + 5; // 添加一些间距
+        
+        // 基线偏移（可以根据需要调整）
+        let baseline_offset = 0;
+        
+        Ok((strokes, baseline_offset, char_width))
+    }
 } 
