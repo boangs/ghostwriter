@@ -230,11 +230,21 @@ impl HersheyFont {
         // 计算基本缩放比例（以汉字为基准）
         let base_scale = size / original_height.max(original_width);
         
+        // 判断是否为全角标点符号
+        let is_fullwidth_punct = match c {
+            '，' | '。' | '、' | '：' | '；' | '！' | '？' | '（' | '）' |
+            '『' | '』' | '「' | '」' | '《' | '》' | '"' | '"' | ''' | ''' |
+            '【' | '】' | '〈' | '〉' | '…' | '—' | '～' | '·' => true,
+            _ => false
+        };
+        
         // 根据字符类型调整最终缩放比例
         let scale = if c.is_ascii_alphabetic() {
             base_scale * 0.6  // 英文字母缩小到汉字的 60%
         } else if c.is_ascii_punctuation() {
-            base_scale * 0.4  // 标点符号缩小到汉字的 40%
+            base_scale * 0.2  // ASCII 标点符号缩小到汉字的 20%
+        } else if is_fullwidth_punct {
+            base_scale * 0.2  // 全角标点符号缩小到汉字的 20%
         } else {
             base_scale  // 汉字保持原始大小
         };
@@ -270,6 +280,8 @@ impl HersheyFont {
             ((original_width * scale) as i32 + (size * 0.1) as i32).max(5)
         } else if c.is_ascii_punctuation() {
             ((original_width * scale) as i32 + (size * 0.05) as i32).max(3)
+        } else if is_fullwidth_punct {
+            ((original_width * scale) as i32 + (size * 0.1) as i32).max(4)
         } else {
             (original_width * scale) as i32 + (size * 0.2) as i32
         };
