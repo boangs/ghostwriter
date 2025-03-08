@@ -278,7 +278,7 @@ impl HandwritingInput {
             current_x += char_width + 5; // 添加字间距
             
             // 如果超出屏幕宽度，换行
-            if current_x > REMARKABLE_WIDTH - 100 {
+            if current_x > REMARKABLE_WIDTH as i32 - 100 {
                 current_x = x;
                 current_y += line_spacing;
             }
