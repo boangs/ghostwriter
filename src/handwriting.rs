@@ -262,14 +262,14 @@ impl HandwritingInput {
                 pen.pen_up()?;
                 pen.goto_xy((
                     start_x + current_x,
-                    -start_y + current_y + baseline_offset  // Y 轴坐标取反
+                    start_y + current_y + baseline_offset  // 移除 Y 轴坐标取反
                 ))?;
                 pen.pen_down()?;
                 
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((
                         x + current_x,
-                        -y + current_y + baseline_offset  // Y 轴坐标取反
+                        y + current_y + baseline_offset  // 移除 Y 轴坐标取反
                     ))?;
                     sleep(Duration::from_millis(5));
                 }
