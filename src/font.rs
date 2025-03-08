@@ -241,11 +241,14 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 添加坐标点
-            current_stroke.push((
-                (x * scale) as i32,
-                (y * scale) as i32
-            ));
+            // 坐标转换：
+            // 1. 将坐标移动到正象限（减去最小值）
+            // 2. 应用缩放
+            // 3. Y轴已经是正确方向（负数在上，正数在下）
+            let px = ((x - min_x) * scale) as i32;
+            let py = ((y - min_y) * scale) as i32;
+            
+            current_stroke.push((px, py));
         }
         
         // 添加最后一个笔画
@@ -253,8 +256,8 @@ impl HersheyFont {
             strokes.push(current_stroke);
         }
         
-        // 基线偏移（Y轴中心对齐）
-        let baseline_offset = -((max_y + min_y) * scale / 2.0) as i32;
+        // 基线偏移（相对于字符顶部的偏移）
+        let baseline_offset = 0;
         
         // 字符宽度
         let char_width = (original_width * scale) as i32 + (size * 0.2) as i32;
