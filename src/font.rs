@@ -223,21 +223,21 @@ impl HersheyFont {
             max_y = max_y.max(y);
         }
         
-        // 根据字符类型调整缩放比例
-        let scale = if c.is_ascii_alphabetic() {
-            // 英文字母使用较小的缩放比例
-            (size * 0.7) / max_y.max(max_x)
-        } else if c.is_ascii_punctuation() {
-            // 标点符号使用更小的缩放比例
-            (size * 0.4) / max_y.max(max_x)
-        } else {
-            // 汉字使用原始缩放比例
-            size / max_y.max(max_x)
-        };
-        
         // 计算原始尺寸
         let original_width = max_x - min_x;
         let original_height = max_y - min_y;
+        
+        // 计算基本缩放比例（以汉字为基准）
+        let base_scale = size / original_height.max(original_width);
+        
+        // 根据字符类型调整最终缩放比例
+        let scale = if c.is_ascii_alphabetic() {
+            base_scale * 0.6  // 英文字母缩小到汉字的 60%
+        } else if c.is_ascii_punctuation() {
+            base_scale * 0.4  // 标点符号缩小到汉字的 40%
+        } else {
+            base_scale  // 汉字保持原始大小
+        };
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
@@ -269,7 +269,7 @@ impl HersheyFont {
         let char_width = if c.is_ascii_alphabetic() {
             ((original_width * scale) as i32 + (size * 0.1) as i32).max(5)
         } else if c.is_ascii_punctuation() {
-            ((original_width * scale) as i32 + (size * 0.1) as i32).max(3)
+            ((original_width * scale) as i32 + (size * 0.05) as i32).max(3)
         } else {
             (original_width * scale) as i32 + (size * 0.2) as i32
         };
