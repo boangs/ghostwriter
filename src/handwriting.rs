@@ -6,6 +6,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use crate::pen::Pen;
 use crate::screenshot::Screenshot;
 use crate::llm_engine::LLMEngine;
+use crate::font::{FontRenderer, HersheyFont};
 use std::time::Duration;
 use std::thread::sleep;
 use log::{info, error};
@@ -18,6 +19,8 @@ pub struct HandwritingInput {
     is_writing: bool,
     temp_dir: PathBuf,
     engine: Box<dyn LLMEngine>,
+    font_renderer: FontRenderer,
+    hershey_font: HersheyFont,
 }
 
 impl HandwritingInput {
@@ -35,6 +38,8 @@ impl HandwritingInput {
             is_writing: false,
             temp_dir,
             engine,
+            font_renderer: FontRenderer::new()?,
+            hershey_font: HersheyFont::new()?,
         })
     }
 
@@ -222,5 +227,44 @@ impl HandwritingInput {
         } else {
             Err(anyhow::anyhow!("Failed to get access token"))
         }
+    }
+
+    pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
+        let mut pen = self.pen.lock().unwrap();
+        let font_size = 40.0;
+        
+        let mut current_x = x;
+        let mut current_y = y;
+        
+        for c in text.chars() {
+            // 优先使用 Hershey 字体，如果字符不存在则回退到 FreeType
+            let (strokes, glyph_baseline, char_width) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
+                result
+            } else {
+                self.font_renderer.get_char_strokes(c, font_size)?
+            };
+            
+            for stroke in strokes {
+                if stroke.len() < 2 {
+                    continue;
+                }
+                
+                let (sx, sy) = stroke[0];
+                pen.pen_up()?;
+                pen.goto_xy((sx + current_x, sy + current_y + glyph_baseline))?;
+                pen.pen_down()?;
+                
+                for &(sx, sy) in stroke.iter().skip(1) {
+                    pen.goto_xy((sx + current_x, sy + current_y + glyph_baseline))?;
+                    sleep(Duration::from_millis(1));
+                }
+            }
+            
+            current_x += char_width;
+            sleep(Duration::from_millis(10));
+        }
+        
+        pen.pen_up()?;
+        Ok(())
     }
 }

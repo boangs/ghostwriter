@@ -248,28 +248,52 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
     } else {
         100  // 默认值
     };
-    
-    let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
 
-    // 如果需要显示坐标刻度
-    if args.show_coordinates {
-        info!("显示坐标刻度");
-        keyboard.write_coordinates()?;
+    // 如果是手写模式，使用 HandwritingInput 的 write_text 方法
+    if args.handwriting_mode {
+        let mut options = HashMap::new();
+        if let Some(engine) = &args.engine {
+            options.insert("engine".to_string(), engine.clone());
+        }
+        if let Some(base_url) = &args.engine_base_url {
+            options.insert("base_url".to_string(), base_url.clone());
+        }
+        if let Some(api_key) = &args.engine_api_key {
+            options.insert("api_key".to_string(), api_key.clone());
+        }
+        options.insert("model".to_string(), args.model.clone());
+        
+        let engine = Box::new(OpenAI::new(&options));
+        let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
+        
+        // 绘制 AI 回复的文字
+        if !args.no_draw {
+            info!("开始绘制 AI 回复");
+            handwriting.write_text(&response_text, 100, last_y as i32)?;
+        }
+    } else {
+        let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
+
+        // 如果需要显示坐标刻度
+        if args.show_coordinates {
+            info!("显示坐标刻度");
+            keyboard.write_coordinates()?;
+        }
+
+        // 绘制 AI 回复的文字
+        if !args.no_draw {
+            info!("开始绘制 AI 回复");
+            keyboard.write_text(&response_text)?;
+        }
     }
 
     // 创建触摸实例
     let mut touch = Touch::new(args.no_draw);
 
-    // 绘制 AI 回复的文字
-    if !args.no_draw {
-        info!("开始绘制 AI 回复");
-        keyboard.write_text(&response_text)?;
-        
-        // 在手写模式下，等待用户触摸右下角继续
-        if args.handwriting_mode && !args.no_trigger {
-            info!("绘制完成，请在右下角触摸以继续...");
-            touch.wait_for_trigger()?;
-        }
+    // 在手写模式下，等待用户触摸右下角继续
+    if args.handwriting_mode && !args.no_trigger {
+        info!("绘制完成，请在右下角触摸以继续...");
+        touch.wait_for_trigger()?;
     }
     
     Ok(())
