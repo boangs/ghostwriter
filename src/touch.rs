@@ -140,7 +140,7 @@ impl Touch {
                 InputEvent::new(EventType::ABSOLUTE, ABS_MT_ORIENTATION, 4),
                 InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ])?;
-            sleep(Duration::from_millis(1));
+            sleep(Duration::from_millis(5));
         }
         Ok(())
     }
@@ -153,7 +153,7 @@ impl Touch {
                 InputEvent::new(EventType::ABSOLUTE, ABS_MT_TRACKING_ID, -1),
                 InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ])?;
-            sleep(Duration::from_millis(1));
+            sleep(Duration::from_millis(5));
         }
         Ok(())
     }

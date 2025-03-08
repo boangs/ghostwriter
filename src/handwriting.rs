@@ -62,7 +62,7 @@ impl HandwritingInput {
                 current_stroke.push((x, y));
                 let mut pen = self.pen.lock().unwrap();
                 pen.goto_xy((x, y))?;
-                sleep(Duration::from_millis(1));
+                sleep(Duration::from_millis(5));
             }
         }
         Ok(())

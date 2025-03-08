@@ -113,7 +113,7 @@ impl Keyboard {
                     
                     for &(x, y) in stroke.iter().skip(1) {
                         pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
-                        sleep(Duration::from_millis(1));
+                        sleep(Duration::from_millis(5));
                     }
                 }
                 
@@ -166,7 +166,7 @@ impl Keyboard {
                         
                         for &(x, y) in stroke.iter().skip(1) {
                             pen.goto_xy((x + _current_x as i32, y + current_y as i32 + glyph_baseline))?;
-                            sleep(Duration::from_millis(1));
+                            sleep(Duration::from_millis(5));
                         }
                     }
                     
@@ -235,7 +235,7 @@ impl Keyboard {
                     
                     for &(x, y_pos) in stroke.iter().skip(1) {
                         pen.goto_xy((x + current_x as i32, y_pos + y as i32 + glyph_baseline))?;
-                        sleep(Duration::from_millis(1));
+                        sleep(Duration::from_millis(5));
                     }
                 }
                 
