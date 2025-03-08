@@ -259,19 +259,21 @@ impl HandwritingInput {
                 current_y += line_spacing;
             }
             
+            // 绘制每个笔画
             for stroke in strokes {
-                if stroke.len() < 2 {
+                if stroke.is_empty() {
                     continue;
                 }
                 
-                let (sx, sy) = stroke[0];
+                // 移动到笔画起点
                 pen.pen_up()?;
-                pen.goto_xy((sx + current_x, sy + current_y + glyph_baseline))?;
+                let (start_x, start_y) = stroke[0];
+                pen.goto_xy((current_x + start_x, current_y + start_y + glyph_baseline))?;
                 pen.pen_down()?;
                 
-                for &(sx, sy) in stroke.iter().skip(1) {
-                    pen.goto_xy((sx + current_x, sy + current_y + glyph_baseline))?;
-                    sleep(Duration::from_millis(1));
+                // 绘制笔画的每个点
+                for &(point_x, point_y) in stroke.iter().skip(1) {
+                    pen.goto_xy((current_x + point_x, current_y + point_y + glyph_baseline))?;
                 }
             }
             
