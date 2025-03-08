@@ -244,7 +244,7 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
 
     // 创建键盘实例，使用最后一行的 y 坐标加上一些间距
     let last_y = if let Some(y) = args.last_content_y {
-        y as u32 + 10  // 添加 50 像素的间距
+        y as u32 + 10  // 添加 10 像素的间距
     } else {
         100  // 默认值
     };
@@ -257,10 +257,19 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         keyboard.write_coordinates()?;
     }
 
+    // 创建触摸实例
+    let mut touch = Touch::new(args.no_draw);
+
     // 绘制 AI 回复的文字
     if !args.no_draw {
         info!("开始绘制 AI 回复");
         keyboard.write_text(&response_text)?;
+        
+        // 在手写模式下，等待用户触摸右下角继续
+        if args.handwriting_mode && !args.no_trigger {
+            info!("绘制完成，请在右下角触摸以继续...");
+            touch.wait_for_trigger()?;
+        }
     }
     
     Ok(())
