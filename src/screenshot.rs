@@ -9,9 +9,9 @@ use base64::{Engine, engine::general_purpose};
 use image::ImageEncoder;
 
 #[allow(dead_code)]
-const WIDTH: usize = 1624;  // 更新为正确的屏幕尺寸
+const WIDTH: usize = 1620;  // 更新为正确的屏幕尺寸
 #[allow(dead_code)]
-const HEIGHT: usize = 2154;
+const HEIGHT: usize = 2160;
 #[allow(dead_code)]
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 #[allow(dead_code)]
@@ -80,8 +80,8 @@ pub struct Screenshot {
 impl Screenshot {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            width: 1624,  // remarkable 的实际宽度
-            height: 2154, // remarkable 的实际高度
+            width: 1620,  // remarkable 的实际宽度
+            height: 2160, // remarkable 的实际高度
             data: Vec::new(),
             last_content_y: 50,  // 修改初始值为靠近顶部的位置
         })
