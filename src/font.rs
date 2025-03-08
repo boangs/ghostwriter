@@ -73,6 +73,22 @@ impl FontRenderer {
             strokes.push(current_stroke);
         }
         
+        // 根据字符类型调整基线偏移
+        let baseline_offset = if c.is_ascii_punctuation() {
+            (size * 0.3) as i32  // ASCII 标点向下偏移
+        } else {
+            0  // 汉字和英文字母保持原位
+        };
+        
+        // 根据字符类型调整字符宽度
+        let char_width = if c.is_ascii_alphabetic() {
+            ((char_width as f32 * scale) as i32 + (size * 0.1) as i32).max(5)
+        } else if c.is_ascii_punctuation() {
+            ((char_width as f32 * scale) as i32 + (size * 0.05) as i32).max(3)
+        } else {
+            (char_width as f32 * scale) as i32 + (size * 0.2) as i32
+        };
+        
         Ok((strokes, baseline_offset, char_width))
     }
 
@@ -272,16 +288,22 @@ impl HersheyFont {
             strokes.push(current_stroke);
         }
         
-        // 基线偏移
-        let baseline_offset = 0;
+        // 根据字符类型调整基线偏移
+        let baseline_offset = if is_fullwidth_punct {
+            (size * 0.3) as i32  // 标点符号向下偏移
+        } else if c.is_ascii_punctuation() {
+            (size * 0.3) as i32  // ASCII 标点向下偏移
+        } else {
+            0  // 汉字和英文字母保持原位
+        };
         
         // 根据字符类型调整字符宽度
         let char_width = if c.is_ascii_alphabetic() {
             ((original_width * scale) as i32 + (size * 0.1) as i32).max(5)
         } else if c.is_ascii_punctuation() {
-            ((original_width * scale) as i32 + (size * 0.05) as i32).max(3)
+            ((original_width * scale) as i32 + (size * 0.2) as i32).max(3)
         } else if is_fullwidth_punct {
-            ((original_width * scale) as i32 + (size * 0.1) as i32).max(4)
+            ((original_width * scale) as i32 + (size * 0.2) as i32).max(4)
         } else {
             (original_width * scale) as i32 + (size * 0.2) as i32
         };
