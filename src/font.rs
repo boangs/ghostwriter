@@ -223,17 +223,27 @@ impl HersheyFont {
             max_y = max_y.max(y);
         }
         
-        // 计算缩放比例
+        // 根据字符类型调整缩放比例
+        let scale = if c.is_ascii_alphabetic() {
+            // 英文字母使用较小的缩放比例
+            (size * 0.7) / max_y.max(max_x)
+        } else if c.is_ascii_punctuation() {
+            // 标点符号使用更小的缩放比例
+            (size * 0.4) / max_y.max(max_x)
+        } else {
+            // 汉字使用原始缩放比例
+            size / max_y.max(max_x)
+        };
+        
+        // 计算原始尺寸
         let original_width = max_x - min_x;
         let original_height = max_y - min_y;
-        let scale = size / original_height.max(original_width);
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
         let mut current_stroke = Vec::new();
         
         for (i, (&(x, y), &point_type)) in coords.iter().zip(point_types.iter()).enumerate() {
-            // 如果是起点或者是第一个点，开始新的笔画
             if point_type == 0 || i == 0 {
                 if !current_stroke.is_empty() {
                     strokes.push(current_stroke);
@@ -241,26 +251,28 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 坐标转换：
-            // 1. 将坐标移动到正象限（减去最小值）
-            // 2. 应用缩放
-            // 3. Y轴已经是正确方向（负数在上，正数在下）
+            // 坐标转换
             let px = ((x - min_x) * scale) as i32;
             let py = ((y - min_y) * scale) as i32;
             
             current_stroke.push((px, py));
         }
         
-        // 添加最后一个笔画
         if !current_stroke.is_empty() {
             strokes.push(current_stroke);
         }
         
-        // 基线偏移（相对于字符顶部的偏移）
+        // 基线偏移
         let baseline_offset = 0;
         
-        // 字符宽度
-        let char_width = (original_width * scale) as i32 + (size * 0.2) as i32;
+        // 根据字符类型调整字符宽度
+        let char_width = if c.is_ascii_alphabetic() {
+            ((original_width * scale) as i32 + (size * 0.1) as i32).max(5)
+        } else if c.is_ascii_punctuation() {
+            ((original_width * scale) as i32 + (size * 0.1) as i32).max(3)
+        } else {
+            (original_width * scale) as i32 + (size * 0.2) as i32
+        };
         
         Ok((strokes, baseline_offset, char_width))
     }
