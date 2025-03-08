@@ -246,15 +246,11 @@ impl HandwritingInput {
                 continue;
             }
             
-            // 优先使用 Hershey 字体，如果字符不存在则回退到 FreeType
-            let (strokes, glyph_baseline, char_width) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
-                result
-            } else {
-                self.font_renderer.get_char_strokes(c, font_size)?
-            };
+            // 获取字符的笔画数据
+            let strokes = self.hershey_font.get_char_strokes_json(c)?;
             
             // 如果字符宽度超出屏幕边界，自动换行
-            if current_x + char_width > (REMARKABLE_WIDTH as i32) - 100 {
+            if current_x + font_size as i32 > (REMARKABLE_WIDTH as i32) - 100 {
                 current_x = x;
                 current_y += line_spacing;
             }
@@ -268,17 +264,23 @@ impl HandwritingInput {
                 // 移动到笔画起点
                 pen.pen_up()?;
                 let (start_x, start_y) = stroke[0];
-                pen.goto_xy((current_x + start_x, current_y + start_y + glyph_baseline))?;
+                // 将 0.0-1.0 的坐标映射到实际大小
+                let px = current_x + (start_x * font_size) as i32;
+                let py = current_y + (start_y * font_size) as i32;
+                pen.goto_xy((px, py))?;
                 pen.pen_down()?;
                 
                 // 绘制笔画的每个点
-                for &(point_x, point_y) in stroke.iter().skip(1) {
-                    pen.goto_xy((current_x + point_x, current_y + point_y + glyph_baseline))?;
+                for &(x, y) in stroke.iter().skip(1) {
+                    // 将 0.0-1.0 的坐标映射到实际大小
+                    let px = current_x + (x * font_size) as i32;
+                    let py = current_y + (y * font_size) as i32;
+                    pen.goto_xy((px, py))?;
                 }
             }
             
-            // 添加字符间距
-            current_x += char_width + 5; // 每个字符后添加5像素的间距
+            // 移动到下一个字符
+            current_x += font_size as i32 + 5; // 字符宽度加5像素的间距
             sleep(Duration::from_millis(10));
         }
         

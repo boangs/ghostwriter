@@ -3,6 +3,7 @@ use anyhow::Result;
 use std::rc::Rc;
 use crate::util::Asset;
 use std::collections::HashMap;
+use serde_json;
 
 pub struct FontRenderer {
     face: Face,
@@ -150,6 +151,7 @@ fn optimize_strokes(strokes: Vec<Vec<(i32, i32)>>) -> Vec<Vec<(i32, i32)>> {
 
 pub struct HersheyFont {
     glyphs: HashMap<char, Vec<Vec<(i32, i32)>>>,
+    json_glyphs: HashMap<char, Vec<Vec<(f32, f32)>>>,
 }
 
 impl HersheyFont {
@@ -194,7 +196,45 @@ impl HersheyFont {
             glyphs.insert(ch, strokes);
         }
         
-        Ok(HersheyFont { glyphs })
+        // 加载 JSON 格式的笔画数据
+        let json_data = Asset::get("strokes.json")
+            .ok_or_else(|| anyhow::anyhow!("无法找到字体文件 strokes.json"))?
+            .data;
+            
+        let json_str = String::from_utf8_lossy(&json_data);
+        let json_map: serde_json::Value = serde_json::from_str(&json_str)?;
+        let mut json_glyphs = HashMap::new();
+        
+        for (unicode, strokes) in json_map.as_object().unwrap() {
+            // 解析 Unicode 码点
+            let hex = unicode.trim_start_matches("U+");
+            let code_point = u32::from_str_radix(hex, 16)?;
+            let ch = char::from_u32(code_point)
+                .ok_or_else(|| anyhow::anyhow!("无效的 Unicode 码点"))?;
+                
+            // 解析笔画数据
+            let strokes = strokes.as_array()
+                .ok_or_else(|| anyhow::anyhow!("无效的笔画数据"))?
+                .iter()
+                .map(|stroke| {
+                    stroke.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|point| {
+                            let point = point.as_array().unwrap();
+                            (
+                                point[0].as_f64().unwrap() as f32,
+                                point[1].as_f64().unwrap() as f32
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+                
+            json_glyphs.insert(ch, strokes);
+        }
+        
+        Ok(HersheyFont { glyphs, json_glyphs })
     }
     
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
@@ -238,5 +278,11 @@ impl HersheyFont {
         let baseline_offset = (max_y as f32 * scale) as i32;
         
         Ok((scaled_strokes, baseline_offset, char_width))
+    }
+
+    pub fn get_char_strokes_json(&self, c: char) -> Result<Vec<Vec<(f32, f32)>>> {
+        self.json_glyphs.get(&c)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("字符 {} 不在 JSON 字体数据中", c))
     }
 } 
