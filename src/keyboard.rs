@@ -5,11 +5,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::sleep;
 use std::time::Duration;
 use crate::constants::REMARKABLE_WIDTH;
-use crate::font::FontRenderer;
+use crate::font::{FontRenderer, HersheyFont};
 
 pub struct Keyboard {
     pen: Arc<Mutex<crate::pen::Pen>>,
     font_renderer: FontRenderer,
+    hershey_font: HersheyFont,  // 添加 HersheyFont
     last_y: AtomicU32,
     last_write_top: AtomicU32,    // 记录上次写入的顶部位置
     last_write_bottom: AtomicU32, // 记录上次写入的底部位置
@@ -21,6 +22,7 @@ impl Keyboard {
         Ok(Keyboard {
             pen: Arc::new(Mutex::new(crate::pen::Pen::new(no_draw))),
             font_renderer: FontRenderer::new()?,
+            hershey_font: HersheyFont::new()?,  // 初始化 HersheyFont
             last_y: AtomicU32::new(initial_y),
             last_write_top: AtomicU32::new(initial_y),
             last_write_bottom: AtomicU32::new(initial_y),
@@ -71,7 +73,12 @@ impl Keyboard {
             let mut line_x = _current_x;
             let mut line_chars = Vec::new();
             for c in line.chars() {
-                let (_, _, char_width) = self.font_renderer.get_char_strokes(c, font_size)?;
+                let (_, _, char_width) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
+                    result
+                } else {
+                    self.font_renderer.get_char_strokes(c, font_size)?
+                };
+                
                 // 确保字符宽度不小于最小宽度
                 let actual_width = if Self::is_ascii_char(c) {
                     char_width.max(min_ascii_width as i32) as u32
@@ -88,7 +95,11 @@ impl Keyboard {
             
             // 绘制这一行的字符
             for &(c, char_width) in line_chars.iter() {
-                let (strokes, glyph_baseline, _) = self.font_renderer.get_char_strokes(c, font_size)?;
+                let (strokes, glyph_baseline, _) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
+                    result
+                } else {
+                    self.font_renderer.get_char_strokes(c, font_size)?
+                };
                 
                 for stroke in strokes {
                     if stroke.len() < 2 {
@@ -118,7 +129,12 @@ impl Keyboard {
                 _current_x = start_x;
                 
                 for c in line.chars().skip(line_chars.len()) {
-                    let (_, _, char_width) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    let (_, _, char_width) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
+                        result
+                    } else {
+                        self.font_renderer.get_char_strokes(c, font_size)?
+                    };
+                    
                     let actual_width = if Self::is_ascii_char(c) {
                         char_width.max(min_ascii_width as i32) as u32
                     } else {
@@ -132,7 +148,11 @@ impl Keyboard {
                         _current_x = start_x;
                     }
                     
-                    let (strokes, glyph_baseline, _) = self.font_renderer.get_char_strokes(c, font_size)?;
+                    let (strokes, glyph_baseline, _) = if let Ok(result) = self.hershey_font.get_char_strokes(c, font_size) {
+                        result
+                    } else {
+                        self.font_renderer.get_char_strokes(c, font_size)?
+                    };
                     
                     for stroke in strokes {
                         if stroke.len() < 2 {
