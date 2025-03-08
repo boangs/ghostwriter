@@ -206,8 +206,37 @@ impl HersheyFont {
     pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
         let json_strokes = self.get_char_strokes_json(c)?;
         
-        // 将 f32 坐标转换为 i32，并应用缩放
-        let scale = size / 100.0; // 假设原始数据基于 100 单位大小
+        // 计算字符的边界框
+        let mut min_x = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        
+        for stroke in &json_strokes {
+            for &(x, y) in stroke {
+                min_x = min_x.min(x);
+                max_x = max_x.max(x);
+                min_y = min_y.min(y);
+                max_y = max_y.max(y);
+            }
+        }
+        
+        // 计算原始尺寸和目标缩放
+        let original_width = max_x - min_x;
+        let original_height = max_y - min_y;
+        let target_size = size * 0.8; // 留出一些边距
+        
+        // 计算缩放比例，保持宽高比
+        let scale = if original_width > original_height {
+            target_size / original_width
+        } else {
+            target_size / original_height
+        };
+        
+        // 计算基线偏移，使字符垂直居中
+        let baseline_offset = -(min_y * scale) as i32;
+        
+        // 转换坐标
         let strokes: Vec<Vec<(i32, i32)>> = json_strokes
             .into_iter()
             .map(|stroke| {
@@ -221,12 +250,9 @@ impl HersheyFont {
                     .collect()
             })
             .collect();
-            
-        // 计算字符宽度（使用固定值或从笔画数据计算）
-        let char_width = (size as i32) + 5; // 添加一些间距
         
-        // 基线偏移（可以根据需要调整）
-        let baseline_offset = 0;
+        // 计算字符宽度，考虑实际笔画宽度
+        let char_width = ((max_x - min_x) * scale) as i32 + (size * 0.2) as i32; // 添加20%的间距
         
         Ok((strokes, baseline_offset, char_width))
     }
