@@ -240,7 +240,7 @@ impl HersheyFont {
         }
         
         // 使用统一的缩放比例，不再区分字符类型
-        let scale = size / 1000.0;  // 假设字体设计时是在 1000 单位的网格中
+        let scale = size / 500.0;  // 假设字体设计时是在 1000 单位的网格中
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
