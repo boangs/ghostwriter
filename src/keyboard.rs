@@ -40,10 +40,10 @@ impl Keyboard {
         let start_x: u32 = 100;
         let start_y = self.last_y.load(Ordering::Relaxed);
         
-        let min_cjk_width: u32 = 30;     // 中文字符最小宽度
-        let min_ascii_width: u32 = 10;    // 英文字符最小宽度
-        let line_height: u32 = 45;
-        let font_size = 40.0;
+        let min_cjk_width: u32 = 65;     // 中文字符最小宽度
+        let min_ascii_width: u32 = 30;    // 英文字符最小宽度
+        let line_height: u32 = 65;
+        let font_size = 60.0;
         let paragraph_indent = 80;
         let max_width = REMARKABLE_WIDTH as u32 - 100;
         
