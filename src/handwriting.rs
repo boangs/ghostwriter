@@ -262,20 +262,20 @@ impl HandwritingInput {
                 pen.pen_up()?;
                 pen.goto_xy((
                     start_x + current_x,
-                    start_y + current_y + baseline_offset  // 移除 Y 轴坐标取反
+                    start_y + current_y + baseline_offset
                 ))?;
                 pen.pen_down()?;
                 
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((
                         x + current_x,
-                        y + current_y + baseline_offset  // 移除 Y 轴坐标取反
+                        y + current_y + baseline_offset
                     ))?;
                     sleep(Duration::from_millis(5));
                 }
             }
             
-            current_x += char_width + 5; // 添加字间距
+            current_x += char_width; // 使用字符自带的宽度，不再额外添加间距
             
             // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as i32 - 100 {

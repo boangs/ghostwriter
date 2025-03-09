@@ -253,8 +253,8 @@ impl HersheyFont {
         // 使用原始坐标系统中的相对位置
         let baseline_offset = 0;
         
-        // 字符宽度也使用原始坐标系统中的宽度
-        let char_width = ((max_x - min_x) * scale) as i32;
+        // 字符宽度使用边界框宽度，并添加额外间距
+        let char_width = ((max_x - min_x) * scale) as i32 + (size * 0.2) as i32;  // 增加 20% 的字间距
         
         Ok((strokes, baseline_offset, char_width))
     }
