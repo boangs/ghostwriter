@@ -239,31 +239,8 @@ impl HersheyFont {
             max_y = max_y.max(y);
         }
         
-        // 计算原始尺寸
-        let original_width = max_x - min_x;
-        let original_height = max_y - min_y;
-        
-        // 计算基本缩放比例（以汉字为基准）
-        let base_scale = size / original_height.max(original_width);
-        
-        // 判断是否为全角标点符号
-        let is_fullwidth_punct = match c {
-            '，' | '。' | '、' | '：' | '；' | '！' | '？' | '（' | '）' |
-            '『' | '』' | '「' | '」' | '《' | '》' | '"' | '"' | '\'' | '\'' |
-            '【' | '】' | '〈' | '〉' | '…' | '—' | '～' | '·' => true,
-            _ => false
-        };
-        
-        // 根据字符类型调整最终缩放比例
-        let scale = if c.is_ascii_alphabetic() {
-            base_scale * 0.6  // 英文字母缩小到汉字的 60%
-        } else if c.is_ascii_punctuation() {
-            base_scale * 0.2  // ASCII 标点符号缩小到汉字的 20%
-        } else if is_fullwidth_punct {
-            base_scale * 0.2  // 全角标点符号缩小到汉字的 20%
-        } else {
-            base_scale  // 汉字保持原始大小
-        };
+        // 使用统一的缩放比例，不再区分字符类型
+        let scale = size / 1000.0;  // 假设字体设计时是在 1000 单位的网格中
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
@@ -277,9 +254,9 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 坐标转换
-            let px = ((x - min_x) * scale) as i32;
-            let py = ((y - min_y) * scale) as i32;
+            // 直接应用缩放，保持原始坐标系统中的相对大小
+            let px = (x * scale) as i32;
+            let py = (y * scale) as i32;
             
             current_stroke.push((px, py));
         }
@@ -288,25 +265,11 @@ impl HersheyFont {
             strokes.push(current_stroke);
         }
         
-        // 根据字符类型调整基线偏移
-        let baseline_offset = if is_fullwidth_punct {
-            (size * 0.8) as i32  // 标点符号向下偏移
-        } else if c.is_ascii_punctuation() {
-            (size * 0.8) as i32  // ASCII 标点向下偏移
-        } else {
-            0  // 汉字和英文字母保持原位
-        };
+        // 使用原始坐标系统中的相对位置
+        let baseline_offset = 0;
         
-        // 根据字符类型调整字符宽度
-        let char_width = if c.is_ascii_alphabetic() {
-            ((original_width * scale) as i32 + (size * 0.1) as i32).max(5)
-        } else if c.is_ascii_punctuation() {
-            ((original_width * scale) as i32 + (size * 0.2) as i32).max(3)
-        } else if is_fullwidth_punct {
-            ((original_width * scale) as i32 + (size * 0.2) as i32).max(4)
-        } else {
-            (original_width * scale) as i32 + (size * 0.2) as i32
-        };
+        // 字符宽度也使用原始坐标系统中的宽度
+        let char_width = ((max_x - min_x) * scale) as i32;
         
         Ok((strokes, baseline_offset, char_width))
     }
