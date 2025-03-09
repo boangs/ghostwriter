@@ -234,6 +234,8 @@ impl HandwritingInput {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 40.0;
         let line_spacing = font_size as i32 + 20; // 行距为字体大小加20像素
+        let page_height = 1624; // reMarkable 屏幕高度
+        let bottom_margin = 100; // 底部留白
         
         let mut current_x = x;
         let mut current_y = y;
@@ -243,6 +245,10 @@ impl HandwritingInput {
                 // 处理换行
                 current_x = x;
                 current_y += line_spacing;
+                // 检查是否需要换页
+                if current_y > page_height - bottom_margin {
+                    current_y = y; // 回到顶部
+                }
                 continue;
             }
             
@@ -251,6 +257,12 @@ impl HandwritingInput {
                 Ok(result) => result,
                 Err(_) => self.font_renderer.get_char_strokes(c, font_size)?
             };
+            
+            // 检查是否需要换页
+            if current_y > page_height - bottom_margin {
+                current_y = y; // 回到顶部
+                current_x = x;
+            }
             
             // 绘制笔画
             for stroke in strokes {
@@ -275,12 +287,16 @@ impl HandwritingInput {
                 }
             }
             
-            current_x += char_width; // 使用字符自带的宽度，不再额外添加间距
+            current_x += char_width;
             
             // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as i32 - 100 {
                 current_x = x;
                 current_y += line_spacing;
+                // 检查是否需要换页
+                if current_y > page_height - bottom_margin {
+                    current_y = y; // 回到顶部
+                }
             }
             
             sleep(Duration::from_millis(10));
