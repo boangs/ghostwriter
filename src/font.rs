@@ -73,22 +73,7 @@ impl FontRenderer {
             strokes.push(current_stroke);
         }
         
-        // 根据字符类型调整基线偏移
-        let baseline_offset = if c.is_ascii_punctuation() {
-            (size * 0.3) as i32  // ASCII 标点向下偏移
-        } else {
-            0  // 汉字和英文字母保持原位
-        };
-        
-        // 根据字符类型调整字符宽度
-        let char_width = if c.is_ascii_alphabetic() {
-            ((char_width as f32 * scale) as i32 + (size * 0.1) as i32).max(5)
-        } else if c.is_ascii_punctuation() {
-            ((char_width as f32 * scale) as i32 + (size * 0.05) as i32).max(3)
-        } else {
-            (char_width as f32 * scale) as i32 + (size * 0.2) as i32
-        };
-        
+        // 直接使用 FreeType 提供的度量值，不做额外调整
         Ok((strokes, baseline_offset, char_width))
     }
 
