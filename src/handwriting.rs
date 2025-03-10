@@ -13,6 +13,7 @@ use log::{info, error};
 use serde_json::json;
 use ureq;
 use crate::constants::REMARKABLE_WIDTH;
+use crate::constants::REMARKABLE_HEIGHT;
 
 pub struct HandwritingInput {
     pen: Arc<Mutex<Pen>>,
@@ -233,8 +234,8 @@ impl HandwritingInput {
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 40.0;
-        let line_spacing = font_size as i32 + 20; // 行距为字体大小加20像素
-        let page_height = 1624; // reMarkable 屏幕高度
+        let line_spacing = font_size as i32 + 30; // 增加行距到 40 像素
+        let char_spacing = font_size as i32 / 4;  // 添加字符间距，为字体大小的 1/4
         let bottom_margin = 100; // 底部留白
         
         let mut current_x = x;
@@ -246,7 +247,7 @@ impl HandwritingInput {
                 current_x = x;
                 current_y += line_spacing;
                 // 检查是否需要换页
-                if current_y > page_height - bottom_margin {
+                if current_y > REMARKABLE_HEIGHT - bottom_margin {
                     current_y = y; // 回到顶部
                 }
                 continue;
@@ -259,7 +260,7 @@ impl HandwritingInput {
             };
             
             // 检查是否需要换页
-            if current_y > page_height - bottom_margin {
+            if current_y > REMARKABLE_HEIGHT - bottom_margin {
                 current_y = y; // 回到顶部
                 current_x = x;
             }
@@ -287,14 +288,15 @@ impl HandwritingInput {
                 }
             }
             
-            current_x += char_width;
+            // 增加字符宽度和额外的间距
+            current_x += char_width + char_spacing;
             
             // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as i32 - 100 {
                 current_x = x;
                 current_y += line_spacing;
                 // 检查是否需要换页
-                if current_y > page_height - bottom_margin {
+                if current_y > REMARKABLE_HEIGHT - bottom_margin {
                     current_y = y; // 回到顶部
                 }
             }
