@@ -234,8 +234,8 @@ impl HandwritingInput {
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 10.0;
-        let line_spacing = font_size as i32 + 20; // 增加行距到 40 像素
-        let char_spacing = font_size as i32 / 4;  // 添加字符间距，为字体大小的 1/4
+        let line_spacing = font_size as i32 + 40; // 增加行距到 40 像素
+        let char_spacing = font_size as i32 / 2;  // 添加字符间距，为字体大小的 1/4
         let bottom_margin = 100; // 底部留白
         
         let mut current_x = x;
