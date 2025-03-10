@@ -247,7 +247,7 @@ impl HandwritingInput {
                 current_x = x;
                 current_y += line_spacing;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT - bottom_margin {
+                if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
                     current_y = y; // 回到顶部
                 }
                 continue;
@@ -260,7 +260,7 @@ impl HandwritingInput {
             };
             
             // 检查是否需要换页
-            if current_y > REMARKABLE_HEIGHT - bottom_margin {
+            if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
                 current_y = y; // 回到顶部
                 current_x = x;
             }
@@ -296,7 +296,7 @@ impl HandwritingInput {
                 current_x = x;
                 current_y += line_spacing;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT - bottom_margin {
+                if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
                     current_y = y; // 回到顶部
                 }
             }
