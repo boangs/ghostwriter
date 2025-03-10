@@ -292,7 +292,7 @@ impl HandwritingInput {
             current_x += char_width + char_spacing;
             
             // 如果超出屏幕宽度，换行
-            if current_x > REMARKABLE_WIDTH as i32 - 100 {
+            if current_x > REMARKABLE_WIDTH as i32 - 120 {
                 current_x = x;
                 current_y += line_spacing;
                 // 检查是否需要换页
