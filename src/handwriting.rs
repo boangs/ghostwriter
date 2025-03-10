@@ -235,7 +235,7 @@ impl HandwritingInput {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 10.0;
         let line_spacing = font_size as i32 + 60; // 增加行距到 40 像素
-        let char_spacing = (font_size * 2) as i32;  // 添加字符间距，为字体大小的 1/4
+        let char_spacing = (font_size * 2.0) as i32;  // 添加字符间距，为字体大小的 1/4
         let bottom_margin = 100; // 底部留白
         
         let mut current_x = x;
