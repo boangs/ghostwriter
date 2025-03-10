@@ -5,6 +5,7 @@ use crate::util::Asset;
 use std::collections::HashMap;
 use serde_json;
 
+#[derive(Clone)]
 pub struct FontRenderer {
     face: Face,
 }
@@ -150,6 +151,7 @@ fn optimize_strokes(strokes: Vec<Vec<(i32, i32)>>) -> Vec<Vec<(i32, i32)>> {
     optimized
 }
 
+#[derive(Clone)]
 pub struct HersheyFont {
     json_glyphs: HashMap<char, (Vec<(f32, f32)>, Vec<i32>)>, // (coords, pointTypes)
 }
