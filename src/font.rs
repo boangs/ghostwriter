@@ -227,7 +227,7 @@ impl HersheyFont {
         }
         
         // 使用统一的缩放比例，不再区分字符类型
-        let scale = size / 500.0;  // 假设字体设计时是在 1000 单位的网格中
+        let scale = size / 1000.0;  // 假设字体设计时是在 1000 单位的网格中
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
@@ -256,7 +256,7 @@ impl HersheyFont {
         let baseline_offset = 0;
         
         // 字符宽度使用边界框宽度，并添加额外间距
-        let char_width = ((max_x - min_x) * scale) as i32 + (size * 0.2) as i32;  // 增加 20% 的字间距
+        let char_width = ((max_x - min_x) * scale) as i32;  // 增加 20% 的字间距
         
         Ok((strokes, baseline_offset, char_width))
     }
