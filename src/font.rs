@@ -61,8 +61,8 @@ impl FontRenderer {
                         }
                         in_stroke = true;
                     }
-                    let px = (x as f32 * scale) as i32;
-                    let py = (y as f32 * scale) as i32;
+                    let px = (x as f32 * scale).round() as i32;
+                    let py = (y as f32 * scale).round() as i32;
                     current_stroke.push((px, py));
                 } else if in_stroke {
                     in_stroke = false;
@@ -242,8 +242,8 @@ impl HersheyFont {
             }
             
             // 直接应用缩放，保持原始坐标系统中的相对大小
-            let px = (x * scale) as i32;
-            let py = (y * scale) as i32;
+            let px = (x * scale).round() as i32;
+            let py = (y * scale).round() as i32;
             
             current_stroke.push((px, py));
         }
