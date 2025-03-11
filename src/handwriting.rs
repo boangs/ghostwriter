@@ -245,6 +245,13 @@ impl HandwritingInput {
         let mut current_y = y as f32;
         
         for c in text.chars() {
+            // 检查橡皮擦是否接触
+            if pen.is_eraser_touched()? {
+                info!("检测到橡皮擦，停止书写");
+                pen.pen_up()?;  // 确保笔离开屏幕
+                return Ok(());  // 直接返回，停止书写
+            }
+
             if c == '\n' {
                 // 处理换行
                 current_x = x as f32;

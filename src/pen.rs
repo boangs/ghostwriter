@@ -13,6 +13,20 @@ impl Pen {
         }
     }
 
+    pub fn is_eraser_touched(&mut self) -> Result<bool> {
+        if let Some(ref mut device) = self.device {
+            let mut events = [evdev::InputEvent::new(EventType::SYNCHRONIZATION, 0, 0); 16];
+            if let Ok(num_events) = device.fetch_events(&mut events) {
+                for event in events.iter().take(num_events) {
+                    if event.event_type() == EventType::KEY && event.code() == 321 {  // BTN_TOOL_RUBBER
+                        return Ok(event.value() != 0);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub fn pen_down(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.device {
             let events = vec![

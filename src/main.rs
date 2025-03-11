@@ -265,11 +265,20 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         
         let engine = Box::new(OpenAI::new(&options));
         let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
+        let mut touch = Touch::new(args.no_draw);
         
         // 绘制 AI 回复的文字
         if !args.no_draw {
             info!("开始绘制 AI 回复");
-            handwriting.write_text(&response_text, 150, last_y as i32)?;
+            handwriting.write_text(&response_text, 120, last_y as i32)?;
+            
+            // 如果写入被中断（橡皮擦触发），等待用户在右下角触摸继续
+            if !args.no_trigger {
+                info!("书写被中断，请在右下角触摸以继续...");
+                touch.wait_for_trigger()?;
+                // 重新开始写入
+                handwriting.write_text(&response_text, 120, last_y as i32)?;
+            }
         }
     } else {
         let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
