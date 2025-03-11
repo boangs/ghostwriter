@@ -269,7 +269,7 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         // 绘制 AI 回复的文字
         if !args.no_draw {
             info!("开始绘制 AI 回复");
-            handwriting.write_text(&response_text, 120, last_y as i32)?;
+            handwriting.write_text(&response_text, 150, last_y as i32)?;
         }
     } else {
         let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
