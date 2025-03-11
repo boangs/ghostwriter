@@ -233,12 +233,12 @@ impl HandwritingInput {
 
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
-        let font_size = 40.0;
+        let font_size = 20.0;
         
         // 基础间距设置
         let base_spacing_ratio = 0.2; // 基础间距为字符宽度的 20%
         let min_spacing = font_size * 0.1; // 最小间距为字体大小的 10%
-        let line_height = font_size * 1.5; // 行高为字体大小的 1.5 倍
+        let line_height = font_size * 3; // 行高为字体大小的 1.5 倍
         let bottom_margin = 100.0; // 底部留白
         
         let mut current_x = x as f32;
