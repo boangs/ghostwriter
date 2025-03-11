@@ -249,7 +249,7 @@ impl HandwritingInput {
             if pen.is_eraser_touched()? {
                 info!("检测到橡皮擦，停止书写");
                 pen.pen_up()?;  // 确保笔离开屏幕
-                return Ok(());  // 直接返回，停止书写
+                return Err(anyhow::anyhow!("检测到橡皮擦，中止写入"));
             }
 
             if c == '\n' {
