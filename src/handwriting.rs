@@ -235,7 +235,8 @@ impl HandwritingInput {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 40.0;
         let line_spacing = font_size as i32 + 40; // 增加行距到 40 像素
-        let char_spacing = font_size as i32 / 4;  // 添加字符间距，为字体大小的 1/4
+        let cjk_char_spacing = font_size as i32 / 4;  // 中文字符间距
+        let ascii_char_spacing = font_size as i32 / 8; // 英文字符间距，使用中文间距的一半
         let bottom_margin = 100; // 底部留白
         
         let mut current_x = x as f32;
@@ -288,6 +289,13 @@ impl HandwritingInput {
                     sleep(Duration::from_millis(5));
                 }
             }
+            
+            // 根据字符类型选择不同的间距
+            let char_spacing = if c.is_ascii() {
+                ascii_char_spacing
+            } else {
+                cjk_char_spacing
+            };
             
             // 增加字符宽度和额外的间距
             current_x += char_width as f32 + char_spacing as f32;
