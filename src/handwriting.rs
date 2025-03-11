@@ -233,13 +233,12 @@ impl HandwritingInput {
 
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
-        let font_size = 22.0;  // 恢复原来的字体大小
+        let font_size = 22.0;
         
-        // 基础间距设置
-        let base_spacing_ratio = 0.2; // 基础间距为字符宽度的 20%
-        let min_spacing = font_size * 0.1; // 最小间距为字体大小的 10%
-        let line_height = font_size * 3.0; // 恢复原来的行高
-        let bottom_margin = 100.0; // 底部留白
+        let base_spacing_ratio = 0.2;
+        let min_spacing = font_size * 0.1;
+        let line_height = font_size * 3.0;
+        let bottom_margin = 100.0;
         
         let mut current_x = x as f32;
         let mut current_y = y as f32;
@@ -251,8 +250,8 @@ impl HandwritingInput {
             // 检查橡皮擦是否接触
             if pen.is_eraser_touched()? {
                 info!("检测到橡皮擦，停止书写");
-                pen.pen_up()?;  // 确保笔离开屏幕
-                return Ok(());  // 正常返回，因为这是预期的中断
+                pen.pen_up()?;
+                return Ok(());
             }
 
             if c == '\n' {
@@ -279,14 +278,21 @@ impl HandwritingInput {
                     continue;
                 }
                 
+                // 每个笔画开始前先抬笔
+                pen.pen_up()?;
+                
+                // 移动到笔画起点
                 let (start_x, start_y) = stroke[0];
                 pen.pen_up()?;
                 pen.goto_xy((
                     (start_x + current_x).round() as i32,
                     (start_y + current_y + baseline_offset as f32).round() as i32
                 ))?;
+                
+                // 落笔
                 pen.pen_down()?;
                 
+                // 绘制笔画其余部分
                 for &(x, y) in stroke.iter().skip(1) {
                     // 每个点移动前都检查橡皮擦
                     if pen.is_eraser_touched()? {
@@ -321,7 +327,8 @@ impl HandwritingInput {
                 }
             }
             
-            sleep(Duration::from_millis(5));  
+            // 字符之间的延迟
+            sleep(Duration::from_millis(5));
         }
         
         pen.pen_up()?;  // 确保结束时笔是抬起的
