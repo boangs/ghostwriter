@@ -233,22 +233,22 @@ impl HandwritingInput {
 
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
-        let font_size = 10.0;
-        let line_spacing = font_size as i32 + 60; // 增加行距到 40 像素
-        let char_spacing = (font_size * 2.0) as i32;  // 添加字符间距，为字体大小的 1/4
+        let font_size = 40.0;
+        let line_spacing = font_size as i32 + 40; // 增加行距到 40 像素
+        let char_spacing = font_size as i32 / 4;  // 添加字符间距，为字体大小的 1/4
         let bottom_margin = 100; // 底部留白
         
-        let mut current_x = x;
-        let mut current_y = y;
+        let mut current_x = x as f32;
+        let mut current_y = y as f32;
         
         for c in text.chars() {
             if c == '\n' {
                 // 处理换行
-                current_x = x;
-                current_y += line_spacing;
+                current_x = x as f32;
+                current_y += line_spacing as f32;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
-                    current_y = y; // 回到顶部
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+                    current_y = y as f32; // 回到顶部
                 }
                 continue;
             }
@@ -260,9 +260,9 @@ impl HandwritingInput {
             };
             
             // 检查是否需要换页
-            if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
-                current_y = y; // 回到顶部
-                current_x = x;
+            if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+                current_y = y as f32; // 回到顶部
+                current_x = x as f32;
             }
             
             // 绘制笔画
@@ -273,35 +273,36 @@ impl HandwritingInput {
                 
                 let (start_x, start_y) = stroke[0];
                 pen.pen_up()?;
+                // 在最后一步转换为整数
                 pen.goto_xy((
-                    start_x + current_x,
-                    start_y + current_y + baseline_offset
+                    (start_x + current_x).round() as i32,
+                    (start_y + current_y + baseline_offset as f32).round() as i32
                 ))?;
                 pen.pen_down()?;
                 
                 for &(x, y) in stroke.iter().skip(1) {
                     pen.goto_xy((
-                        x + current_x,
-                        y + current_y + baseline_offset
+                        (x + current_x).round() as i32,
+                        (y + current_y + baseline_offset as f32).round() as i32
                     ))?;
                     sleep(Duration::from_millis(5));
                 }
             }
             
             // 增加字符宽度和额外的间距
-            current_x += char_width + char_spacing;
+            current_x += char_width as f32 + char_spacing as f32;
             
             // 如果超出屏幕宽度，换行
-            if current_x > REMARKABLE_WIDTH as i32 - 120 {
-                current_x = x;
-                current_y += line_spacing;
+            if current_x > REMARKABLE_WIDTH as f32 - 100.0 {
+                current_x = x as f32;
+                current_y += line_spacing as f32;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT  as i32 - bottom_margin {
-                    current_y = y; // 回到顶部
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+                    current_y = y as f32; // 回到顶部
                 }
             }
             
-            sleep(Duration::from_millis(2));
+            sleep(Duration::from_millis(10));
         }
         
         pen.pen_up()?;

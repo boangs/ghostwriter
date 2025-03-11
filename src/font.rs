@@ -208,7 +208,7 @@ impl HersheyFont {
         Ok(HersheyFont { json_glyphs })
     }
 
-    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
+    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(f32, f32)>>, i32, i32)> {
         let (coords, point_types) = self.json_glyphs.get(&c)
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("字符 {} 不在字体数据中", c))?;
@@ -227,10 +227,10 @@ impl HersheyFont {
         }
         
         // 使用统一的缩放比例，不再区分字符类型
-        let scale = size / 100.0;  // 假设字体设计时是在 1000 单位的网格中
+        let scale = size / 100.0;  // 将原始坐标缩放到目标字体大小
         
         // 将坐标点按笔画分组
-        let mut strokes: Vec<Vec<(i32, i32)>> = Vec::new();
+        let mut strokes: Vec<Vec<(f32, f32)>> = Vec::new();
         let mut current_stroke = Vec::new();
         
         for (i, (&(x, y), &point_type)) in coords.iter().zip(point_types.iter()).enumerate() {
@@ -241,9 +241,9 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 直接应用缩放，保持原始坐标系统中的相对大小
-            let px = (x * scale).round() as i32;
-            let py = (y * scale).round() as i32;
+            // 保持浮点数精度，不再转换为整数
+            let px = x * scale;
+            let py = y * scale;
             
             current_stroke.push((px, py));
         }
@@ -255,8 +255,8 @@ impl HersheyFont {
         // 使用原始坐标系统中的相对位置
         let baseline_offset = 0;
         
-        // 字符宽度使用边界框宽度，并添加额外间距
-        let char_width = ((max_x - min_x) * scale) as i32;  // 增加 20% 的字间距
+        // 字符宽度使用边界框宽度，保持整数返回以兼容现有代码
+        let char_width = ((max_x - min_x) * scale).round() as i32;
         
         Ok((strokes, baseline_offset, char_width))
     }
