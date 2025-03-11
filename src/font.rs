@@ -24,7 +24,7 @@ impl FontRenderer {
         Ok(FontRenderer { face })
     }
 
-    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(i32, i32)>>, i32, i32)> {
+    pub fn get_char_strokes(&self, c: char, size: f32) -> Result<(Vec<Vec<(f32, f32)>>, i32, i32)> {
         self.face.set_pixel_sizes(0, size as u32)?;
         self.face.load_char(
             c as usize, 
@@ -61,8 +61,8 @@ impl FontRenderer {
                         }
                         in_stroke = true;
                     }
-                    let px = (x as f32 * scale).round() as i32;
-                    let py = (y as f32 * scale).round() as i32;
+                    let px = x as f32 * scale;
+                    let py = y as f32 * scale;
                     current_stroke.push((px, py));
                 } else if in_stroke {
                     in_stroke = false;
