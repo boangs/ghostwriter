@@ -226,10 +226,10 @@ impl HersheyFont {
             max_y = max_y.max(y);
         }
         
-        // 使用统一的缩放比例，不再区分字符类型
-        let scale = size / 500.0;  // 将原始坐标缩放到目标字体大小
+        // 使用统一的缩放比例
+        let scale = size / 250.0;
         
-        // 将坐标点按笔画分组
+        // 将坐标点按笔画分组，并进行坐标变换
         let mut strokes: Vec<Vec<(f32, f32)>> = Vec::new();
         let mut current_stroke = Vec::new();
         
@@ -241,8 +241,8 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 保持浮点数精度，不再转换为整数
-            let px = x * scale;
+            // 将坐标原点移动到字符边界框的左边界
+            let px = (x - min_x) * scale;
             let py = y * scale;
             
             current_stroke.push((px, py));
@@ -255,7 +255,7 @@ impl HersheyFont {
         // 使用原始坐标系统中的相对位置
         let baseline_offset = 0;
         
-        // 字符宽度使用边界框宽度，保持整数返回以兼容现有代码
+        // 字符宽度使用边界框宽度
         let char_width = ((max_x - min_x) * scale).round() as i32;
         
         Ok((strokes, baseline_offset, char_width))
