@@ -235,103 +235,90 @@ impl HandwritingInput {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 22.0;
         
-        let base_spacing_ratio = 0.2;
-        let min_spacing = font_size * 0.1;
-        let line_height = font_size * 3.0;
-        let bottom_margin = 100.0;
+        // 基础间距设置
+        let base_spacing_ratio = 0.2; // 基础间距为字符宽度的 20%
+        let min_spacing = font_size * 0.1; // 最小间距为字体大小的 10%
+        let line_height = font_size * 3.0; // 行高为字体大小的 1.5 倍
+        let bottom_margin = 100.0; // 底部留白
         
         let mut current_x = x as f32;
         let mut current_y = y as f32;
-
-        // 确保开始时笔是抬起的
-        pen.pen_up()?;
         
         for c in text.chars() {
-            // 检查橡皮擦是否接触
-            if pen.is_eraser_touched()? {
-                info!("检测到橡皮擦，停止书写");
-                pen.pen_up()?;
-                return Ok(());
-            }
-
             if c == '\n' {
+                // 处理换行
                 current_x = x as f32;
                 current_y += line_height;
+                // 检查是否需要换页
                 if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
-                    current_y = y as f32;
+                    current_y = y as f32; // 回到顶部
                 }
                 continue;
             }
             
+            // 尝试使用 Hershey 字体，如果失败则回退到 FreeType
             let (strokes, baseline_offset, char_width) = match self.hershey_font.get_char_strokes(c, font_size) {
                 Ok(result) => result,
                 Err(_) => self.font_renderer.get_char_strokes(c, font_size)?
             };
             
+            // 检查是否需要换页
             if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
-                current_y = y as f32;
+                current_y = y as f32; // 回到顶部
                 current_x = x as f32;
             }
             
+            // 绘制笔画
             for stroke in strokes {
                 if stroke.len() < 2 {
                     continue;
                 }
                 
-                // 每个笔画开始前先抬笔
-                pen.pen_up()?;
-                
-                // 移动到笔画起点
                 let (start_x, start_y) = stroke[0];
                 pen.pen_up()?;
+                // 在最后一步转换为整数
                 pen.goto_xy((
                     (start_x + current_x).round() as i32,
                     (start_y + current_y + baseline_offset as f32).round() as i32
                 ))?;
-                
-                // 落笔
                 pen.pen_down()?;
                 
-                // 绘制笔画其余部分
                 for &(x, y) in stroke.iter().skip(1) {
-                    // 每个点移动前都检查橡皮擦
-                    if pen.is_eraser_touched()? {
-                        info!("检测到橡皮擦，停止书写");
-                        pen.pen_up()?;
-                        return Ok(());
-                    }
-                    
                     pen.goto_xy((
                         (x + current_x).round() as i32,
                         (y + current_y + baseline_offset as f32).round() as i32
                     ))?;
                     sleep(Duration::from_millis(5));
                 }
-                pen.pen_up()?;  // 每个笔画结束后抬笔
             }
             
+            // 计算字符间距
             let char_width = char_width as f32;
             let spacing = if c.is_ascii() {
+                // 英文字符使用更小的间距，并考虑字符宽度
                 (char_width * base_spacing_ratio * 0.8).max(min_spacing)
             } else {
+                // 中文字符使用标准间距
                 (char_width * base_spacing_ratio).max(min_spacing)
             };
             
+            // 增加字符宽度和额外的间距
             current_x += char_width + spacing;
             
+            // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as f32 - 100.0 {
                 current_x = x as f32;
                 current_y += line_height;
+                // 检查是否需要换页
                 if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
-                    current_y = y as f32;
+                    current_y = y as f32; // 回到顶部
                 }
             }
             
-            // 字符之间的延迟
-            sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(10));
         }
         
-        pen.pen_up()?;  // 确保结束时笔是抬起的
+        pen.pen_up()?;
         Ok(())
     }
 }

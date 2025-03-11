@@ -142,46 +142,21 @@ fn main() -> Result<()> {
         info!("进入手写输入模式");
         info!("请在屏幕上书写内容");
         info!("触摸右下角区域并松开手指来触发识别");
+        info!("触发区域：距离右边缘约 60 像素，距离底部约 60 像素的区域");
         
-        // 主循环
+        // 等待用户在右下角触发
         loop {
-            // 等待触摸事件触发识别
+            // 等待触摸事件
             if let Ok(()) = touch.wait_for_trigger() {
                 info!("检测到触发手势，开始识别...");
                 // 触发识别
                 match handwriting.capture_and_recognize() {
                     Ok((prompt, last_y)) => {
                         info!("识别到的提示词: {}", prompt);
-                        
-                        // 获取AI回复
+                        // 使用识别到的文本作为提示词，并传递最后一行的 y 坐标
                         let mut args = args.clone();
                         args.last_content_y = Some(last_y);
-                        
-                        // 创建新的引擎实例，复用所有选项
-                        let mut new_options = HashMap::new();
-                        if let Some(engine) = &args.engine {
-                            new_options.insert("engine".to_string(), engine.clone());
-                        }
-                        if let Some(base_url) = &args.engine_base_url {
-                            new_options.insert("base_url".to_string(), base_url.clone());
-                        }
-                        if let Some(api_key) = &args.engine_api_key {
-                            new_options.insert("api_key".to_string(), api_key.clone());
-                        }
-                        new_options.insert("model".to_string(), args.model.clone());
-                        
-                        let engine = Box::new(OpenAI::new(&new_options));
-                        let mut new_handwriting = HandwritingInput::new(args.no_draw, engine)?;
-                        
-                        // 开始写入AI回复
-                        if !args.no_draw {
-                            info!("开始绘制 AI 回复");
-                            // 如果写入过程中检测到橡皮擦，直接跳出当前写入
-                            if let Err(_) = new_handwriting.write_text(&prompt, 120, last_y) {
-                                info!("检测到橡皮擦，停止写入");
-                                continue; // 直接回到主循环开始
-                            }
-                        }
+                        process_with_prompt(&args, &prompt)?;
                     }
                     Err(e) => {
                         error!("识别失败: {}", e);
@@ -290,20 +265,11 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         
         let engine = Box::new(OpenAI::new(&options));
         let mut handwriting = HandwritingInput::new(args.no_draw, engine)?;
-        let mut touch = Touch::new(args.no_draw);
         
         // 绘制 AI 回复的文字
         if !args.no_draw {
             info!("开始绘制 AI 回复");
-            handwriting.write_text(&response_text, 120, last_y as i32)?;
-            
-            // 如果写入被中断（橡皮擦触发），等待用户在右下角触摸继续
-            if !args.no_trigger {
-                info!("书写被中断，请在右下角触摸以继续...");
-                touch.wait_for_trigger()?;
-                // 重新开始写入
-                handwriting.write_text(&response_text, 120, last_y as i32)?;
-            }
+            handwriting.write_text(&response_text, 150, last_y as i32)?;
         }
     } else {
         let keyboard = Keyboard::new(args.no_draw, args.no_draw_progress, Some(last_y))?;
