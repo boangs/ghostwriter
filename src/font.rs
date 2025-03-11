@@ -229,6 +229,13 @@ impl HersheyFont {
         // 使用统一的缩放比例
         let scale = size / 250.0;
         
+        // 为英文字符添加额外的边距
+        let (padding_left, padding_right) = if c.is_ascii() {
+            (size * 0.15, size * 0.15)  // 在字符两侧各添加 15% 的字体大小作为边距
+        } else {
+            (0.0, 0.0)  // 中文字符不需要额外边距
+        };
+        
         // 将坐标点按笔画分组，并进行坐标变换
         let mut strokes: Vec<Vec<(f32, f32)>> = Vec::new();
         let mut current_stroke = Vec::new();
@@ -241,8 +248,8 @@ impl HersheyFont {
                 current_stroke = Vec::new();
             }
             
-            // 将坐标原点移动到字符边界框的左边界
-            let px = (x - min_x) * scale;
+            // 将坐标原点移动到字符边界框的左边界，并添加左边距
+            let px = (x - min_x) * scale + padding_left;
             let py = y * scale;
             
             current_stroke.push((px, py));
@@ -255,8 +262,8 @@ impl HersheyFont {
         // 使用原始坐标系统中的相对位置
         let baseline_offset = 0;
         
-        // 字符宽度使用边界框宽度
-        let char_width = ((max_x - min_x) * scale).round() as i32;
+        // 字符宽度使用边界框宽度，并添加左右边距
+        let char_width = ((max_x - min_x) * scale + padding_left + padding_right).round() as i32;
         
         Ok((strokes, baseline_offset, char_width))
     }
