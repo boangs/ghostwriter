@@ -157,10 +157,20 @@ fn main() -> Result<()> {
                         let mut args = args.clone();
                         args.last_content_y = Some(last_y);
                         
-                        // 创建新的引擎实例
-                        let mut options = HashMap::new();
-                        options.insert("model".to_string(), args.model.clone());
-                        let engine = Box::new(OpenAI::new(&options));
+                        // 创建新的引擎实例，复用所有选项
+                        let mut new_options = HashMap::new();
+                        if let Some(engine) = &args.engine {
+                            new_options.insert("engine".to_string(), engine.clone());
+                        }
+                        if let Some(base_url) = &args.engine_base_url {
+                            new_options.insert("base_url".to_string(), base_url.clone());
+                        }
+                        if let Some(api_key) = &args.engine_api_key {
+                            new_options.insert("api_key".to_string(), api_key.clone());
+                        }
+                        new_options.insert("model".to_string(), args.model.clone());
+                        
+                        let engine = Box::new(OpenAI::new(&new_options));
                         let mut new_handwriting = HandwritingInput::new(args.no_draw, engine)?;
                         
                         // 开始写入AI回复
