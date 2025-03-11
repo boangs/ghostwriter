@@ -17,10 +17,8 @@ impl Pen {
         if let Some(ref mut device) = self.device {
             if let Ok(events) = device.fetch_events() {
                 for event in events {
-                    if let Ok(event) = event {
-                        if event.event_type() == EventType::KEY && event.code() == 321 {  // BTN_TOOL_RUBBER
-                            return Ok(event.value() != 0);
-                        }
+                    if event.event_type() == EventType::KEY && event.code() == 321 {  // BTN_TOOL_RUBBER
+                        return Ok(event.value() != 0);
                     }
                 }
             }
