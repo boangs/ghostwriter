@@ -227,7 +227,7 @@ impl HersheyFont {
         }
         
         // 使用统一的缩放比例，不再区分字符类型
-        let scale = size / 200.0;  // 将原始坐标缩放到目标字体大小
+        let scale = size / 250.0;  // 将原始坐标缩放到目标字体大小
         
         // 将坐标点按笔画分组
         let mut strokes: Vec<Vec<(f32, f32)>> = Vec::new();

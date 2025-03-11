@@ -234,10 +234,12 @@ impl HandwritingInput {
     pub fn write_text(&mut self, text: &str, x: i32, y: i32) -> Result<()> {
         let mut pen = self.pen.lock().unwrap();
         let font_size = 40.0;
-        let line_spacing = font_size as i32 + 40; // 增加行距到 40 像素
-        let cjk_char_spacing = font_size as i32 / 4;  // 中文字符间距
-        let ascii_char_spacing = font_size as i32 / 8; // 英文字符间距，使用中文间距的一半
-        let bottom_margin = 100; // 底部留白
+        
+        // 基础间距设置
+        let base_spacing_ratio = 0.2; // 基础间距为字符宽度的 20%
+        let min_spacing = font_size * 0.1; // 最小间距为字体大小的 10%
+        let line_height = font_size * 1.5; // 行高为字体大小的 1.5 倍
+        let bottom_margin = 100.0; // 底部留白
         
         let mut current_x = x as f32;
         let mut current_y = y as f32;
@@ -246,9 +248,9 @@ impl HandwritingInput {
             if c == '\n' {
                 // 处理换行
                 current_x = x as f32;
-                current_y += line_spacing as f32;
+                current_y += line_height;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
                     current_y = y as f32; // 回到顶部
                 }
                 continue;
@@ -261,7 +263,7 @@ impl HandwritingInput {
             };
             
             // 检查是否需要换页
-            if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+            if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
                 current_y = y as f32; // 回到顶部
                 current_x = x as f32;
             }
@@ -290,22 +292,25 @@ impl HandwritingInput {
                 }
             }
             
-            // 根据字符类型选择不同的间距
-            let char_spacing = if c.is_ascii() {
-                ascii_char_spacing
+            // 计算字符间距
+            let char_width = char_width as f32;
+            let spacing = if c.is_ascii() {
+                // 英文字符使用更小的间距，并考虑字符宽度
+                (char_width * base_spacing_ratio * 0.8).max(min_spacing)
             } else {
-                cjk_char_spacing
+                // 中文字符使用标准间距
+                (char_width * base_spacing_ratio).max(min_spacing)
             };
             
             // 增加字符宽度和额外的间距
-            current_x += char_width as f32 + char_spacing as f32;
+            current_x += char_width + spacing;
             
             // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as f32 - 100.0 {
                 current_x = x as f32;
-                current_y += line_spacing as f32;
+                current_y += line_height;
                 // 检查是否需要换页
-                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin as f32 {
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
                     current_y = y as f32; // 回到顶部
                 }
             }
