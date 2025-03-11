@@ -81,9 +81,9 @@ impl Keyboard {
                 
                 // 确保字符宽度不小于最小宽度
                 let actual_width = if Self::is_ascii_char(c) {
-                    char_width as f32.max(min_ascii_width)
+                    (char_width as f32).max(min_ascii_width)
                 } else {
-                    char_width as f32.max(min_cjk_width)
+                    (char_width as f32).max(min_cjk_width)
                 };
                 
                 if line_x + actual_width > max_width {
@@ -142,9 +142,9 @@ impl Keyboard {
                     };
                     
                     let actual_width = if Self::is_ascii_char(c) {
-                        char_width as f32.max(min_ascii_width)
+                        (char_width as f32).max(min_ascii_width)
                     } else {
-                        char_width as f32.max(min_cjk_width)
+                        (char_width as f32).max(min_cjk_width)
                     };
                     
                     if current_x + actual_width > max_width {
