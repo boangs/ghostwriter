@@ -15,15 +15,28 @@ impl Pen {
 
     pub fn is_eraser_touched(&mut self) -> Result<bool> {
         if let Some(ref mut device) = self.device {
+            let mut eraser_active = false;
+            let mut pen_active = false;
+
             if let Ok(events) = device.fetch_events() {
                 for event in events {
-                    if event.event_type() == EventType::KEY && event.code() == 321 {  // BTN_TOOL_RUBBER
-                        return Ok(event.value() != 0);
+                    match (event.event_type(), event.code()) {
+                        (EventType::KEY, 321) => {  // BTN_TOOL_RUBBER
+                            eraser_active = event.value() != 0;
+                        },
+                        (EventType::KEY, 320) => {  // BTN_TOOL_PEN
+                            pen_active = event.value() != 0;
+                        },
+                        _ => {}
                     }
                 }
             }
+
+            // 只有当橡皮擦激活且笔没有激活时才返回 true
+            Ok(eraser_active && !pen_active)
+        } else {
+            Ok(false)
         }
-        Ok(false)
     }
 
     pub fn pen_down(&mut self) -> Result<()> {
