@@ -233,7 +233,7 @@ impl HersheyFont {
         let (padding_left, padding_right) = if c.is_ascii() {
             (size * 0.15, size * 0.15)  // 在字符两侧各添加 15% 的字体大小作为边距
         } else {
-            (size * 0.1, size * 0.1)  // 中文字符不需要额外边距
+            (size * 0.15, size * 0.15)  // 中文字符不需要额外边距
         };
         
         // 将坐标点按笔画分组，并进行坐标变换
