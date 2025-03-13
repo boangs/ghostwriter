@@ -110,6 +110,10 @@ pub struct Args {
     /// Last content y coordinate
     #[arg(long)]
     last_content_y: Option<i32>,
+
+    /// 测试橡皮擦检测
+    #[arg(long)]
+    test_eraser: bool,
 }
 
 fn main() -> Result<()> {
@@ -120,6 +124,18 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp(None)  // 不显示时间戳
         .init();
+
+    if args.test_eraser {
+        info!("进入橡皮擦检测测试模式");
+        info!("请用笔的橡皮擦端靠近或触碰屏幕");
+        let mut pen = Pen::new(false);
+        loop {
+            if pen.check_real_eraser()? {
+                println!("检测到橡皮擦！");
+            }
+            sleep(Duration::from_millis(100));
+        }
+    }
 
     if args.handwriting_mode {
         // 手写输入模式
