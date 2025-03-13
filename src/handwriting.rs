@@ -302,7 +302,7 @@ impl HandwritingInput {
                         (x + current_x).round() as i32,
                         (y + current_y + baseline_offset as f32).round() as i32
                     ))?;
-                    sleep(Duration::from_millis(5));
+                    // sleep(Duration::from_millis(5));
                 }
             }
             
@@ -329,7 +329,7 @@ impl HandwritingInput {
                 }
             }
             
-            sleep(Duration::from_millis(10));
+            sleep(Duration::from_millis(1));
         }
         
         pen.pen_up()?;
