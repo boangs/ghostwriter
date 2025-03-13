@@ -320,9 +320,10 @@ impl HandwritingInput {
                 if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
                     current_y = y as f32; // 回到顶部
                 }
+                sleep(Duration::from_millis(10));
             }
             
-             sleep(Duration::from_millis(50));
+             sleep(Duration::from_millis(10));
         }
         
         pen.pen_up()?;
