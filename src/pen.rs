@@ -104,7 +104,7 @@ impl Pen {
             // 检查设备的当前状态
             if let Ok(state) = device.get_key_state() {
                 // 检查 BTN_TOOL_RUBBER (321) 是否被按下
-                if state.contains(&Key::BTN_TOOL_RUBBER) {
+                if state.contains(Key::BTN_TOOL_RUBBER) {
                     return Ok(true);
                 }
             }
