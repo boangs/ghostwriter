@@ -245,12 +245,6 @@ impl HandwritingInput {
         let mut current_y = y as f32;
         
         for c in text.chars() {
-            // 检查是否有橡皮擦接触
-            if pen.check_real_eraser()? {
-                info!("检测到橡皮擦接触，终止绘制过程");
-                pen.pen_up()?;
-                return Ok(());  // 直接返回，结束整个绘制过程
-            }
             
             if c == '\n' {
                 // 处理换行
@@ -302,7 +296,7 @@ impl HandwritingInput {
                         (x + current_x).round() as i32,
                         (y + current_y + baseline_offset as f32).round() as i32
                     ))?;
-                    // sleep(Duration::from_millis(5));
+                    sleep(Duration::from_millis(5));
                 }
             }
             
@@ -329,7 +323,7 @@ impl HandwritingInput {
                 }
             }
             
-            sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(10));
         }
         
         pen.pen_up()?;
