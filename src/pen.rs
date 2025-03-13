@@ -3,6 +3,7 @@ use evdev::{Device, EventType, InputEvent, Key};
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::time::Duration;
 use libc;
+use std::io::Read;
 
 pub struct Pen {
     device: Option<Device>,
@@ -94,46 +95,21 @@ impl Pen {
     }
 
     pub fn check_real_eraser(&mut self) -> Result<bool> {
-        if let Some(ref mut device) = self.device {
-            // 尝试使用非阻塞方式读取事件
-            // 首先设置为非阻塞模式
-            let fd = device.fd();
-            let flags = unsafe { libc::fcntl(fd, libc::F_GETFL, 0) };
-            if flags < 0 {
-                return Ok(false); // 如果获取标志失败，假设没有橡皮擦
-            }
-            
-            // 设置非阻塞标志
-            let result = unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) };
-            if result < 0 {
-                return Ok(false); // 如果设置失败，假设没有橡皮擦
-            }
-            
-            // 现在尝试读取事件
-            match device.fetch_events() {
-                Ok(events) => {
-                    for event in events {
-                        // 检查是否是橡皮擦接触事件
-                        if event.event_type() == EventType::KEY 
-                           && event.code() == 321  // BTN_TOOL_RUBBER
-                           && event.value() == 1 {  // 1 表示按下/接触
-                            
-                            // 恢复原来的标志
-                            unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
-                            return Ok(true);
-                        }
-                    }
-                    
-                    // 恢复原来的标志
-                    unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
-                }
-                Err(_) => {
-                    // 错误可能是因为没有事件，这是正常的
-                    // 恢复原来的标志
-                    unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
+        // 简化方法：直接检查设备状态而不是等待事件
+        // 这个方法不会阻塞，适合在绘制过程中频繁调用
+        
+        // 由于我们无法直接从 evdev 获取当前状态，我们使用一个简单的方法：
+        // 创建一个新的设备实例，读取当前状态
+        if let Ok(device) = Device::open("/dev/input/event2") {
+            // 检查设备的当前状态
+            if let Ok(state) = device.get_key_state() {
+                // 检查 BTN_TOOL_RUBBER (321) 是否被按下
+                if state.contains(&321) {
+                    return Ok(true);
                 }
             }
         }
+        
         Ok(false)
     }
 
