@@ -329,7 +329,7 @@ impl HandwritingInput {
                 }
             }
             
-            sleep(Duration::from_millis(1));
+            sleep(Duration::from_millis(5));
         }
         
         pen.pen_up()?;
