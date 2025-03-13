@@ -94,28 +94,15 @@ impl Pen {
 
     pub fn check_real_eraser(&mut self) -> Result<bool> {
         if let Some(ref mut device) = self.device {
-            // 设置非阻塞模式读取事件
-            device.set_nonblock()?;
-            
-            // 读取所有待处理的事件
-            match device.fetch_events() {
-                Ok(events) => {
-                    for event in events {
-                        // 检查是否是橡皮擦接触事件
-                        if event.event_type() == EventType::KEY 
-                           && event.code() == 321  // BTN_TOOL_RUBBER
-                           && event.value() == 1 {  // 1 表示按下/接触
-                            return Ok(true);
-                        }
+            // 读取事件
+            if let Ok(events) = device.fetch_events() {
+                for event in events {
+                    // 检查是否是橡皮擦接触事件
+                    if event.event_type() == EventType::KEY 
+                       && event.code() == 321  // BTN_TOOL_RUBBER
+                       && event.value() == 1 {  // 1 表示按下/接触
+                        return Ok(true);
                     }
-                }
-                Err(e) => {
-                    if e.kind() == std::io::ErrorKind::WouldBlock {
-                        // 非阻塞模式下没有事件时会返回这个错误，这是正常的
-                        return Ok(false);
-                    }
-                    // 其他错误则返回错误
-                    return Err(e.into());
                 }
             }
         }
