@@ -2,6 +2,7 @@ use anyhow::Result;
 use evdev::{Device, EventType, InputEvent, Key};
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
 use std::time::Duration;
+use libc;
 
 pub struct Pen {
     device: Option<Device>,
@@ -94,15 +95,42 @@ impl Pen {
 
     pub fn check_real_eraser(&mut self) -> Result<bool> {
         if let Some(ref mut device) = self.device {
-            // 读取事件
-            if let Ok(events) = device.fetch_events() {
-                for event in events {
-                    // 检查是否是橡皮擦接触事件
-                    if event.event_type() == EventType::KEY 
-                       && event.code() == 321  // BTN_TOOL_RUBBER
-                       && event.value() == 1 {  // 1 表示按下/接触
-                        return Ok(true);
+            // 尝试使用非阻塞方式读取事件
+            // 首先设置为非阻塞模式
+            let fd = device.fd();
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFL, 0) };
+            if flags < 0 {
+                return Ok(false); // 如果获取标志失败，假设没有橡皮擦
+            }
+            
+            // 设置非阻塞标志
+            let result = unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+            if result < 0 {
+                return Ok(false); // 如果设置失败，假设没有橡皮擦
+            }
+            
+            // 现在尝试读取事件
+            match device.fetch_events() {
+                Ok(events) => {
+                    for event in events {
+                        // 检查是否是橡皮擦接触事件
+                        if event.event_type() == EventType::KEY 
+                           && event.code() == 321  // BTN_TOOL_RUBBER
+                           && event.value() == 1 {  // 1 表示按下/接触
+                            
+                            // 恢复原来的标志
+                            unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
+                            return Ok(true);
+                        }
                     }
+                    
+                    // 恢复原来的标志
+                    unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
+                }
+                Err(_) => {
+                    // 错误可能是因为没有事件，这是正常的
+                    // 恢复原来的标志
+                    unsafe { libc::fcntl(fd, libc::F_SETFL, flags) };
                 }
             }
         }
