@@ -95,12 +95,8 @@ impl Pen {
     }
 
     pub fn check_real_eraser(&mut self) -> Result<bool> {
-        // 简化方法：直接检查设备状态而不是等待事件
-        // 这个方法不会阻塞，适合在绘制过程中频繁调用
-        
-        // 由于我们无法直接从 evdev 获取当前状态，我们使用一个简单的方法：
-        // 创建一个新的设备实例，读取当前状态
-        if let Ok(device) = Device::open("/dev/input/event2") {
+        // 使用已有的设备实例，而不是每次都创建新的
+        if let Some(ref mut device) = self.device {
             // 检查设备的当前状态
             if let Ok(state) = device.get_key_state() {
                 // 检查 BTN_TOOL_RUBBER (321) 是否被按下
