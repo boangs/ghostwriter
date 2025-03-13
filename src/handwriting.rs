@@ -9,7 +9,7 @@ use crate::llm_engine::LLMEngine;
 use crate::font::{FontRenderer, HersheyFont};
 use std::time::Duration;
 use std::thread::sleep;
-use log::{info, error};
+use log::{info, error, debug};
 use serde_json::json;
 use ureq;
 use crate::constants::REMARKABLE_WIDTH;
@@ -156,7 +156,7 @@ impl HandwritingInput {
                 }
             }
         }
-        info!("识别结果: {}", result);
+        debug!("识别结果: {}", result);
 
         // 仅为调试目的保存识别结果
         if cfg!(debug_assertions) {
