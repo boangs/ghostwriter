@@ -1,6 +1,7 @@
 use anyhow::Result;
-use evdev::{Device, EventType, InputEvent};
+use evdev::{Device, EventType, InputEvent, Key};
 use crate::constants::{INPUT_WIDTH, INPUT_HEIGHT, REMARKABLE_WIDTH, REMARKABLE_HEIGHT};
+use std::time::Duration;
 
 pub struct Pen {
     device: Option<Device>,
@@ -45,6 +46,38 @@ impl Pen {
         Ok(())
     }
 
+    pub fn eraser_down(&mut self) -> Result<()> {
+        if let Some(ref mut device) = self.device {
+            let events = vec![
+                InputEvent::new(EventType::KEY, 321, 1),     // BTN_TOOL_RUBBER
+                InputEvent::new(EventType::KEY, 330, 1),     // BTN_TOUCH
+                InputEvent::new(EventType::ABSOLUTE, 24, 2400), // ABS_PRESSURE (max pressure)
+                InputEvent::new(EventType::ABSOLUTE, 25, 0),    // ABS_DISTANCE
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
+            ];
+            for event in events {
+                device.send_events(&[event])?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn eraser_up(&mut self) -> Result<()> {
+        if let Some(ref mut device) = self.device {
+            let events = vec![
+                InputEvent::new(EventType::ABSOLUTE, 24, 0),    // ABS_PRESSURE
+                InputEvent::new(EventType::ABSOLUTE, 25, 100),  // ABS_DISTANCE
+                InputEvent::new(EventType::KEY, 330, 0),        // BTN_TOUCH
+                InputEvent::new(EventType::KEY, 321, 0),        // BTN_TOOL_RUBBER
+                InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
+            ];
+            for event in events {
+                device.send_events(&[event])?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn goto_xy(&mut self, (x, y): (i32, i32)) -> Result<()> {
         // 转换屏幕坐标到输入设备坐标
         let (input_x, input_y) = screen_to_input((x, y));
@@ -59,12 +92,39 @@ impl Pen {
         Ok(())
     }
 
+    pub fn check_real_eraser(&mut self) -> Result<bool> {
+        if let Some(ref mut device) = self.device {
+            // 设置非阻塞模式读取事件
+            device.set_nonblock()?;
+            
+            // 读取所有待处理的事件
+            for event in device.fetch_events()? {
+                // 检查是否是橡皮擦接触事件
+                if event.event_type() == EventType::KEY 
+                   && event.code() == 321  // BTN_TOOL_RUBBER
+                   && event.value() == 1 {  // 1 表示按下/接触
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub fn draw_bitmap(&mut self, bitmap: &Vec<Vec<bool>>) -> Result<()> {
         let scale_x = INPUT_WIDTH as f32 / bitmap[0].len() as f32;
         let scale_y = INPUT_HEIGHT as f32 / bitmap.len() as f32;
         let mut pen_state = false;  // 跟踪笔的状态
         
         for (y, row) in bitmap.iter().enumerate() {
+            // 检查是否有橡皮擦接触
+            if self.check_real_eraser()? {
+                println!("检测到真实橡皮擦接触！");
+                // 这里可以选择要做什么，比如：
+                // - 停止当前绘制
+                // - 记录这个事件
+                // - 或者继续绘制
+            }
+            
             for (x, &pixel) in row.iter().enumerate() {
                 if pixel {
                     let x_pos = (x as f32 * scale_x) as i32;
