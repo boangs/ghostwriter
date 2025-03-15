@@ -260,10 +260,12 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
 
     // 创建键盘实例，使用最后一行的 y 坐标加上一些间距
     let last_y = if let Some(y) = args.last_content_y {
-        // 在reMarkable 2坐标系中，Y轴向上为正，所以较小的Y值表示更靠近屏幕顶部
+        // 在reMarkable 2坐标系中，Y轴向上为正，所以较小的Y值表示更靠近屏幕底部
         // 由于screenshot.find_last_content_y()返回的是图像坐标系中的值（Y轴向下为正）
         // 我们需要将其转换为reMarkable 2坐标系中的值
-        let y_converted = REMARKABLE_HEIGHT as i32 - y - 50;  // 减去50像素的间距
+        // 但是由于我们修改了write_text方法，现在增加Y值表示向下移动
+        // 所以我们直接使用y值加上一些间距
+        let y_converted = y + 20;  // 添加20像素的间距
         if y_converted < 0 {
             0u32  // 如果计算结果为负数，使用0
         } else {

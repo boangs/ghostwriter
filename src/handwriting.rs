@@ -252,11 +252,11 @@ impl HandwritingInput {
             if c == '\n' {
                 // 处理换行
                 current_x = x as f32;
-                // 在reMarkable 2坐标系中，Y轴向上为正，所以减少Y值表示向下移动
-                current_y -= line_height;
+                // 在reMarkable 2坐标系中，Y轴向上为正，所以增加Y值表示向下移动
+                current_y += line_height;
                 // 检查是否需要换页
-                if current_y < bottom_margin {
-                    current_y = top_margin; // 回到顶部
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
+                    current_y = bottom_margin; // 回到顶部
                     info!("换页，新位置: ({}, {})", current_x, current_y);
                 }
                 continue;
@@ -269,8 +269,8 @@ impl HandwritingInput {
             };
             
             // 检查是否需要换页
-            if current_y < bottom_margin {
-                current_y = top_margin; // 回到顶部
+            if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
+                current_y = bottom_margin; // 回到顶部
                 current_x = x as f32;
                 info!("换页，新位置: ({}, {})", current_x, current_y);
             }
@@ -321,11 +321,11 @@ impl HandwritingInput {
             // 如果超出屏幕宽度，换行
             if current_x > REMARKABLE_WIDTH as f32 - 100.0 {
                 current_x = x as f32;
-                // 在reMarkable 2坐标系中，Y轴向上为正，所以减少Y值表示向下移动
-                current_y -= line_height;
+                // 在reMarkable 2坐标系中，Y轴向上为正，所以增加Y值表示向下移动
+                current_y += line_height;
                 // 检查是否需要换页
-                if current_y < bottom_margin {
-                    current_y = top_margin; // 回到顶部
+                if current_y > REMARKABLE_HEIGHT as f32 - bottom_margin {
+                    current_y = bottom_margin; // 回到顶部
                     info!("换行并换页，新位置: ({}, {})", current_x, current_y);
                 }
                 sleep(Duration::from_millis(10));
