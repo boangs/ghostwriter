@@ -149,11 +149,16 @@ impl Pen {
 }
 
 fn screen_to_input((x, y): (i32, i32)) -> (i32, i32) {
+    // reMarkable 2坐标系：原点在左下角，X轴垂直（纵轴），Y轴水平（横轴）
+    
+    // 1. 将屏幕坐标归一化
     let x_normalized = x as f32 / REMARKABLE_WIDTH as f32;
     let y_normalized = y as f32 / REMARKABLE_HEIGHT as f32;
     
-    let x_input = (x_normalized * INPUT_WIDTH as f32) as i32;
-    let y_input = (y_normalized * INPUT_HEIGHT as f32) as i32;
+    // 2. 交换X和Y坐标，并翻转Y轴
+    // 注意：在reMarkable 2上，INPUT_HEIGHT对应X轴，INPUT_WIDTH对应Y轴
+    let y_input = (x_normalized * INPUT_WIDTH as f32) as i32;
+    let x_input = ((1.0 - y_normalized) * INPUT_HEIGHT as f32) as i32;
     
     (x_input, y_input)
 }
