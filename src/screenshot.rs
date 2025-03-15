@@ -9,9 +9,9 @@ use base64::{Engine, engine::general_purpose};
 use image::ImageEncoder;
 
 #[allow(dead_code)]
-const WIDTH: usize = 1403;  // 更新为正确的屏幕尺寸
+const WIDTH: usize = 1404;  // 更新为正确的屏幕尺寸
 #[allow(dead_code)]
-const HEIGHT: usize = 1871;
+const HEIGHT: usize = 1872;
 #[allow(dead_code)]
 const BYTES_PER_PIXEL: usize = 4;  // RGBA 格式
 #[allow(dead_code)]
