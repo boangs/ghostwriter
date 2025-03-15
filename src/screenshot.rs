@@ -118,7 +118,7 @@ impl Screenshot {
         let lines: Vec<&str> = maps.lines().collect();
         
         for i in (0..lines.len()).rev() {
-            if lines[i].contains("/dev/dri/card0") {
+            if lines[i].contains("/dev/fb0") {
                 info!("找到 DRI 设备映射: {}", lines[i]);
                 if i + 1 < lines.len() {
                     memory_range = Some(lines[i + 1].split_whitespace().next().unwrap().to_string());
