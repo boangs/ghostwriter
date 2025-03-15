@@ -240,9 +240,12 @@ impl HandwritingInput {
         let min_spacing = font_size * 0.1; // 最小间距为字体大小的 10%
         let line_height = font_size * 3.5; // 行高为字体大小的 3.5 倍
         let bottom_margin = 100.0; // 底部留白
+        let top_margin = REMARKABLE_HEIGHT as f32 - 100.0; // 顶部留白
         
         let mut current_x = x as f32;
         let mut current_y = y as f32;
+        
+        info!("开始绘制文本，起始位置: ({}, {})", current_x, current_y);
         
         for c in text.chars() {
             
@@ -253,7 +256,8 @@ impl HandwritingInput {
                 current_y -= line_height;
                 // 检查是否需要换页
                 if current_y < bottom_margin {
-                    current_y = REMARKABLE_HEIGHT as f32 - bottom_margin; // 回到顶部
+                    current_y = top_margin; // 回到顶部
+                    info!("换页，新位置: ({}, {})", current_x, current_y);
                 }
                 continue;
             }
@@ -266,8 +270,9 @@ impl HandwritingInput {
             
             // 检查是否需要换页
             if current_y < bottom_margin {
-                current_y = REMARKABLE_HEIGHT as f32 - bottom_margin; // 回到顶部
+                current_y = top_margin; // 回到顶部
                 current_x = x as f32;
+                info!("换页，新位置: ({}, {})", current_x, current_y);
             }
             
             // 绘制笔画
@@ -320,7 +325,8 @@ impl HandwritingInput {
                 current_y -= line_height;
                 // 检查是否需要换页
                 if current_y < bottom_margin {
-                    current_y = REMARKABLE_HEIGHT as f32 - bottom_margin; // 回到顶部
+                    current_y = top_margin; // 回到顶部
+                    info!("换行并换页，新位置: ({}, {})", current_x, current_y);
                 }
                 sleep(Duration::from_millis(10));
             }
