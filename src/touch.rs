@@ -101,7 +101,7 @@ impl Touch {
                                     ABS_MT_TRACKING_ID => {
                                         if event.value() == -1 {
                                             trace!("触摸释放坐标: ({}, {})", position_x, position_y);
-                                            if position_x > 2030 && position_y < 70 {
+                                            if position_x > 1380 && position_y < 1820 {
                                                 info!("触发识别！");
                                                 return Ok(());
                                             }
