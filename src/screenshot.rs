@@ -80,8 +80,8 @@ pub struct Screenshot {
 impl Screenshot {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            width: 1624,  // remarkable 的实际宽度
-            height: 2154, // remarkable 的实际高度
+            width: 1404,  // remarkable 的实际宽度
+            height: 1872, // remarkable 的实际高度
             data: Vec::new(),
             last_content_y: 50,  // 修改初始值为靠近顶部的位置
         })
