@@ -263,10 +263,15 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         // 在reMarkable 2坐标系中，Y轴向上为正，所以较小的Y值表示更靠近屏幕顶部
         // 由于screenshot.find_last_content_y()返回的是图像坐标系中的值（Y轴向下为正）
         // 我们需要将其转换为reMarkable 2坐标系中的值
-        REMARKABLE_HEIGHT as i32 - y - 50  // 减去50像素的间距
+        let y_converted = REMARKABLE_HEIGHT as i32 - y - 50;  // 减去50像素的间距
+        if y_converted < 0 {
+            0u32  // 如果计算结果为负数，使用0
+        } else {
+            y_converted as u32  // 转换为u32
+        }
     } else {
         // 默认值，靠近屏幕上方
-        1800
+        300u32
     };
 
     // 如果是手写模式，使用 HandwritingInput 的 write_text 方法
