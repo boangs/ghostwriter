@@ -33,7 +33,7 @@ impl Touch {
             None
         } else {
             info!("尝试打开触摸设备...");
-            match Device::open("/dev/input/event3") {
+            match Device::open("/dev/input/event2") {
                 Ok(dev) => {
                     info!("成功打开触摸设备");
                     info!("设备名称: {}", dev.name().unwrap_or("未知"));

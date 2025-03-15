@@ -12,7 +12,7 @@ pub struct Pen {
 impl Pen {
     pub fn new(no_draw: bool) -> Self {
         Self {
-            device: if no_draw { None } else { Some(Device::open("/dev/input/event2").unwrap()) },
+            device: if no_draw { None } else { Some(Device::open("/dev/input/event1").unwrap()) },
         }
     }
 
