@@ -51,7 +51,7 @@ impl Pen {
     pub fn eraser_down(&mut self) -> Result<()> {
         if let Some(ref mut device) = self.device {
             let events = vec![
-                InputEvent::new(EventType::KEY, 321, 1),     // BTN_TOOL_RUBBER
+                InputEvent::new(EventType::KEY, 331, 1),     // BTN_TOOL_RUBBER
                 InputEvent::new(EventType::KEY, 330, 1),     // BTN_TOUCH
                 InputEvent::new(EventType::ABSOLUTE, 24, 2400), // ABS_PRESSURE (max pressure)
                 InputEvent::new(EventType::ABSOLUTE, 25, 0),    // ABS_DISTANCE
@@ -70,7 +70,7 @@ impl Pen {
                 InputEvent::new(EventType::ABSOLUTE, 24, 0),    // ABS_PRESSURE
                 InputEvent::new(EventType::ABSOLUTE, 25, 100),  // ABS_DISTANCE
                 InputEvent::new(EventType::KEY, 330, 0),        // BTN_TOUCH
-                InputEvent::new(EventType::KEY, 321, 0),        // BTN_TOOL_RUBBER
+                InputEvent::new(EventType::KEY, 331, 0),        // BTN_TOOL_RUBBER
                 InputEvent::new(EventType::SYNCHRONIZATION, 0, 0), // SYN_REPORT
             ];
             for event in events {
@@ -99,7 +99,7 @@ impl Pen {
         if let Some(ref mut device) = self.device {
             // 检查设备的当前状态
             if let Ok(state) = device.get_key_state() {
-                // 检查 BTN_TOOL_RUBBER (321) 是否被按下
+                // 检查 BTN_TOOL_RUBBER (331) 是否被按下
                 if state.contains(Key::BTN_TOOL_RUBBER) {
                     return Ok(true);
                 }
