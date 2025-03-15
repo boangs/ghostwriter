@@ -271,7 +271,7 @@ fn process_with_prompt(args: &Args, prompt: &str) -> Result<()> {
         }
     } else {
         // 默认值，靠近屏幕上方
-        300u32
+        1800u32
     };
 
     // 如果是手写模式，使用 HandwritingInput 的 write_text 方法
