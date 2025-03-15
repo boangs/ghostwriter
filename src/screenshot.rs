@@ -83,7 +83,7 @@ impl Screenshot {
             width: 1404,  // remarkable 的实际宽度
             height: 1872, // remarkable 的实际高度
             data: Vec::new(),
-            last_content_y: 50,  // 修改初始值为靠近顶部的位置
+            last_content_y: 1800,  // 修改初始值为靠近顶部的位置
         })
     }
 
@@ -254,7 +254,7 @@ impl Screenshot {
         }
         
         info!("未找到内容，返回顶部位置");
-        50  // 返回靠近顶部的位置，给第一行内容留出一些空间
+        1800  // 返回靠近顶部的位置，给第一行内容留出一些空间
     }
 
     #[allow(dead_code)]
