@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the hostname for the remarkable based on $1 and fall back to `remarkable`
-remarkable="${1:-remarkable}"
+remarkable="10.11.99.1"
 
 if [ "$1" == "local" ]; then
     cargo build --release
