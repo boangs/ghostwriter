@@ -102,8 +102,8 @@ impl LLMEngine for OpenAI {
         
         // 根据 base_url 判断是哪种 API
         let api_url = if self.base_url.contains("localhost") || self.base_url.contains("192.168.1.170") {
-            // Ollama API
-            format!("{}/api/chat", self.base_url)
+            // Ollama API (使用 OpenAI 兼容接口)
+            format!("{}/v1/chat/completions", self.base_url)
         } else if self.base_url.contains("volcengine.com") || self.base_url.contains("volces.com") {
             // 火山引擎 API V3
             format!("{}/api/v3/chat/completions", self.base_url)
@@ -145,17 +145,14 @@ impl LLMEngine for OpenAI {
         debug!("Response: {}", json);
 
         // 处理不同 API 的响应格式
-        let tool_calls = if self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1") {
-            // Ollama 格式
-            &json["message"]["tool_calls"]
-        } else if self.base_url.contains("volcengine.com") {
+        let tool_calls = if self.base_url.contains("volcengine.com") {
             // 火山引擎格式 (与 OpenAI 相同)
             &json["choices"][0]["message"]["tool_calls"]
         } else if self.base_url.contains("dashscope.aliyuncs.com") {
             // 千问兼容模式格式 (与 OpenAI 相同)
             &json["choices"][0]["message"]["tool_calls"]
         } else {
-            // OpenAI 格式
+            // OpenAI 和 Ollama 格式相同
             &json["choices"][0]["message"]["tool_calls"]
         };
 
