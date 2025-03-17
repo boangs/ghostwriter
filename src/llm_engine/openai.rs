@@ -107,6 +107,9 @@ impl LLMEngine for OpenAI {
         } else if self.base_url.contains("volcengine.com") || self.base_url.contains("volces.com") {
             // 火山引擎 API V3
             format!("{}/api/v3/chat/completions", self.base_url)
+        } else if self.base_url.contains("dashscope.aliyuncs.com") {
+            // 千问 API 兼容模式
+            format!("{}/compatible-mode/v1/chat/completions", self.base_url)
         } else {
             // OpenAI API
             format!("{}/v1/chat/completions", self.base_url)
@@ -117,6 +120,9 @@ impl LLMEngine for OpenAI {
 
         // 根据不同的 API 设置不同的认证头
         if self.base_url.contains("volcengine.com") || self.base_url.contains("volces.com") {
+            request = request.set("Authorization", &format!("Bearer {}", self.api_key));
+        } else if self.base_url.contains("dashscope.aliyuncs.com") {
+            // 千问 API 使用 Bearer 认证
             request = request.set("Authorization", &format!("Bearer {}", self.api_key));
         } else {
             request = request.set("Authorization", &format!("Bearer {}", self.api_key));
@@ -144,6 +150,9 @@ impl LLMEngine for OpenAI {
             &json["message"]["tool_calls"]
         } else if self.base_url.contains("volcengine.com") {
             // 火山引擎格式 (与 OpenAI 相同)
+            &json["choices"][0]["message"]["tool_calls"]
+        } else if self.base_url.contains("dashscope.aliyuncs.com") {
+            // 千问兼容模式格式 (与 OpenAI 相同)
             &json["choices"][0]["message"]["tool_calls"]
         } else {
             // OpenAI 格式
