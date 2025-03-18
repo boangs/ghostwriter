@@ -87,16 +87,38 @@ impl LLMEngine for OpenAI {
     }
 
     fn execute(&mut self) -> Result<()> {
-        let body = json!({
-            "model": self.model,
-            "messages": [{
-                "role": "user",
-                "content": self.content
-            }],
-            "tools": self.tools.iter().map(|tool| Self::openai_tool_definition(tool)).collect::<Vec<_>>(),
-            "tool_choice": "required",
-            "parallel_tool_calls": false
-        });
+        // 根据不同的 API 构建不同的请求体
+        let body = if self.base_url.contains("dashscope.aliyuncs.com") {
+            // 千问 API，添加系统消息引导其使用工具调用
+            json!({
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "你是一个专注于OCR文字识别的助手。请仅返回识别到的文字内容，不要添加任何解释、问候或额外内容。"
+                    },
+                    {
+                        "role": "user",
+                        "content": self.content
+                    }
+                ],
+                "tools": self.tools.iter().map(|tool| Self::openai_tool_definition(tool)).collect::<Vec<_>>(),
+                "tool_choice": "required",
+                "parallel_tool_calls": false
+            })
+        } else {
+            // 其他 API 格式
+            json!({
+                "model": self.model,
+                "messages": [{
+                    "role": "user",
+                    "content": self.content
+                }],
+                "tools": self.tools.iter().map(|tool| Self::openai_tool_definition(tool)).collect::<Vec<_>>(),
+                "tool_choice": "required",
+                "parallel_tool_calls": false
+            })
+        };
 
         debug!("Request: {}", body);
         
@@ -155,24 +177,23 @@ impl LLMEngine for OpenAI {
                 info!("使用 output.choices 路径");
                 &json["output"]["choices"][0]["message"]["tool_calls"]
             } else if json["choices"].is_array() && json["choices"][0]["message"]["content"].is_string() {
-                // 可能返回的是纯文本而不是工具调用，尝试解析文本内容
-                info!("千问返回纯文本内容，尝试解析为工具调用");
+                // 可能返回的是纯文本而不是工具调用，直接使用文本内容
+                info!("千问返回纯文本内容，将其直接作为OCR结果处理");
                 let content = json["choices"][0]["message"]["content"].as_str().unwrap_or("");
                 info!("千问返回的文本内容: {}", content);
                 
-                // 提取可能包含的工具调用
-                if content.contains("\"function\":") && content.contains("\"name\":") {
-                    // 使用默认工具进行处理
-                    if !self.tools.is_empty() {
-                        let tool = &mut self.tools[0];
-                        let input = json!({ "text": content });
-                        if let Some(callback) = &mut tool.callback {
-                            callback(input);
-                            return Ok(());
-                        }
+                // 直接将文本作为OCR结果处理
+                if !self.tools.is_empty() {
+                    let tool = &mut self.tools[0];
+                    let input = json!({ "text": content });
+                    if let Some(callback) = &mut tool.callback {
+                        callback(input);
+                        return Ok(());
                     }
                 }
-                return Err(anyhow::anyhow!("千问API响应中未找到工具调用，返回的是纯文本: {}", content));
+                
+                // 如果没有注册工具，返回错误
+                return Err(anyhow::anyhow!("千问API响应中未找到工具调用，返回的是纯文本，但已作为OCR结果处理"));
             } else {
                 info!("使用默认路径 choices[0].message.tool_calls");
                 &json["choices"][0]["message"]["tool_calls"]
