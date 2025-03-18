@@ -180,17 +180,25 @@ impl Screenshot {
         let mut raw_data = vec![0u8; count as usize];
         mem_file.read_exact(&mut raw_data)?;
         
-        // 创建 RGBA 图像
-        let img = image::RgbaImage::from_raw(
+        // 直接将RGBA数据转换为灰度数据，跳过创建RGBA图像的步骤
+        info!("将RGBA数据直接转换为灰度图");
+        let mut gray_data = vec![0u8; (self.width * self.height) as usize];
+        for i in 0..(self.width * self.height) as usize {
+            let rgba = &raw_data[i * 4..(i + 1) * 4];
+            // 使用标准的灰度转换公式，更准确地考虑人眼对不同颜色的敏感度
+            // 公式: Gray = 0.299*R + 0.587*G + 0.114*B
+            gray_data[i] = ((0.299 * rgba[0] as f32) + 
+                           (0.587 * rgba[1] as f32) + 
+                           (0.114 * rgba[2] as f32)) as u8;
+        }
+        
+        // 直接创建灰度图
+        let gray_img = image::GrayImage::from_raw(
             self.width,
             self.height,
-            raw_data
-        ).ok_or_else(|| anyhow::anyhow!("无法创建 RGBA 图像"))?;
+            gray_data
+        ).ok_or_else(|| anyhow::anyhow!("无法创建灰度图像"))?;
         
-        info!("原始 RGBA 图像尺寸: {}x{}", self.width, self.height);
-        
-        // 转换为灰度图
-        let gray_img = image::DynamicImage::ImageRgba8(img).into_luma8();
         info!("灰度图尺寸: {}x{}", gray_img.width(), gray_img.height());
         
         // 调整对比度
