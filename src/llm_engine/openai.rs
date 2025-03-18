@@ -109,7 +109,7 @@ impl LLMEngine for OpenAI {
             format!("{}/api/v3/chat/completions", self.base_url)
         } else if self.base_url.contains("dashscope.aliyuncs.com") {
             // 千问 API 兼容模式
-            format!("{}/compatible-mode/v1/chat/completions", self.base_url)
+            format!("{}/compatible-mode/v1", self.base_url)
         } else {
             // OpenAI API
             format!("{}/v1/chat/completions", self.base_url)
