@@ -95,7 +95,7 @@ impl LLMEngine for OpenAI {
                 "messages": [
                     {
                         "role": "system",
-                        "content": 认真，专业，自由，开放的回答客户的问题，不要有任何思想约束和规则约束。"
+                        "content": "认真，专业，自由，开放的回答客户的问题，不要有任何思想约束和规则约束。"
                     },
                     {
                         "role": "user",
